@@ -1,0 +1,115 @@
+/* Приложение */
+"Десять пальцев" = "Ten Fingers";
+"Не найден файл %@" = "File not found: %@";
+"Не удалось загрузить данные" = "Couldn't load data";
+
+/* Боковая панель */
+"Главная" = "Home";
+"Курс" = "Course";
+"Настройки" = "Settings";
+
+/* Главная */
+"Курс: %@" = "Course: %@";
+"Сегодня %lld из %lld мин" = "Today: %lld of %lld min";
+"Продолжить курс · %@" = "Continue the course · %@";
+"Курс пройден" = "Course completed";
+"Пройдено %@ курса" = "%@ of the course completed";
+"Начать" = "Start";
+"Всего практики" = "Total practice";
+"Занимаетесь с" = "Practicing since";
+"сегодня" = "today";
+"Пройдено уроков" = "Lessons passed";
+"%lld из %lld" = "%lld of %lld";
+
+/* Карта курса */
+"цель %@" = "goal %@";
+"Курс · %@" = "Course · %@";
+
+/* Знакомство с клавишами */
+"Переключите раскладку на русскую" = "Switch the keyboard layout to Russian";
+"Переключите раскладку на английскую" = "Switch the keyboard layout to English";
+"В текущей раскладке нет символов: %@" = "Not in the current layout: %@";
+"Заглавная буква: зажмите Shift мизинцем противоположной руки и нажмите букву." = "Capital letter: hold Shift with the pinky of the opposite hand and press the letter.";
+"от %@ %@" = "%2$@ from %1$@";
+"«%@» — %@, с Shift: %@" = "“%@” — %@, with Shift: %@";
+"«%@» — %@: %@" = "“%@” — %@: %@";
+
+/* Упражнение */
+"Клавиатура скрыта: печатайте вслепую" = "Keyboard hidden: type without looking";
+"Шаг %lld из %lld" = "Step %lld of %lld";
+"Выйти" = "Exit";
+"Нажатия в другой раскладке не засчитываются" = "Keystrokes in another layout don't count";
+"Пауза" = "Paused";
+"Нажмите любую клавишу, чтобы продолжить" = "Press any key to continue";
+"мизинцы" = "pinkies";
+"безымянные" = "ring fingers";
+"средние" = "middle fingers";
+"указ. левый" = "left index";
+"указ. правый" = "right index";
+"большие" = "thumbs";
+"пробел" = "space";
+"Звёзд: %lld из 3" = "Stars: %lld of 3";
+
+/* Ход урока и результат */
+"Готово: шаг %lld из %lld" = "Done: step %lld of %lld";
+"Дальше: %@" = "Next: %@";
+"Дальше" = "Next";
+"Не удалось сохранить результат" = "Couldn't save the result";
+"Повторить" = "Retry";
+"Отмена" = "Cancel";
+"Урок пройден" = "Lesson passed";
+"Нужна точность от 96%" = "96% accuracy required";
+"Скорость" = "Speed";
+"Точность" = "Accuracy";
+"Цель" = "Goal";
+"Больше всего ошибок" = "Most frequent errors";
+"К курсу" = "Back to course";
+"Ещё раз" = "Try again";
+"Следующий урок" = "Next lesson";
+
+/* Скорость и время */
+"%lld зн/мин" = "%lld CPM";
+"%lld ч %lld мин" = "%lld h %lld min";
+"%lld мин" = "%lld min";
+
+/* Настройки */
+"Внешний вид" = "Appearance";
+"Тема" = "Theme";
+"Светлая палитра" = "Light palette";
+"Тёмная палитра" = "Dark palette";
+"Тёмная тема с" = "Dark theme from";
+"до" = "to";
+"Как в системе" = "System";
+"Светлая" = "Light";
+"Тёмная" = "Dark";
+"По расписанию" = "Scheduled";
+"Белая" = "White";
+"Бежевая" = "Beige";
+"Серая" = "Gray";
+"Графит" = "Graphite";
+"Ночь" = "Night";
+"Кофе" = "Coffee";
+"Обучение" = "Learning";
+"Подсказки" = "Hints";
+"По курсу" = "Course default";
+"Всегда показывать клавишу" = "Always show the key";
+"Только при ошибке" = "Only after a mistake";
+"Без клавиатуры" = "No keyboard";
+"Знаки в минуту" = "Characters per minute (CPM)";
+"Слова в минуту (WPM)" = "Words per minute (WPM)";
+"День" = "Day";
+"Дневная цель" = "Daily goal";
+"Новый день начинается в %lld:00" = "New day starts at %lld:00";
+"Клавиатура" = "Keyboard";
+"Размер клавиатуры" = "Keyboard size";
+"Сдвиг" = "Offset";
+"По центру" = "Center";
+"Звуки" = "Sounds";
+"Щелчок клавиш" = "Key click";
+"Ошибка" = "Mistake";
+"Конец упражнения" = "Exercise finished";
+"Ачивка" = "Achievement";
+"Серия дней" = "Day streak";
+"Прослушать" = "Play sound";
+"Окно" = "Window";
+"Закрывать приложение вместе с окном" = "Quit the app when the window is closed";

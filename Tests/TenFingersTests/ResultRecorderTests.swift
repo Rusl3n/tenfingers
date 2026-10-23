@@ -1,0 +1,114 @@
+import Foundation
+import SwiftData
+import Testing
+import TypingCore
+@testable import TenFingers
+
+private func result(at date: Date, completed: Bool = true, lessonId: String? = "ru.1.1") -> ExerciseResult {
+    var engine = TypingEngine(text: "ао")
+    _ = engine.handle(Keystroke(character: "а", keyCode: 3, timestamp: 0))
+    if completed {
+        _ = engine.handle(Keystroke(character: "x", keyCode: 7, timestamp: 0.2))
+        _ = engine.handle(Keystroke(character: "о", keyCode: 38, timestamp: 0.5))
+    }
+    return ExerciseResult(engine: engine, mode: .course, language: .ru, lessonId: lessonId,
+                          startedAt: date, endedAt: date, hintLevel: .full)
+}
+
+private func date(_ day: Int, _ hour: Int) -> Date {
+    Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour))!
+}
+
+@MainActor @Test func sameLogicalDayIsAggregated() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit { try recorder.record(result(at: date(23, 20))) }
+    try recorder.commit { try recorder.record(result(at: date(24, 2))) } // ещё 23-е
+    try recorder.commit { try recorder.record(result(at: date(24, 3), completed: false)) } // брошено
+    let days = try container.mainContext.fetch(FetchDescriptor<DayRecord>())
+    #expect(days.count == 1)
+    #expect(days[0].logicalDay == "2026-10-23")
+    #expect(days[0].completedExercises == 2)
+    #expect(days[0].abandonedExercises == 1)
+    #expect(days[0].languages == ["ru"])
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 3)
+}
+
+@MainActor @Test func keyStatsAccumulate() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit { try recorder.record(result(at: date(23, 12))) }
+    try recorder.commit { try recorder.record(result(at: date(23, 13))) }
+    let stats = try container.mainContext.fetch(FetchDescriptor<KeyStat>())
+    let o = try #require(stats.first { $0.character == "о" })
+    #expect(o.presses == 2)
+    #expect(o.errors == 2)
+    #expect(o.ewmaMs == 500)
+    #expect(o.recent == [true, true])
+    #expect(o.keyCode == 38)
+}
+
+@MainActor @Test func lessonProgressKeepsBestAndPassDate() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit { try recorder.recordLesson(result(at: date(23, 12)), stars: 0) }
+    try recorder.commit { try recorder.recordLesson(result(at: date(23, 13)), stars: 2) }
+    try recorder.commit { try recorder.recordLesson(result(at: date(23, 14)), stars: 1) }
+    let progress = try #require(try container.mainContext.fetch(FetchDescriptor<LessonProgress>()).first)
+    #expect(progress.attempts == 3)
+    #expect(progress.bestStars == 2)
+    #expect(progress.passedAt == date(23, 13))
+}
+
+@MainActor @Test func countersIncrement() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit { try recorder.increment(CounterName.wrongLayoutStarts) }
+    try recorder.commit { try recorder.increment(CounterName.wrongLayoutStarts) }
+    let counter = try #require(try container.mainContext.fetch(FetchDescriptor<CounterRecord>()).first)
+    #expect(counter.value == 2)
+}
+
+private struct Boom: Error {}
+
+@MainActor @Test func failedCommitPersistsNothing() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    #expect(throws: Boom.self) {
+        try recorder.commit {
+            try recorder.record(result(at: date(23, 12)))
+            try recorder.increment(CounterName.capsLockPresses)
+            throw Boom()
+        }
+    }
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 0)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<DayRecord>()) == 0)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<KeyStat>()) == 0)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<CounterRecord>()) == 0)
+}
+
+@MainActor @Test func sessionStoresExerciseKindAndPinkyCounts() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    // ф (0, левый мизинец) с ошибкой, ж (41, правый мизинец) без ошибки
+    var engine = TypingEngine(text: "фж")
+    _ = engine.handle(Keystroke(character: "x", keyCode: 7, timestamp: 0))
+    _ = engine.handle(Keystroke(character: "ф", keyCode: 0, timestamp: 0.1))
+    _ = engine.handle(Keystroke(character: "ж", keyCode: 41, timestamp: 0.3))
+    let checked = ExerciseResult(engine: engine, mode: .course, language: .ru, lessonId: "ru.1.4",
+                                 startedAt: date(23, 12), endedAt: date(23, 12), hintLevel: .full,
+                                 exerciseKind: .check)
+    try recorder.commit {
+        try recorder.record(checked)
+        try recorder.record(result(at: date(23, 13)))
+    }
+    let sessions = try container.mainContext.fetch(
+        FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.startedAt)]))
+    #expect(sessions.count == 2)
+    #expect(sessions[0].exerciseKind == "check")
+    #expect(sessions[0].pinkyPresses == 2)
+    #expect(sessions[0].pinkyErrors == 1)
+    #expect(sessions[1].exerciseKind == nil)
+    #expect(sessions[1].pinkyPresses == 0)
+    #expect(sessions[1].pinkyErrors == 0)
+}

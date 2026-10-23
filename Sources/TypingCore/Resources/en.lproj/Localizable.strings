@@ -1,0 +1,92 @@
+/* Пальцы */
+"левый мизинец" = "left pinky";
+"левый безымянный" = "left ring finger";
+"левый средний" = "left middle finger";
+"левый указательный" = "left index finger";
+"большой палец" = "thumb";
+"правый указательный" = "right index finger";
+"правый средний" = "right middle finger";
+"правый безымянный" = "right ring finger";
+"правый мизинец" = "right pinky";
+
+/* Куда тянуться пальцу (ReachDescription) */
+"исходная позиция" = "home position";
+"на месте" = "in place";
+"вверх" = "up";
+"вниз" = "down";
+"влево" = "left";
+"вправо" = "right";
+"на %lld ряда вверх" = "%lld rows up";
+"на %lld ряда вниз" = "%lld rows down";
+" и " = " and ";
+
+/* Языки курсов */
+"Русский" = "Russian";
+"English" = "English";
+
+/* Упражнения урока */
+"Отработка новых клавиш" = "New keys drill";
+"Сочетания" = "Combinations";
+"Слова" = "Words";
+"Проверочный текст" = "Checkpoint text";
+
+/* Этапы курсов */
+"Основной ряд" = "Home row";
+"Верхний ряд" = "Top row";
+"Нижний ряд" = "Bottom row";
+"Заглавные и пунктуация" = "Capitals and punctuation";
+"Цифры и символы" = "Digits and symbols";
+
+/* Уроки курсов */
+"А и О" = "А and О";
+"В и Л" = "В and Л";
+"Ы и Д" = "Ы and Д";
+"Ф и Ж" = "Ф and Ж";
+"П и Р" = "П and Р";
+"Контрольный: основной ряд" = "Checkpoint: home row";
+"К и Е" = "К and Е";
+"Н и Г" = "Н and Г";
+"У и Ш" = "У and Ш";
+"Ц и Щ" = "Ц and Щ";
+"Й и З" = "Й and З";
+"Х и Ъ" = "Х and Ъ";
+"Контрольный: верхний ряд" = "Checkpoint: top row";
+"М и И" = "М and И";
+"Т и Ь" = "Т and Ь";
+"С и Б" = "С and Б";
+"Ч и Ю" = "Ч and Ю";
+"Я и точка" = "Я and period";
+"Контрольный: нижний ряд" = "Checkpoint: bottom row";
+"Э и Ё" = "Э and Ё";
+"Заглавные буквы" = "Capital letters";
+"Запятая" = "Comma";
+"Дефис" = "Hyphen";
+"Контрольный: весь алфавит" = "Checkpoint: whole alphabet";
+"Цифры 1–5" = "Digits 1–5";
+"Цифры 6–0" = "Digits 6–0";
+"! ? :" = "! ? :";
+"; \" №" = "; \" №";
+"( ) %" = "( ) %";
+"Контрольный: цифры и символы" = "Checkpoint: digits and symbols";
+"F и J" = "F and J";
+"D и K" = "D and K";
+"S и L" = "S and L";
+"A и ;" = "A and ;";
+"G и H" = "G and H";
+"R и U" = "R and U";
+"E и I" = "E and I";
+"W и O" = "W and O";
+"Q и P" = "Q and P";
+"T и Y" = "T and Y";
+"[ и ]" = "[ and ]";
+"V и M" = "V and M";
+"C и запятая" = "C and comma";
+"X и точка" = "X and period";
+"Z и /" = "Z and /";
+"B и N" = "B and N";
+"' и \"" = "' and \"";
+": и ?" = ": and ?";
+"- и _" = "- and _";
+"! @ #" = "! @ #";
+"$ % ^" = "$ % ^";
+"& * ( )" = "& * ( )";
