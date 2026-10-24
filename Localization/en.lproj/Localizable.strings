@@ -413,7 +413,7 @@
 "Выключите, чтобы скрыть ачивки с крепким словцом. Получать их это не мешает." = "Turn off to hide achievements with strong language. You still earn them.";
 "Получено %lld из %lld" = "Earned %lld of %lld";
 "Пока ни одной: они появятся после занятий" = "None yet: they will appear as you practice";
-"Новые ачивки: %@" = "New achievements: %@";
+"И ещё %lld — в разделе «Ачивки»" = "And %lld more in Achievements";
 "Новая ачивка: %@" = "New achievement: %@";
 "Получена %lld ачивка за прошлые занятия" = "%lld achievement earned for past practice";
 "Получено %lld ачивки за прошлые занятия" = "%lld achievements earned for past practice";

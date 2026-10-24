@@ -5,7 +5,7 @@
 <p align="center">Тренажёр слепой десятипальцевой печати для macOS — русская и английская раскладки.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F-1.1.0-blue" alt="Версия 1.1.0">
+  <img src="https://img.shields.io/badge/%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F-1.1.1-blue" alt="Версия 1.1.1">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 

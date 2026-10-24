@@ -6,7 +6,7 @@ struct LessonResultView: View {
     let stars: Int
     let targetCpm: Int
     let hasNext: Bool
-    /// Ачивки, полученные в сохранении проверки.
+    /// Ачивки, полученные за весь урок (и на промежуточных шагах).
     var newAchievements: [Achievement] = []
     /// Пройден последний урок этапа или курса (`ShareEvent.completion`): строка с предложением поделиться.
     var completion: ShareEvent?
@@ -33,7 +33,7 @@ struct LessonResultView: View {
                 if targetCpm > 0 { metric("Цель", unit.format(Double(targetCpm))) }
             }
             NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, targetCpm: targetCpm, unit: unit)
-            NewAchievementsLine(achievements: newAchievements)
+            NewAchievementCards(achievements: newAchievements)
             if let completion { CompletionShareLine(event: completion) }
             if !summary.topErrors.isEmpty {
                 VStack(spacing: 6) {

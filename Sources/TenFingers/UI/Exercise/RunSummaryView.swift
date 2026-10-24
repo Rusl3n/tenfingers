@@ -14,7 +14,7 @@ struct RunSummaryView: View {
     let cpm: Double
     let accuracy: Double
     var lines: [String] = []
-    /// Ачивки, полученные в сохранении этой порции.
+    /// Ачивки этой порции; у итога «Слабых мест» — всей тренировки (`runAchievements`).
     var newAchievements: [Achievement] = []
     let primaryTitle: LocalizedStringKey
     let onPrimary: () -> Void
@@ -40,7 +40,7 @@ struct RunSummaryView: View {
                     ForEach(lines, id: \.self) { Text($0).font(.title3) }
                 }
             }
-            NewAchievementsLine(achievements: newAchievements)
+            NewAchievementCards(achievements: newAchievements)
             HStack(spacing: 12) {
                 if let secondaryTitle, let onSecondary {
                     Button(secondaryTitle, action: onSecondary)

@@ -32,11 +32,10 @@ final class ExerciseCoordinator {
     /// Проверка ачивок после каждого успешного сохранения (отдельной транзакцией: упражнение уже записано,
     /// а невыданное выдаст следующая проверка). `nil` — ачивки не проверяются (тесты).
     @ObservationIgnored var achievements: AchievementService?
-    /// Ачивки, полученные в последнем сохранении (для строки «Новые ачивки: …» на экране итога).
+    /// Ачивки, полученные в последнем сохранении (карточки на экране итога шага или порции).
     private(set) var newAchievements: [Achievement] = []
-    /// Вызывается с новыми видимыми ачивками последнего сохранения (тосты; ачивки с `adult` при выключенном
-    /// «Взрослом юморе» уже отброшены); звук `.achievement` играет координатор.
-    @ObservationIgnored var onAchievements: (([Achievement]) -> Void)?
+    /// Ачивки всех сохранений с последнего `resetRunAchievements()` (карточки на итоге урока: и с промежуточных шагов).
+    private(set) var runAchievements: [Achievement] = []
     /// «Взрослый юмор» (читается при каждой проверке).
     @ObservationIgnored var adultHumor: () -> Bool = { StoredSettings.adultHumor() }
 
@@ -52,6 +51,8 @@ final class ExerciseCoordinator {
     @ObservationIgnored private var dayCompletedKey: String?
     @ObservationIgnored private var pendingSave: (() throws -> Void)?
     @ObservationIgnored private var exitAfterSave = false
+    /// Будет ли после сохранения экран итога с карточками ачивок: без него ачивки записываются без звука.
+    @ObservationIgnored private var announceAfterSave = true
     /// Источник текста текущей сессии (`SessionRecord.source`).
     @ObservationIgnored private var source: String?
     /// Записало ли последнее сохранение сессию: запись вне упражнения без сессии ачивки не проверяет.
@@ -77,14 +78,13 @@ final class ExerciseCoordinator {
         }
     }
 
-    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» и тосты ачивок.
+    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» и проверка ачивок.
     static func live(context: ModelContext, sound: SoundPlayer, toasts: ToastCenter,
                      reminders: ReminderScheduler? = nil) -> ExerciseCoordinator {
         let coordinator = ExerciseCoordinator(recorder: .live(context: context), playSound: { sound.play($0) })
         coordinator.onDayCompleted = { [toasts] in toasts.showFullFlame() }
         coordinator.onSaved = { [weak reminders] in reminders?.rescheduleSoon() }
         coordinator.achievements = .live(context: context)
-        coordinator.onAchievements = { [toasts] in toasts.showAchievements($0, adultHumor: true) }
         return coordinator
     }
 
@@ -112,6 +112,7 @@ final class ExerciseCoordinator {
         let recorder = self.recorder
         let source = self.source
         exitAfterSave = false
+        announceAfterSave = true
         return save(trackingDay(endedAt: result.endedAt) {
             try recorder.record(result, source: source)
             try Self.recordCounters(session, recorder)
@@ -125,6 +126,7 @@ final class ExerciseCoordinator {
     func commitStandalone(_ body: @escaping (ResultRecorder) throws -> Void) -> Bool {
         let recorder = self.recorder
         exitAfterSave = false
+        announceAfterSave = true
         return save { [weak self] in
             try body(recorder)
             self?.bodyRecordedSession = recorder.context.insertedModelsArray.contains { $0 is SessionRecord }
@@ -133,13 +135,15 @@ final class ExerciseCoordinator {
 
     /// Кнопка «Выйти»: записывает брошенное упражнение. `true` — можно уходить сразу,
     /// `false` — сохранение не удалось, показан алерт (после него вызовется `onExitAfterAlert`).
-    func exit() -> Bool {
+    /// `announce` — после выхода будет итог с карточками ачивок («Слабые места»): тогда звук ачивки есть.
+    func exit(announce: Bool = false) -> Bool {
         guard let session, !session.isRecorded else { return true }
         // Пока открыт алерт об ошибке, монитор клавиш не должен забирать Return и Esc.
         session.stop()
         session.onFinish = nil
         session.markRecorded()
         exitAfterSave = true
+        announceAfterSave = announce
         // Результат собирается один раз: его же время конца определяет логический день для «полного огня».
         let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
         return save(trackingDay(endedAt: abandoned?.endedAt,
@@ -173,8 +177,9 @@ final class ExerciseCoordinator {
                 NotificationCenter.default.post(name: .fullDayPending, object: nil)
             }
         }
-        // Ачивки выдаются всегда; тост и звук — только если экран остаётся (иначе их увидят непросмотренными).
-        checkAchievements(announce: announce, afterStreak: announce && dayCompleted != nil)
+        // Ачивки выдаются всегда, но без звука: итога с карточками на этом пути нет (уход или «Начать урок заново»),
+        // их увидят непросмотренными в разделе «Ачивки».
+        checkAchievements(announce: false, afterStreak: false)
         onSaved?()
     }
 
@@ -184,11 +189,16 @@ final class ExerciseCoordinator {
         guard let achievements else { return }
         let earned = achievements.checkLogging(reason: .afterSave).new
         newAchievements = earned
-        // Скрытые («Взрослый юмор» выключен) выдаются молча: ни тоста, ни звука.
+        runAchievements += earned
+        // Новые показываются карточками на экране итога (тоста нет); скрытые («Взрослый юмор» выключен) — без звука.
         let visible = AchievementVisibility.visible(earned, adultHumor: adultHumor())
         guard announce, !visible.isEmpty else { return }
         afterDelay(afterStreak ? Self.streakDelay * 2 : Self.streakDelay) { [playSound] in playSound(.achievement) }
-        onAchievements?(visible)
+    }
+
+    /// Начало урока или нового прохода («Ещё раз»): копилка ачивок запуска пустеет.
+    func resetRunAchievements() {
+        runAchievements = []
     }
 
     /// Тост сразу, звук серии — через `streakDelay`.
@@ -253,7 +263,7 @@ final class ExerciseCoordinator {
                 dayCompletedKey = nil
                 announceFullDay()
             }
-            if bodyRecordedSession { checkAchievements(announce: true, afterStreak: dayCompleted) }
+            if bodyRecordedSession { checkAchievements(announce: announceAfterSave, afterStreak: dayCompleted) }
             onSaved?()
             return true
         } catch {

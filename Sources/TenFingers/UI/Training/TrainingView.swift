@@ -120,7 +120,7 @@ struct TrainingView: View {
                 Spacer()
                 Button("Начать") { start(.adaptive(TrainingRun(language: language))) }
                     .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.return)
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)

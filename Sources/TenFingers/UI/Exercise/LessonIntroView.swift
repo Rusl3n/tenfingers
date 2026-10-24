@@ -67,7 +67,7 @@ struct LessonIntroView: View {
                 .keyboardPlacement(offset: keyboardOffset, unit: keyboardUnitValue)
             Button("Начать", action: onStart)
                 .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.return)
+                .keyboardShortcut(.defaultAction)
         }
         .padding(28)
         // Пока запуск скрыт другим разделом, подсветка не мигает: таймер не работает.

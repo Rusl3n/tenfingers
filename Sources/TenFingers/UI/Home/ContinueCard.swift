@@ -23,7 +23,7 @@ struct ContinueCard: View {
             if let run = info.lessonRun {
                 Button("Начать") { start(run) }
                     .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.return)
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)

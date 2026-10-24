@@ -66,12 +66,13 @@ private final class ManualToastTimer {
     #expect(clock.entries.map(\.duration) == [.seconds(3)])
 }
 
-/// Настоящий таймер: ждём с большим запасом, проверка не зависит от нагрузки на машину.
+/// Настоящий таймер. Ждём по числу итераций, а не по часам: на загруженной машине (CI) главный актор
+/// бывает занят другими тестами десятки секунд, и срок по часам истекал раньше, чем таймер успевал сработать.
+/// Каждая итерация отдаёт главный актор, поэтому у задачи таймера всегда есть шанс выполниться.
 @MainActor @Test func liveTimerDismissesEventually() async throws {
     let toasts = ToastCenter(duration: .milliseconds(10))
     toasts.show(Toast(icon: "a", message: "m", tint: .orange))
-    let deadline = ContinuousClock.now + .seconds(30)
-    while toasts.current != nil, ContinuousClock.now < deadline {
+    for _ in 0..<3_000 where toasts.current != nil {
         try await Task.sleep(for: .milliseconds(20))
     }
     #expect(toasts.current == nil)

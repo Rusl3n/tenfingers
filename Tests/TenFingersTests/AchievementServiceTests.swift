@@ -347,21 +347,10 @@ private func at(_ text: String) -> Date {
     #expect(SidebarItem.allCases.firstIndex(of: .achievements) == SidebarItem.allCases.firstIndex(of: .analytics)! + 1)
 }
 
-/// Строка «Новые ачивки: …» на экранах итога: только видимые, `nil`, если показывать нечего.
-@Test func resultLineListsVisibleAchievements() throws {
-    let adult = try #require(AchievementCatalog.all.first { $0.adult })
-    let plain = try #require(AchievementCatalog.all.first { $0.id == "course.first_lesson" })
-    #expect(AchievementVisibility.resultLine([], adultHumor: true) == nil)
-    #expect(AchievementVisibility.resultLine([adult], adultHumor: false) == nil)
-    let line = try #require(AchievementVisibility.resultLine([plain, adult], adultHumor: true))
-    #expect(line.contains(plain.title) && line.contains(adult.title))
-}
-
 // MARK: - Координатор: проверка после сохранения
 
 @MainActor private final class Heard {
     var sounds: [SoundEvent] = []
-    var announced: [[String]] = []
     var delayed: [(Duration, @MainActor () -> Void)] = []
 }
 
@@ -387,7 +376,6 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     let oops = AchievementCatalog.all.filter { $0.id == "fun.oy_vsyo" }
     coordinator.achievements = AchievementService(recorder: recorder, goalSeconds: { goalSeconds }, timeZone: msk,
                                                   now: { Date() }, catalog: oops)
-    coordinator.onAchievements = { heard.announced.append($0.map(\.id)) }
     return (coordinator, container, heard)
 }
 
@@ -400,7 +388,6 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
 
     finishExercise(coordinator)
     #expect(coordinator.newAchievements.map(\.id) == ["fun.oy_vsyo"])
-    #expect(heard.announced == [["fun.oy_vsyo"]])
     // Звук ачивки — после звука результата, с паузой.
     #expect(heard.delayed.map(\.0) == [ExerciseCoordinator.streakDelay])
     #expect(!heard.sounds.contains(.achievement))
@@ -408,10 +395,97 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     #expect(heard.sounds.last == .achievement)
     #expect(try container.mainContext.fetchCount(FetchDescriptor<AchievementRecord>()) == 1)
 
-    // Следующее сохранение: ничего нового, строка итога пустая.
+    // Следующее сохранение: ничего нового — ни карточек, ни второго звука.
     finishExercise(coordinator)
     #expect(coordinator.newAchievements.isEmpty)
-    #expect(heard.announced.count == 1)
+    #expect(heard.delayed.count == 1)
+}
+
+/// Упражнение начато, но не закончено: одно нажатие из двух.
+@MainActor private func startUnfinishedExercise(_ coordinator: ExerciseCoordinator) {
+    let session = coordinator.start(spec: spec, language: .ru, mode: .practice, lessonId: nil, hint: .full) { s, r in
+        coordinator.recordFinish(s, r)
+    }
+    session.layoutLanguage = .ru
+    _ = session.handleKey(characters: "а", keyCode: 3, modifiers: [], timestamp: 0)
+}
+
+/// «Выйти» без итога: ачивка записана и попадает в копилку, но звука нет — карточку показать негде.
+/// С итогом после выхода (`announce: true`, «Слабые места») звук есть.
+@MainActor @Test func exitWithoutSummaryRecordsAchievementsSilently() throws {
+    let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 1e9)
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 1
+    container.mainContext.insert(caps)
+    try container.mainContext.save()
+
+    startUnfinishedExercise(coordinator)
+    #expect(coordinator.exit())
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<AchievementRecord>()) == 1)
+    #expect(coordinator.runAchievements.map(\.id) == ["fun.oy_vsyo"])
+    #expect(heard.delayed.isEmpty)
+}
+
+@MainActor @Test func exitIntoSummaryAnnouncesAchievementsWithSound() throws {
+    let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 1e9)
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 1
+    container.mainContext.insert(caps)
+    try container.mainContext.save()
+
+    startUnfinishedExercise(coordinator)
+    #expect(coordinator.exit(announce: true))
+    #expect(heard.delayed.map(\.0) == [ExerciseCoordinator.streakDelay])
+}
+
+/// «Начать урок заново» (`recordAbandonIfNeeded(announce: true)`): копилка урока сбрасывается, карточки не будет,
+/// поэтому и звука ачивки нет.
+@MainActor @Test func restartRecordsAchievementsWithoutSound() throws {
+    let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 1e9)
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 1
+    container.mainContext.insert(caps)
+    try container.mainContext.save()
+
+    startUnfinishedExercise(coordinator)
+    coordinator.recordAbandonIfNeeded(announce: true)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<AchievementRecord>()) == 1)
+    #expect(heard.delayed.isEmpty)
+    #expect(!heard.sounds.contains(.achievement))
+}
+
+/// Ачивки всего урока копятся от `resetRunAchievements()` до следующего сброса: итог урока показывает и ачивки
+/// промежуточных шагов, а итог шага — только свои (`newAchievements`).
+@MainActor @Test func runAchievementsAccumulateAcrossSavesUntilReset() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    let coordinator = ExerciseCoordinator(recorder: recorder, playSound: { _ in }, goalSeconds: { 1e9 },
+                                          afterDelay: { _, _ in })
+    let catalog = AchievementCatalog.all.filter { ["fun.oy_vsyo", "fun.ghbdtn"].contains($0.id) }
+    coordinator.achievements = AchievementService(recorder: recorder, goalSeconds: { 1e9 }, timeZone: msk,
+                                                  now: { Date() }, catalog: catalog)
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 1
+    container.mainContext.insert(caps)
+    try container.mainContext.save()
+
+    coordinator.resetRunAchievements()
+    finishExercise(coordinator)
+    #expect(coordinator.runAchievements.map(\.id) == ["fun.oy_vsyo"])
+
+    let layout = CounterRecord(name: CounterName.wrongLayoutStarts)
+    layout.value = 10
+    container.mainContext.insert(layout)
+    try container.mainContext.save()
+    finishExercise(coordinator)
+    #expect(coordinator.newAchievements.map(\.id) == ["fun.ghbdtn"])
+    #expect(coordinator.runAchievements.map(\.id) == ["fun.oy_vsyo", "fun.ghbdtn"])
+
+    finishExercise(coordinator)
+    #expect(coordinator.newAchievements.isEmpty)
+    #expect(coordinator.runAchievements.count == 2)
+    coordinator.resetRunAchievements()
+    #expect(coordinator.runAchievements.isEmpty)
 }
 
 /// День стал полным в том же сохранении: «Полный огонь» и звук серии первыми, звук ачивки — после них.
@@ -428,13 +502,13 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     #expect(Array(heard.sounds.suffix(2)) == [.streak, .achievement])
 }
 
-/// Нет нового — нет ни тоста, ни звука.
+/// Нет нового — нет ни карточек, ни звука.
 @MainActor @Test func nothingNewMeansNoAnnouncement() throws {
     let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 1e9)
     finishExercise(coordinator)
     #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 1)
     #expect(coordinator.newAchievements.isEmpty)
-    #expect(heard.announced.isEmpty && heard.delayed.isEmpty)
+    #expect(heard.delayed.isEmpty)
 }
 
 // MARK: - Проверка на копии настоящей базы
@@ -467,7 +541,7 @@ func probeAchievementsOnStoreCopy() throws {
 
 // MARK: - Ревью: скрытые ачивки, кэш фактов, отдельные записи, замена прогресса
 
-/// Ачивка с `adult` при выключенном «Взрослом юморе»: запись создаётся, но ни тоста, ни звука.
+/// Ачивка с `adult` при выключенном «Взрослом юморе»: запись создаётся, но без звука (и без карточки).
 @MainActor @Test func hiddenAdultAchievementIsRecordedSilently() throws {
     let container = try ModelStore.makeContainer(inMemory: true)
     let heard = Heard()
@@ -480,14 +554,12 @@ func probeAchievementsOnStoreCopy() throws {
     coordinator.achievements = AchievementService(recorder: recorder, goalSeconds: { 1e9 }, timeZone: msk,
                                                   now: { Date() }, catalog: [adult])
     coordinator.adultHumor = { false }
-    coordinator.onAchievements = { heard.announced.append($0.map(\.id)) }
     // Весь алфавит открыт в адаптивном режиме — «бля» открыто.
     container.mainContext.insert(AdaptiveState(language: "ru", unlockedCount: Language.ru.adaptiveOrder.count))
     try container.mainContext.save()
 
     finishExercise(coordinator)
     #expect(try container.mainContext.fetch(FetchDescriptor<AchievementRecord>()).map(\.achievementId) == [adult.id])
-    #expect(heard.announced.isEmpty)
     #expect(heard.delayed.isEmpty)
     #expect(!heard.sounds.contains(.achievement))
 }
@@ -502,7 +574,7 @@ func probeAchievementsOnStoreCopy() throws {
 
     #expect(coordinator.commitStandalone { recorder in try recorder.increment("unrelated") })
     #expect(try container.mainContext.fetchCount(FetchDescriptor<AchievementRecord>()) == 0)
-    #expect(heard.announced.isEmpty)
+    #expect(heard.delayed.isEmpty)
     finishExercise(coordinator)
     #expect(try container.mainContext.fetchCount(FetchDescriptor<AchievementRecord>()) == 1)
 }

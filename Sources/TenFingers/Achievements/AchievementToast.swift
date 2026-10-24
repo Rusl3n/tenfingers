@@ -2,18 +2,10 @@ import SwiftUI
 import TypingCore
 
 /// Что из полученного показывать: с выключенным «Взрослым юмором» ачивки с `adult` скрыты
-/// (из тостов, строки итога, списка и карточек), но выдаются как обычно.
+/// (из тостов, карточек итога, списка и карточек «Поделиться»), но выдаются как обычно.
 enum AchievementVisibility {
     static func visible(_ achievements: [Achievement], adultHumor: Bool) -> [Achievement] {
         adultHumor ? achievements : achievements.filter { !$0.adult }
-    }
-
-    /// «Новые ачивки: Ночная сова, Стальные мизинцы» для экранов итога; `nil`, если показывать нечего.
-    static func resultLine(_ achievements: [Achievement], adultHumor: Bool) -> String? {
-        let shown = visible(achievements, adultHumor: adultHumor)
-        guard !shown.isEmpty else { return nil }
-        let titles = shown.map(\.title).joined(separator: ", ")
-        return String(localized: "Новые ачивки: \(titles)")
     }
 }
 
@@ -49,25 +41,6 @@ extension ToastCenter {
                           tint: AchievementToasts.tint,
                           action: ToastAction(title: String(localized: "Посмотреть"), perform: open))
         enqueue([toast], duration: AchievementToasts.summaryDuration, step: AchievementToasts.summaryDuration)
-    }
-}
-
-/// Строка «Новые ачивки: …» на экране итога урока или порции (ачивки последнего сохранения).
-struct NewAchievementsLine: View {
-    let achievements: [Achievement]
-    @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
-
-    var body: some View {
-        if let line = AchievementVisibility.resultLine(achievements, adultHumor: adultHumor) {
-            // Текст основным цветом (жёлтый плохо читается на светлых палитрах), жёлтая только иконка.
-            Label {
-                Text(line).foregroundStyle(.primary)
-            } icon: {
-                Image(systemName: "trophy.fill").foregroundStyle(AchievementToasts.tint)
-            }
-            .font(.title3)
-            .multilineTextAlignment(.center)
-        }
     }
 }
 

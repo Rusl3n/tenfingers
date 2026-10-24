@@ -111,6 +111,7 @@ struct WeakSpotsRunnerView: View {
                            speedTitle: "Средняя скорость",
                            cpm: summary.totals.cpm, accuracy: summary.totals.accuracy,
                            lines: keys.isEmpty ? [] : [String(localized: "Клавиши: \(keys)")],
+                           newAchievements: coordinator?.runAchievements ?? [],
                            primaryTitle: "Готово", onPrimary: onExit)
         }
     }
@@ -193,6 +194,7 @@ struct WeakSpotsRunnerView: View {
         if let session = coordinator.session, !session.isRecorded, session.shouldRecordAbandon {
             totals.add(session.makeResult())
         }
-        if coordinator.exit() { finishOrExit() }
+        // Итог (с карточками ачивок) будет, если что-то успели напечатать.
+        if coordinator.exit(announce: totals.chars > 0) { finishOrExit() }
     }
 }

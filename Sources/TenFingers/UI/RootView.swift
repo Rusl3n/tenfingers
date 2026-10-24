@@ -240,6 +240,7 @@ struct RootView: View {
                 }
                 if !isRunVisible { section }
             }
+            .environment(\.openAchievements, OpenAchievementsAction(openAchievements))
         }
     }
 

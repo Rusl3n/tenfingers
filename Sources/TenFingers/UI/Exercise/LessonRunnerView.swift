@@ -89,13 +89,14 @@ struct LessonRunnerView: View {
                     .font(.title2).monospacedDigit()
                 StepDotsView(current: index + 1, total: exercises.count)
                 Text("Дальше: \(exercises[index + 1].localizedTitle)").foregroundStyle(.secondary)
+                NewAchievementCards(achievements: coordinator?.newAchievements ?? [])
                 Button("Дальше") { begin(index + 1) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
         case .result(let summary, let stars):
             LessonResultView(summary: summary, stars: stars, targetCpm: context?.targetCpm ?? 0,
-                             hasNext: nextRun != nil, newAchievements: coordinator?.newAchievements ?? [],
+                             hasNext: nextRun != nil, newAchievements: coordinator?.runAchievements ?? [],
                              completion: course.flatMap { ShareEvent.completion(course: $0, lessonId: run.lessonId, stars: stars) },
                              onRetry: prepare,
                              onNext: { if let nextRun { onStart(nextRun) } }, onExit: onExit)
@@ -125,6 +126,8 @@ struct LessonRunnerView: View {
             self.coordinator = coordinator
         }
         coordinator?.onExitAfterAlert = onExit
+        // Новый проход урока: на его итоге — ачивки только этого прохода.
+        coordinator?.resetRunAchievements()
         var rng = SystemRandomNumberGenerator()
         let plan = planner.exercises(for: context, rng: &rng)
         resumedStep = nil

@@ -44,7 +44,7 @@ struct StepResultView: View {
             if stars != nil {
                 NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, targetCpm: targetCpm, unit: unit)
             }
-            NewAchievementsLine(achievements: newAchievements)
+            NewAchievementCards(achievements: newAchievements)
             if let completion { CompletionShareLine(event: completion) }
             if !summary.topErrors.isEmpty {
                 HStack(spacing: 12) {
