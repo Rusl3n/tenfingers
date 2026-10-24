@@ -98,20 +98,26 @@ struct CourseLessonRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+            HStack(spacing: CourseColumns.spacing) {
                 Button {
                     start(LessonRun(language: language, lessonId: lesson.id))
                 } label: {
-                    HStack(spacing: 12) {
+                    HStack(spacing: CourseColumns.spacing) {
                         Image(systemName: isPassed ? "checkmark.circle.fill" : (isUnlocked ? "play.circle" : "lock"))
                             .foregroundStyle(isPassed ? Color.green : Color.secondary)
                             .frame(width: 20)
                         Text(lesson.localizedTitle)
                         Spacer()
-                        if bestCpm > 0 {
-                            Text(unit.format(bestCpm)).foregroundStyle(.secondary).monospacedDigit()
-                        }
-                        StarsView(count: overview.stars)
+                        // Слева направо: ошибки, скорость, звёзды. Ширина колонок не зависит от значений,
+                        // у строки без попыток ячейки пусты, но места не теряют.
+                        CourseColumn(id: "errors", text: CourseColumns.errorsText(overview.errors),
+                                     templates: CourseColumns.errorsTemplates)
+                            .foregroundStyle(.secondary)
+                            .help(Text("Сумма ошибок в лучших попытках шагов урока"))
+                        CourseColumn(id: "speed", text: CourseColumns.speedText(bestCpm, unit: unit),
+                                     templates: CourseColumns.speedTemplates)
+                            .foregroundStyle(.secondary)
+                        CourseStarsColumn(count: overview.stars)
                     }
                     .contentShape(Rectangle())
                 }
@@ -119,25 +125,22 @@ struct CourseLessonRow: View {
                 .disabled(!isUnlocked)
                 StarsHelpButton(targetCpm: targetCpm, unit: unit, isPresented: $showsStarsHelp)
                     .opacity(isHovered || isExpanded || showsStarsHelp ? 1 : 0.35)
-                if let average = overview.averageAccuracy {
-                    Text(verbatim: "Ø \(Formatting.percent(average))")
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .frame(minWidth: 64, alignment: .trailing)
-                        .help(Text("Средняя точность по шагам урока"))
+                    .courseColumnFrame("help")
+                if overview.errors != nil {
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) { isExpanded.toggle() }
                     } label: {
                         Image(systemName: "chevron.right")
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                            .frame(width: 18, height: 18)
+                            .frame(width: CourseColumns.chevronWidth, height: 18)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                     .help(isExpanded ? Text("Скрыть шаги") : Text("Показать шаги"))
+                    .courseColumnFrame("chevron")
                 } else {
-                    Color.clear.frame(width: 18 + 64 + 12, height: 1)
+                    Color.clear.frame(width: CourseColumns.chevronWidth, height: 18).courseColumnFrame("chevron")
                 }
             }
             if isExpanded, !overview.steps.isEmpty {
@@ -152,35 +155,124 @@ struct CourseLessonRow: View {
         .onHover { isHovered = $0 }
     }
 
+    /// Шаг: колонки «ошибки», «скорость» те же, что у строки урока (ширина по тем же шаблонам, правые края
+    /// совпадают), а «Пройти заново» стоит на месте звёзд, «?» и стрелки.
     private func stepRow(_ step: StepStat) -> some View {
-        HStack(spacing: 14) {
+        HStack(spacing: CourseColumns.spacing) {
             Text(step.kind.localizedTitle)
-                .frame(width: 210, alignment: .leading)
-            Text(Formatting.percent(step.bestAccuracy))
-                .foregroundStyle(Self.accuracyColor(step.bestAccuracy))
-                .frame(width: 64, alignment: .trailing)
-            Text("ошибок: \(step.errorsInBest)")
-                .foregroundStyle(.secondary)
-                .frame(width: 90, alignment: .leading)
-            Text(unit.format(step.bestCpm))
-                .foregroundStyle(.secondary)
             Spacer()
-            Button {
-                start(LessonRun(language: language, lessonId: lesson.id, onlyStep: step.kind))
-            } label: {
-                Label("Пройти заново", systemImage: "arrow.counterclockwise")
+            CourseColumn(id: "step.\(step.kind.rawValue).errors", text: CourseColumns.stepErrorsText(step.errorsInBest),
+                         templates: CourseColumns.errorsTemplates)
+                .foregroundStyle(Self.errorsColor(step))
+            CourseColumn(id: "step.\(step.kind.rawValue).speed", text: CourseColumns.speedText(step.bestCpm, unit: unit),
+                         templates: CourseColumns.speedTemplates)
+                .foregroundStyle(.secondary)
+            ZStack(alignment: .trailing) {
+                CourseColumns.trailingTemplate
+                Button {
+                    start(LessonRun(language: language, lessonId: lesson.id, onlyStep: step.kind))
+                } label: {
+                    Label("Пройти заново", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(!isUnlocked)
             }
-            .buttonStyle(.borderless)
-            .disabled(!isUnlocked)
+            .fixedSize(horizontal: true, vertical: false)
         }
         .font(.callout)
         .monospacedDigit()
     }
 
-    /// 100% — зелёным, ниже 98% — оранжевым.
-    static func accuracyColor(_ accuracy: Double) -> Color {
-        if accuracy >= 1 { return .green }
-        if accuracy < LessonScoring.twoStarAccuracy { return .orange }
-        return .primary
+    /// Без ошибок — зелёным, точность ниже порога чистого шага (мешает ★★★★★) — оранжевым, иначе приглушённо
+    /// (на пороге — тоже приглушённо: сравнение с допуском, как у звёзд).
+    static func errorsColor(_ step: StepStat) -> Color {
+        if step.errorsInBest == 0 { return .green }
+        if step.bestAccuracy + LessonScoring.accuracyTolerance < LessonScoring.cleanLessonStepAccuracy { return .orange }
+        return .secondary
+    }
+}
+
+/// Тексты колонок карты курса и их шаблоны ширины (чистые функции: проверяются без отрисовки).
+enum CourseColumns {
+    static let spacing: CGFloat = 12
+    static let chevronWidth: CGFloat = 18
+    /// Шрифт цифровых колонок общий у строки урока и строк шагов: ширина шаблона зависит от шрифта.
+    static let font = Font.callout
+
+    /// «ошибок: 3»; у урока без попыток (`nil`) — пусто.
+    static func errorsText(_ errors: Int?) -> String {
+        guard let errors else { return "" }
+        return String(localized: "ошибок: \(errors)")
+    }
+
+    /// «217 зн/мин»; без попыток (скорость 0) — пусто.
+    static func speedText(_ cpm: Double, unit: SpeedUnit) -> String {
+        cpm > 0 ? unit.format(cpm) : ""
+    }
+
+    /// Ошибки в строке шага: «0 ошибок», «1 ошибка».
+    static func stepErrorsText(_ errors: Int) -> String { Formatting.errors(errors) }
+
+    /// Самое длинное значение колонки ошибок: «ошибок: 999».
+    static var errorsTemplates: [String] { [errorsText(999)] }
+
+    /// Самые длинные значения скорости в обеих единицах: «999 зн/мин» и «99 WPM»; ширина одна для обеих.
+    static var speedTemplates: [String] { [SpeedUnit.cpm.format(999), SpeedUnit.wpm.format(99 * 5)] }
+
+    /// Невидимая копия блока «звёзды, ?, стрелка» строки урока: задаёт место под «Пройти заново» в строке шага.
+    @MainActor static var trailingTemplate: some View {
+        HStack(spacing: spacing) {
+            CourseStarsColumn(count: 0)
+            StarsHelpButton(targetCpm: 0, unit: .cpm)
+            Color.clear.frame(width: chevronWidth, height: 1)
+        }
+        .hidden()
+        .accessibilityHidden(true)
+    }
+}
+
+/// Рамки колонок для проверки раскладки (читаются тестом; в приложении не используются).
+struct CourseColumnFramesKey: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+extension View {
+    func courseColumnFrame(_ id: String) -> some View {
+        anchorPreference(key: CourseColumnFramesKey.self, value: .bounds) { [id: $0] }
+    }
+}
+
+/// Колонка с текстом по правому краю. Ширину задаёт невидимый самый длинный шаблон (по шрифту и языку, а не по
+/// числу), поэтому колонки в строках совпадают, а при масштабе интерфейса растут вместе с текстом.
+struct CourseColumn: View {
+    let id: String
+    let text: String
+    let templates: [String]
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            ForEach(templates, id: \.self) { Text($0).hidden() }
+            Text(text)
+        }
+        .lineLimit(1)
+        .font(CourseColumns.font)
+        .monospacedDigit()
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .combine)
+        .courseColumnFrame(id)
+    }
+}
+
+/// Колонка звёзд: всегда пять позиций, у урока без звёзд — пустые.
+struct CourseStarsColumn: View {
+    let count: Int
+
+    var body: some View {
+        StarsView(count: count)
+            .fixedSize()
+            .courseColumnFrame("stars")
     }
 }

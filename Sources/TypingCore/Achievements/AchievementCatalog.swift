@@ -56,8 +56,8 @@ public enum AchievementCatalog {
         Achievement(id: "course.ru", category: .course, icon: "checkmark.seal.fill", condition: .courseCompleted(.ru)),
         Achievement(id: "course.en", category: .course, icon: "checkmark.seal", condition: .courseCompleted(.en)),
         Achievement(id: "course.polyglot", category: .course, icon: "globe", condition: .polyglot),
-        Achievement(id: "course.stars.ru", category: .course, icon: "star.fill", condition: .allThreeStars(.ru)),
-        Achievement(id: "course.stars.en", category: .course, icon: "star.square.fill", condition: .allThreeStars(.en)),
+        Achievement(id: "course.stars.ru", category: .course, icon: "star.fill", condition: .allLessonsExcellent(.ru)),
+        Achievement(id: "course.stars.en", category: .course, icon: "star.square.fill", condition: .allLessonsExcellent(.en)),
     ]
 
     private static let volume: [Achievement] = [

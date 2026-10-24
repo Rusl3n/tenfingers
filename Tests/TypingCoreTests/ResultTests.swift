@@ -151,3 +151,16 @@ private func finishedEngine() -> TypingEngine {
                                  startedAt: .now, endedAt: .now, hintLevel: .full)
     #expect(KeyStats.yoCorrect(from: english) == 0)
 }
+
+@Test func resultCarriesTextTraitsOfWholeTargetAndStepIndex() {
+    var engine = TypingEngine(text: "Да, 2")
+    _ = engine.handle(Keystroke(character: "Д", keyCode: 2, timestamp: 0))
+    let plain = ExerciseResult(engine: engine, mode: .course, language: .ru, lessonId: nil,
+                               startedAt: .now, endedAt: .now, hintLevel: .full)
+    #expect(!plain.completed)
+    #expect(plain.textTraits == [.capitals, .punctuation, .digits])
+    #expect(plain.stepIndex == nil)
+    let step = ExerciseResult(engine: engine, mode: .course, language: .ru, lessonId: "ru.1.1",
+                              startedAt: .now, endedAt: .now, hintLevel: .full, stepIndex: 2)
+    #expect(step.stepIndex == 2)
+}

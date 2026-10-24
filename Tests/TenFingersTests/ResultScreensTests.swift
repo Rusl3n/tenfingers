@@ -6,6 +6,15 @@ private let root = URL(fileURLWithPath: #filePath)
 
 /// Каждый экран итога получает ачивки: иначе звук ачивки играет, а карточки нет (так было у итога «Слабых мест»).
 @Test func everyResultScreenReceivesNewAchievements() throws {
+    try expectEveryResultScreen(passes: "newAchievements:")
+}
+
+/// То же для карточки «Полный огонь»: звук серии играет на экране итога, значит и карточка должна быть на каждом.
+@Test func everyResultScreenReceivesFullFlame() throws {
+    try expectEveryResultScreen(passes: "fullFlame:")
+}
+
+private func expectEveryResultScreen(passes argument: String) throws {
     let sources = root.appendingPathComponent("Sources/TenFingers")
     let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
     var calls = 0
@@ -27,10 +36,10 @@ private let root = URL(fileURLWithPath: #filePath)
                     if rest[end] == "(" { depth += 1 } else if rest[end] == ")" { depth -= 1 }
                     end = rest.index(after: end)
                 }
-                if !rest[..<end].contains("newAchievements:") { missing.append("\(url.lastPathComponent): \(name)") }
+                if !rest[..<end].contains(argument) { missing.append("\(url.lastPathComponent): \(name)") }
             }
         }
     }
     #expect(calls >= 5)
-    #expect(missing.isEmpty, "экраны итога без ачивок: \(missing)")
+    #expect(missing.isEmpty, "экраны итога без `\(argument)`: \(missing)")
 }

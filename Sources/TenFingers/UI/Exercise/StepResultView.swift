@@ -9,10 +9,16 @@ struct StepResultView: View {
     let improved: Bool
     /// Звёзды, если повторяли проверочный шаг.
     let stars: Int?
+    /// Звёзды урока, если этот повтор шага их увеличил (вернулась пятая).
+    var lessonStarsGained: Int?
+    /// Шаги урока: от них зависит пятая звезда и подсказка к ней.
+    let steps: [StepStat]
     /// Цель этапа урока: для объяснения звёзд и подсказки до следующей звезды.
     let targetCpm: Int
     /// Ачивки, полученные в сохранении этого шага.
     var newAchievements: [Achievement] = []
+    /// Полный огонь в сохранении этого шага.
+    var fullFlame: FullFlame?
     /// Проверка засчитала последний урок этапа или курса (`ShareEvent.stepCompletion`).
     var completion: ShareEvent?
     let onRetry: () -> Void
@@ -36,15 +42,23 @@ struct StepResultView: View {
                         StarsHelpButton(targetCpm: targetCpm, unit: unit, size: 17).offset(x: 30)
                     }
             }
+            if let lessonStarsGained {
+                HStack(spacing: 10) {
+                    Text("Звёзды урока").font(.title3)
+                    StarsView(count: lessonStarsGained, size: 26)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text("Звёзды урока: \(lessonStarsGained)"))
+            }
             HStack(spacing: 32) {
-                metric("Точность", Formatting.percent(summary.accuracy))
                 metric("Ошибки", "\(errors)")
                 metric("Скорость", unit.format(summary.cpm))
             }
             if stars != nil {
-                NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, targetCpm: targetCpm, unit: unit)
+                NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
+                                 chars: summary.chars, targetCpm: targetCpm, steps: steps, unit: unit)
             }
-            NewAchievementCards(achievements: newAchievements)
+            NewAchievementCards(achievements: newAchievements, fullFlame: fullFlame)
             if let completion { CompletionShareLine(event: completion) }
             if !summary.topErrors.isEmpty {
                 HStack(spacing: 12) {

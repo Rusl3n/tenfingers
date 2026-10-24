@@ -155,7 +155,7 @@ final class ExerciseSession {
     func makeResult() -> ExerciseResult {
         ExerciseResult(engine: engine, mode: mode, language: language, lessonId: lessonId,
                        startedAt: startedAt ?? .now, endedAt: .now, hintLevel: hint,
-                       exerciseKind: spec.kind)
+                       exerciseKind: spec.kind, stepIndex: mode == .course ? spec.id : nil)
     }
 }
 
@@ -167,11 +167,15 @@ struct ErrorCount: Equatable, Hashable {
 struct ExerciseSummary: Equatable {
     let cpm: Double
     let accuracy: Double
+    let errors: Int
+    let chars: Int
     let topErrors: [ErrorCount]
 
     init(_ result: ExerciseResult) {
         cpm = result.cpm
         accuracy = result.accuracy
+        errors = result.errorCount
+        chars = result.chars
         topErrors = result.errorsByCharacter
             .map { ErrorCount(character: $0.key == " " ? String(localized: "пробел") : String($0.key), count: $0.value) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.character < $1.character }

@@ -215,7 +215,7 @@ enum LegacySchemaGeneration4 {
 /// цели нет, заполнение пишет текущую цель прошлым дням (огоньки не меняются), и цели читаются из заново
 /// открытой базы.
 @MainActor @Test func generationFourStoreOpensAndBecomesGenerationFive() async throws {
-    #expect(SchemaGeneration.current == 5)
+    #expect(SchemaGeneration.current >= 5)
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TenFingersGen4-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -255,7 +255,7 @@ enum LegacySchemaGeneration4 {
 
     do {
         let container = try ModelStore.makeContainer(at: url)
-        #expect(try SchemaGeneration.read(at: url) == 5)
+        #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
         let context = container.mainContext
         let days = try context.fetch(FetchDescriptor<DayRecord>(sortBy: [SortDescriptor(\.logicalDay)]))
         #expect(days.map(\.logicalDay) == ["2027-01-14", "2027-01-15", "2027-01-16"])
@@ -284,7 +284,7 @@ enum LegacySchemaGeneration4 {
     let reopened = try ModelStore.makeContainer(at: url)
     let days = try reopened.mainContext.fetch(FetchDescriptor<DayRecord>(sortBy: [SortDescriptor(\.logicalDay)]))
     #expect(days.map(\.goalSeconds) == [600, 600, 1200])
-    #expect(try SchemaGeneration.read(at: url) == 5)
+    #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
 }
 
 /// Сборка поколения 4 базу с маркером 5 не откроет (существующий механизм `canOpen`).
@@ -292,5 +292,5 @@ enum LegacySchemaGeneration4 {
     #expect(!SchemaGeneration.canOpen(stored: 5, current: 4))
     #expect(SchemaGeneration.canOpen(stored: 4, current: 5))
     #expect(SchemaGeneration.canOpen(stored: 5, current: 5))
-    #expect(SchemaGeneration.current == 5)
+    #expect(SchemaGeneration.current >= 5)
 }

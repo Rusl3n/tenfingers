@@ -109,9 +109,10 @@ struct WeakSpotsRunnerView: View {
             RunSummaryView(title: String(localized: "Тренировка завершена"),
                            leadingMetrics: [.init(title: "Время", value: Formatting.clock(summary.totals.seconds))],
                            speedTitle: "Средняя скорость",
-                           cpm: summary.totals.cpm, accuracy: summary.totals.accuracy,
+                           cpm: summary.totals.cpm, accuracy: summary.totals.accuracy, errors: summary.totals.errors,
                            lines: keys.isEmpty ? [] : [String(localized: "Клавиши: \(keys)")],
                            newAchievements: coordinator?.runAchievements ?? [],
+                           fullFlame: coordinator?.runFullFlame,
                            primaryTitle: "Готово", onPrimary: onExit)
         }
     }

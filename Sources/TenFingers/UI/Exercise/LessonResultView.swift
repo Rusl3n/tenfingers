@@ -4,10 +4,14 @@ import TypingCore
 struct LessonResultView: View {
     let summary: ExerciseSummary
     let stars: Int
+    /// Шаги урока: от них зависит пятая звезда и подсказка к ней.
+    let steps: [StepStat]
     let targetCpm: Int
     let hasNext: Bool
     /// Ачивки, полученные за весь урок (и на промежуточных шагах).
     var newAchievements: [Achievement] = []
+    /// Полный огонь на любом шаге этого прохода урока.
+    var fullFlame: FullFlame?
     /// Пройден последний урок этапа или курса (`ShareEvent.completion`): строка с предложением поделиться.
     var completion: ShareEvent?
     let onRetry: () -> Void
@@ -18,10 +22,17 @@ struct LessonResultView: View {
 
     private var unit: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
 
+    /// «Нужно не больше 4 ошибок на 100 знаков».
+    private var failedTitle: String {
+        let rule = StarHintText.errorsRule(accuracy: LessonScoring.passAccuracy)
+        return String(localized: "Нужно \(rule)")
+    }
+
     var body: some View {
         VStack(spacing: 20) {
-            Text(stars > 0 ? String(localized: "Урок пройден") : String(localized: "Нужна точность от 96%"))
+            Text(stars > 0 ? String(localized: "Урок пройден") : failedTitle)
                 .font(.largeTitle.bold())
+                .multilineTextAlignment(.center)
             // «?» сбоку, чтобы звёзды остались по центру.
             StarsView(count: stars, size: 34)
                 .overlay(alignment: .trailing) {
@@ -29,11 +40,12 @@ struct LessonResultView: View {
                 }
             HStack(spacing: 32) {
                 metric("Скорость", unit.format(summary.cpm))
-                metric("Точность", Formatting.percent(summary.accuracy))
+                metric("Ошибки", "\(summary.errors)")
                 if targetCpm > 0 { metric("Цель", unit.format(Double(targetCpm))) }
             }
-            NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, targetCpm: targetCpm, unit: unit)
-            NewAchievementCards(achievements: newAchievements)
+            NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors, chars: summary.chars,
+                             targetCpm: targetCpm, steps: steps, unit: unit)
+            NewAchievementCards(achievements: newAchievements, fullFlame: fullFlame)
             if let completion { CompletionShareLine(event: completion) }
             if !summary.topErrors.isEmpty {
                 VStack(spacing: 6) {

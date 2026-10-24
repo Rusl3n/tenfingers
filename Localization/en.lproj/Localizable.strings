@@ -22,7 +22,8 @@
 /* Главная: серия */
 "Займитесь сегодня, чтобы начать серию" = "Practice today to start a streak";
 "Займитесь сегодня, чтобы не прервать серию" = "Practice today to keep your streak going";
-"из них полных: %lld" = "full days: %lld";
+"Заходил: %@ подряд · всего %lld" = "Visited: %@ in a row · %lld total";
+"Цель: %@ подряд · всего %lld" = "Goal: %@ in a row · %lld total";
 "Заморозки: %lld из %lld" = "Freezes: %lld of %lld";
 "Серия: %@" = "Streak: %@";
 "Скорость за 7 дней" = "Speed, last 7 days";
@@ -65,7 +66,6 @@
 "указ. правый" = "right index";
 "большие" = "thumbs";
 "пробел" = "space";
-"Звёзд: %lld из 3" = "Stars: %lld of 3";
 
 /* Ход урока и результат */
 "Готово: шаг %lld из %lld" = "Done: step %lld of %lld";
@@ -75,7 +75,9 @@
 "Повторить" = "Retry";
 "Отмена" = "Cancel";
 "Урок пройден" = "Lesson passed";
-"Нужна точность от 96%" = "96% accuracy required";
+"Ошибки: %lld" = "Errors: %lld";
+"%@ · ошибок: %lld" = "%@ · errors: %lld";
+"Нужно %@" = "Required: %@";
 "Скорость" = "Speed";
 "Точность" = "Accuracy";
 "Цель" = "Goal";
@@ -239,10 +241,13 @@
 "Начать урок заново" = "Restart the lesson";
 
 /* Детали урока по шагам, повтор шага */
-"Средняя точность по шагам урока" = "Average accuracy across the lesson steps";
+"Сумма ошибок в лучших попытках шагов урока" = "Total errors in the best attempts of the lesson steps";
 "Скрыть шаги" = "Hide steps";
 "Показать шаги" = "Show steps";
 "ошибок: %lld" = "errors: %lld";
+"ошибка" = "error";
+"ошибки" = "errors";
+"ошибок" = "errors";
 "Пройти заново" = "Redo step";
 "Лучший результат!" = "Personal best!";
 "Ошибки" = "Errors";
@@ -285,6 +290,12 @@
 "Лучшая скорость" = "Best speed";
 "Лучшая точность" = "Best accuracy";
 "Самая длинная серия" = "Longest streak";
+"Дни" = "Days";
+"Огонь" = "Flame";
+"Заходил" = "Visited";
+"Цель выполнена" = "Goal met";
+"Сейчас" = "Now";
+"Рекорд" = "Best";
 "Лучшая скорость — на проверке урока или тексте от %lld знаков, без единой ошибки. Точность — по завершённым упражнениям от %lld знаков" = "Best speed: a lesson check or a text of at least %lld characters, with no errors. Accuracy: completed exercises of at least %lld characters";
 "Рекорды появятся после проверки урока без ошибок или упражнения от %lld знаков" = "Records appear after an error-free lesson check or an exercise of at least %lld characters";
 "История занятий" = "Session history";
@@ -299,23 +310,34 @@
 "Прогресс курсов" = "Course progress";
 "Уроков: %lld из %lld" = "Lessons: %lld of %lld";
 "%lld из %lld" = "%lld of %lld";
+"Звёзд: %lld из %lld" = "Stars: %lld of %lld";
 
 /* Масштаб интерфейса */
 "Масштаб интерфейса" = "Interface scale";
 
 /* Как считаются звёзды */
 "Как считаются звёзды" = "How stars are earned";
-"Звёзды за урок ставятся по проверочному тексту — последнему шагу урока. Остальные шаги — тренировка: на звёзды они не влияют, но показывают, где ошибки." = "Lesson stars are given for the check text, the last step of the lesson. The other steps are practice: they don't affect stars, but they show where you make mistakes.";
-"Урок засчитан при точности от %@." = "A lesson is passed with an accuracy of %@ or higher.";
-"урок засчитан" = "lesson passed";
-"скорость не ниже цели этапа (%@) и точность от %@" = "speed at or above the stage goal (%@) and accuracy of %@ or higher";
-"скорость от цели × %@ (%@) и точность от %@" = "speed of goal × %@ (%@) or higher and accuracy of %@ or higher";
-"На коротких текстах первых этапов три звезды фактически означают «без единой ошибки»." = "On the short texts of the first stages, three stars effectively mean “no mistakes at all”.";
+"Звёзды за урок ставятся по проверочному тексту — последнему шагу урока. Остальные шаги — тренировка: они влияют только на пятую звезду и показывают, где ошибки." = "Lesson stars are given for the check text, the last step of the lesson. The other steps are practice: they only affect the fifth star and show where you make mistakes.";
+"урок засчитан: %@" = "lesson passed: %@";
+"%@ на %lld знаков" = "%@ per %lld characters";
+"без ошибок" = "no errors";
+"не больше %lld ошибки" = "at most %lld errors";
+"не больше %lld ошибок" = "at most %lld errors";
+"не больше чем с %lld ошибкой" = "with at most %lld error";
+"не больше чем с %lld ошибками" = "with at most %lld errors";
+"%@ на проверке, а на остальных шагах — %@" = "%@ on the check, and on the other steps — %@";
+"пройдите шаг «%@» %@ на %lld знаков" = "redo the “%@” step %@ per %lld characters";
+"скорость не ниже цели (%@), %@" = "speed at least the goal (%@), %@";
+"скорость не ниже цели, %@" = "speed at least the goal, %@";
+"скорость от %@ × цели (%@), %@" = "speed from %@ × goal (%@), %@";
+"скорость от %@ × цели, %@" = "speed from %@ × goal, %@";
+"На коротких текстах первых этапов четыре звезды фактически означают «без единой ошибки», а пятая отличается скоростью и чистотой остальных шагов." = "On the short texts of the first stages, four stars effectively mean “no mistakes at all”, and the fifth differs in speed and in how clean the other steps are.";
 "Любой шаг можно пройти заново отдельно: раскройте урок на карте курса и нажмите «Пройти заново»." = "Any step can be redone on its own: expand the lesson on the course map and click “Redo step”.";
 "До" = "For";
 "До %lld звёзд: %@" = "For %lld stars: %@";
 "скорость от %@ (у вас %@)" = "speed of %@ or higher (yours: %@)";
-"точность от %@ (у вас %@)" = "accuracy of %@ or higher (yours: %@)";
+"%@ (у вас %lld)" = "%@ (you have %lld)";
+"без ошибок (у вас %lld)" = "no errors (you have %lld)";
 "%@ и %@" = "%@ and %@";
 
 /* Напоминания */
@@ -383,7 +405,7 @@
 "Весь текущий прогресс, профиль и настройки будут заменены данными из файла. Перед заменой текущий прогресс сохранится в резервную копию." = "All current progress, profile and settings will be replaced with the data from the file. Before that, your current progress will be saved to a backup.";
 "Заменить текущий прогресс" = "Replace Current Progress";
 "Это не файл прогресса «Десяти пальцев»." = "This is not a TenFingers progress file.";
-"Файл сохранён в формате версии %lld, а это приложение понимает только версию 1. Установите последнюю версию приложения." = "The file uses format version %lld, but this app only understands version 1. Install the latest version of the app.";
+"Файл сохранён в формате версии %lld, а это приложение понимает версии до %lld. Установите последнюю версию приложения." = "The file uses format version %lld, but this app understands versions up to %lld. Install the latest version of the app.";
 "Файл сохранён более новой версией приложения. Установите последнюю версию." = "The file was saved by a newer version of the app. Install the latest version.";
 "Не удалось сохранить резервную копию текущего прогресса, загрузка отменена: %@" = "Couldn't back up your current progress, so loading was cancelled: %@";
 "Файл прогресса повреждён: раздел «%@», запись № %lld." = "The progress file is damaged: section “%@”, record #%lld.";
@@ -398,11 +420,10 @@
 "Открытые буквы" = "Unlocked letters";
 "Счётчики" = "Counters";
 "Свои тексты" = "Custom texts";
+"Повторные получения ачивок" = "Repeated achievement grants";
 "резервная копия записалась не полностью." = "the backup was not written completely.";
 "Не удалось прочитать прогресс" = "Couldn’t read your progress";
 "Данные не изменены. Попробуйте ещё раз." = "Nothing was changed. Please try again.";
-"скорость не ниже цели этапа и точность от %@" = "speed at or above the stage goal and accuracy of %@ or higher";
-"скорость от цели × %@ и точность от %@" = "speed of goal × %@ or higher and accuracy of %@ or higher";
 "день" = "day";
 "дня" = "days";
 "дней" = "days";
@@ -506,7 +527,9 @@
 "Половинный огонь: упражнение завершено, но дневная цель ещё не набрана. Серия всё равно продолжается." = "Half flame: you finished an exercise but haven't reached the daily goal yet. The streak still goes on.";
 "Пропуск: в этот день не завершено ни одного упражнения. Серия прервётся, если нет заморозки." = "Missed: no exercise was finished that day. The streak breaks unless a freeze covers it.";
 "Заморозка закрывает один пропущенный день, и серия не прерывается. Новая выдаётся за каждые 7 полных дней подряд, больше двух не копится. Тратится сама, если день пропущен." = "A freeze covers one missed day so your streak survives. You earn one for every 7 full days in a row and can hold up to two. It's used automatically when you miss a day.";
-"Последние семь дней: огонь — день с занятиями, снежинка — заморозка, кружок — пропуск. Сегодня обведено пунктиром." = "The last seven days: a flame is a day with practice, a snowflake a freeze, a circle a missed day. Today has a dashed outline.";
+"«Заходил» — дни, когда завершено хотя бы одно упражнение. Заморозки здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни." = "\"Visited\" counts days with at least one finished exercise. Freezes don't apply here: a missed day resets the run, while \"total\" counts every such day.";
+"«Цель» — дни, когда набрано время дневной цели того дня, то есть полный огонь. Заморозки здесь не действуют: «подряд» — полные дни без перерыва, «всего» — все полные дни." = "\"Goal\" counts days when you reached that day's goal time, that is, a full flame. Freezes don't apply here: \"in a row\" means full days without a break, \"total\" counts every full day.";
+"Текущая неделя: огонь — день с занятиями, снежинка — заморозка, кружок — пропуск. Сегодня обведено пунктиром, дни впереди бледные." = "The current week: a flame is a day with practice, a snowflake a freeze, a circle a missed day. Today has a dashed outline, days ahead are faded.";
 "Цель дня — сколько минут чистого времени нужно набрать, чтобы день стал полным огнём." = "The daily goal is how many minutes of active typing turn a day into a full flame.";
 "Новая цель действует с сегодняшнего дня; прошлые дни остаются засчитанными по цели того дня." = "A new goal applies from today; past days keep the goal they had.";
 "Чистое время — только время набора: паузы длиннее 5 секунд не считаются." = "Active time counts only typing: pauses longer than 5 seconds are left out.";
@@ -550,3 +573,13 @@
 "Вернуть" = "Reset";
 "Вернёт размер и сдвиг экранной клавиатуры к исходным." = "Resets the on-screen keyboard size and offset to their original values.";
 "Включит все звуки и вернёт их громкость к исходной." = "Turns all sounds on and resets their volume to the original level.";
+"Полный огонь" = "Full flame";
+"Цель дня выполнена" = "Daily goal reached";
+"Звёзды урока" = "Lesson stars";
+"Звёзды урока: %lld" = "Lesson stars: %lld";
+"Этот день ещё впереди." = "This day is still ahead.";
+"Влияет на ленту недели, календарь занятий и карточку «Мой прогресс»." = "Affects the week strip, the activity calendar and the “My Progress” card.";
+"%@: ещё впереди" = "%@: still ahead";
+"Первый день недели" = "First day of the week";
+"Понедельник" = "Monday";
+"Воскресенье" = "Sunday";

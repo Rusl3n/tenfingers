@@ -26,7 +26,7 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
         mode: "course", language: "ru", lessonId: "ru.1.1", startedAt: base, endedAt: base.addingTimeInterval(61.5),
         logicalDay: "2026-09-21", activeSeconds: 60.75, chars: 120, errorCount: 3, cpm: 118.123456789,
         accuracy: 0.975, completed: true, hintLevel: "full", maxErrorStreak: 2, wrongKeystrokes: 4,
-        exerciseKind: "check", pinkyPresses: 9, pinkyErrors: 1, source: nil))
+        exerciseKind: "check", pinkyPresses: 9, pinkyErrors: 1, source: nil, stepIndex: 3, textTraits: 9))
     context.insert(SessionRecord(
         mode: "practice", language: "en", lessonId: nil, startedAt: base.addingTimeInterval(86_400),
         endedAt: base.addingTimeInterval(86_400 + 300), logicalDay: "2026-09-22", activeSeconds: 290,
@@ -81,6 +81,9 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
     context.insert(text)
     context.insert(AchievementRecord(achievementId: "course.first_lesson", unlockedAt: base.addingTimeInterval(62),
                                      seen: true))
+    context.insert(AchievementGrant(achievementId: "time.morning", occurrence: "2026-09-21",
+                                    grantedAt: base.addingTimeInterval(70), value: 2, seen: true))
+    context.insert(AchievementGrant(achievementId: "course.stage", occurrence: "ru.1", grantedAt: base.addingTimeInterval(80)))
     try context.save()
 }
 
@@ -93,7 +96,7 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
     [try count(SessionRecord.self, context), try count(LessonProgress.self, context), try count(KeyStat.self, context),
      try count(BigramStat.self, context), try count(DayRecord.self, context), try count(CounterRecord.self, context),
      try count(AdaptiveState.self, context), try count(CustomText.self, context), try count(AdaptiveUnlock.self, context),
-     try count(AchievementRecord.self, context)]
+     try count(AchievementRecord.self, context), try count(AchievementGrant.self, context)]
 }
 
 private func archiveJSON(_ fields: String) -> Data {
@@ -114,14 +117,14 @@ private func archiveJSON(_ fields: String) -> Data {
     let data = try ProgressArchive.export(context: source, defaults: sourceDefaults, now: base)
     let archive = try ProgressArchive.decode(data)
     #expect(archive.format == "tenfingers-progress")
-    #expect(archive.version == 1)
+    #expect(archive.version == 2)
     #expect(archive.schemaGeneration == SchemaGeneration.current)
 
     let targetContainer = try ModelStore.makeContainer(inMemory: true)
     let target = targetContainer.mainContext
     try ProgressArchive.replaceAll(with: archive, context: target)
     #expect(try counts(target) == counts(source))
-    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1])
+    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2])
 
     let sessions = try target.fetch(FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.startedAt)]))
     #expect(Set(sessions.map(\.id)) == originalSessionIds)
@@ -193,6 +196,9 @@ private func archiveJSON(_ fields: String) -> Data {
         session.fingerPresses = session.fingerPresses ?? FingerCounts.data([.leftPinky: 5, .thumb: 7])
         session.fingerErrors = session.fingerErrors ?? FingerCounts.data([.leftPinky: 1, .thumb: 0])
         session.yoPresses = session.yoPresses ?? 2
+        session.stepIndex = session.stepIndex ?? 0
+        session.planSlot = session.planSlot ?? "lesson"
+        session.textTraits = session.textTraits ?? 9
     }
     for stat in try context.fetch(FetchDescriptor<KeyStat>()) { stat.ewmaMs = stat.ewmaMs ?? 1 }
     for lesson in try context.fetch(FetchDescriptor<LessonProgress>()) { lesson.passedAt = lesson.passedAt ?? base }
@@ -207,7 +213,7 @@ private func archiveJSON(_ fields: String) -> Data {
         "SessionRecord": "sessions", "LessonProgress": "lessonProgress", "KeyStat": "keyStats",
         "BigramStat": "bigramStats", "DayRecord": "days", "CounterRecord": "counters",
         "AdaptiveState": "adaptiveStates", "AdaptiveUnlock": "adaptiveUnlocks", "CustomText": "customTexts",
-        "AchievementRecord": "achievements",
+        "AchievementRecord": "achievements", "AchievementGrant": "achievementGrants",
     ]
     #expect(Set(ModelStore.schema.entities.map(\.name)) == Set(sections.keys))
     for entity in ModelStore.schema.entities {
@@ -223,9 +229,12 @@ private func archiveJSON(_ fields: String) -> Data {
 // MARK: - Формат и версии
 
 @Test func newerFormatVersionIsUnsupported() throws {
-    let data = archiveJSON(#""format": "tenfingers-progress", "version": 2, "schemaGeneration": 2"#)
-    #expect(throws: ArchiveError.unsupported(2)) { _ = try ProgressArchive.decode(data) }
-    #expect(ArchiveError.unsupported(2).errorDescription?.isEmpty == false)
+    #expect(ProgressArchive.version == 2)
+    let next = ProgressArchive.version + 1
+    let data = archiveJSON(#""format": "tenfingers-progress", "version": \#(next), "schemaGeneration": 2"#)
+    #expect(throws: ArchiveError.unsupported(next)) { _ = try ProgressArchive.decode(data) }
+    let message = try #require(ArchiveError.unsupported(next).errorDescription)
+    #expect(message.contains("до 2"), "\(message)")
 }
 
 @Test func archiveFromNewerSchemaGenerationIsRefused() throws {
@@ -352,7 +361,7 @@ private func archiveJSON(_ fields: String) -> Data {
 
     try ProgressArchive.replaceAll(with: archive, context: target)
     #expect(!target.hasChanges)
-    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1])
+    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2])
     let sources = Set(try target.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source))
     #expect(sources == ["library:new"])
     #expect(try target.fetch(FetchDescriptor<LessonProgress>()).allSatisfy { $0.attempts == 42 })
@@ -603,6 +612,43 @@ private let progressContentKeys = [
     for key in progressContentKeys { #expect(defaults.object(forKey: key) == nil, "\(key)") }
 }
 
+private let dayMetricContentKeys = [SettingsKey.shareProgressShowVisits, SettingsKey.shareProgressShowGoalDays]
+
+/// «Заходил» и «Цель выполнена» на карточке «Мой прогресс»: ключи введены в поколении 6, булевы.
+/// Архив поколения 5 их не знает — выключенное остаётся выключенным; архив поколения 6 без них — значения по умолчанию.
+@Test func dayMetricCardTogglesTravelWithArchiveFromGenerationSix() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    #expect(SettingsKey.shareProgressShowVisits == "shareProgressShowVisits")
+    #expect(SettingsKey.shareProgressShowGoalDays == "shareProgressShowGoalDays")
+    defaults.set(false, forKey: SettingsKey.shareProgressShowVisits)
+    defaults.set(true, forKey: SettingsKey.shareProgressShowGoalDays)
+    let read = ArchivedSettings.read(defaults)
+    #expect(read[SettingsKey.shareProgressShowVisits] == .bool(false))
+    #expect(read[SettingsKey.shareProgressShowGoalDays] == .bool(true))
+    for key in dayMetricContentKeys {
+        #expect(ArchivedSettings.introducedIn[key] == 6)
+        #expect(ArchivedSettings.entries.contains { $0.key == key && $0.kind == .bool })
+    }
+    let (target, targetName) = makeDefaults()
+    defer { removeTestDefaults(targetName) }
+    ArchivedSettings.apply(read, generation: 6, to: target)
+    #expect(target.object(forKey: SettingsKey.shareProgressShowVisits) as? Bool == false)
+    #expect(target.object(forKey: SettingsKey.shareProgressShowGoalDays) as? Bool == true)
+
+    for key in dayMetricContentKeys { defaults.set(false, forKey: key) }
+    let previous = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 5, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: previous, to: defaults)
+    for key in dayMetricContentKeys { #expect(defaults.object(forKey: key) as? Bool == false, "\(key)") }
+    let latest = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 6, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: latest, to: defaults)
+    for key in dayMetricContentKeys { #expect(defaults.object(forKey: key) == nil, "\(key)") }
+}
+
 private let reminderScheduleKeys = [
     SettingsKey.reminderSchedule, SettingsKey.reminderTime1, SettingsKey.reminderTime2, SettingsKey.reminderTime3,
     SettingsKey.reminderFromHour, SettingsKey.reminderToHour, SettingsKey.reminderIntervalHours,
@@ -798,7 +844,7 @@ private struct SimulatedDiskFailure: Error {}
     do {
         let container = try ModelStore.makeContainer(at: storeURL)
         let context = container.mainContext
-        #expect(try counts(context) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1])
+        #expect(try counts(context) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2])
         #expect(try context.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source) == ["library:new"])
         #expect(try context.fetch(FetchDescriptor<CustomText>()).map(\.title) == ["Заметка new"])
         #expect(try context.fetch(FetchDescriptor<CustomText>()).first?.offset == 7)
@@ -1001,7 +1047,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let damaged = try #require(ArchiveError.damaged("sessions.0.language").errorDescription)
     #expect(damaged.contains("№ 1") && damaged.contains("language") && !damaged.contains("sessions"))
     for model in ["SessionRecord", "DayRecord", "KeyStat", "BigramStat", "LessonProgress", "AdaptiveState",
-                  "AdaptiveUnlock", "CounterRecord", "CustomText"] {
+                  "AdaptiveUnlock", "CounterRecord", "CustomText", "AchievementGrant"] {
         let invalid = try #require(ArchiveError.invalidRecord(model, 1).errorDescription)
         #expect(!invalid.contains(model), "\(invalid)")
         #expect(invalid.contains("№ 2"))
@@ -1114,4 +1160,102 @@ private func fillPreferences(_ defaults: UserDefaults) {
     DayGoals.goalChangedLogging(context: context, previousGoalSeconds: 900, defaults: defaults,
                                 now: base.addingTimeInterval(86_400))
     #expect(try context.fetch(FetchDescriptor<DayRecord>()).map(\.goalSeconds) == [900, 900])
+}
+
+// MARK: - Фаза 6a: архив версии 2
+
+/// Файл версии 1 (поколение 5): нет раздела `achievementGrants` и новых полей сессий — после загрузки они пустые.
+@MainActor @Test func versionOneArchiveImportsWithoutGenerationSixData() throws {
+    let data = archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 5,
+        "sessions": [{
+            "id": "6F9619FF-8B86-D011-B42D-00C04FC964FF", "mode": "course", "language": "ru", "lessonId": "ru.1.1",
+            "startedAt": 811677600, "endedAt": 811677660, "logicalDay": "2026-09-21",
+            "activeSeconds": 60, "chars": 100, "errorCount": 1, "cpm": 100, "accuracy": 0.99, "completed": true,
+            "hintLevel": "full", "maxErrorStreak": 1, "wrongKeystrokes": 1, "exerciseKind": "check",
+            "pinkyPresses": 3, "pinkyErrors": 0, "fingerPresses": { "thumb": 15 }, "yoPresses": 0
+        }],
+        "achievements": [{ "achievementId": "course.first_lesson", "unlockedAt": 811677660, "seen": true }]
+        """#)
+    let archive = try ProgressArchive.decode(data)
+    #expect(archive.version == 1)
+    #expect(archive.achievementGrants.isEmpty)
+    let dto = try #require(archive.sessions.first)
+    #expect(dto.stepIndex == nil && dto.planSlot == nil && dto.textTraits == nil)
+
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try ProgressArchive.replaceAll(with: archive, context: context)
+    let session = try #require(try context.fetch(FetchDescriptor<SessionRecord>()).first)
+    #expect(session.stepIndex == nil && session.planSlot == nil && session.textTraits == nil)
+    #expect(session.exerciseKind == "check" && session.yoPresses == 0)
+    #expect(FingerCounts.counts(session.fingerPresses) == [.thumb: 15])
+    #expect(try context.fetch(FetchDescriptor<AchievementRecord>()).map(\.achievementId) == ["course.first_lesson"])
+    #expect(try count(AchievementGrant.self, context) == 0)
+}
+
+/// Получения ачивок и поля сессий поколения 6 проходят экспорт → загрузку без потерь; повторный экспорт
+/// совпадает с первым байт в байт.
+@MainActor @Test func achievementGrantsAndSessionFieldsRoundTripThroughArchive() throws {
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    try populate(source)
+    let sourceSessions = try source.fetch(FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.startedAt)]))
+    sourceSessions[1].planSlot = "training"
+    sourceSessions[1].textTraits = 2
+    try source.save()
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+
+    let first = try ProgressArchive.export(context: source, defaults: defaults, now: base)
+    let archive = try ProgressArchive.decode(first)
+    #expect(archive.achievementGrants.map(\.achievementId) == ["course.stage", "time.morning"])
+    let json = try #require(try JSONSerialization.jsonObject(with: first) as? [String: Any])
+    let records = try #require(json["sessions"] as? [[String: Any]])
+    #expect(records[0]["stepIndex"] as? Int == 3 && records[0]["textTraits"] as? Int == 9 && records[0]["planSlot"] == nil)
+    #expect(records[1]["stepIndex"] == nil && records[1]["planSlot"] as? String == "training")
+
+    let targetContainer = try ModelStore.makeContainer(inMemory: true)
+    let target = targetContainer.mainContext
+    try ProgressArchive.replaceAll(with: archive, context: target)
+    let grants = try target.fetch(FetchDescriptor<AchievementGrant>(sortBy: [SortDescriptor(\.achievementId)]))
+    #expect(grants.map(\.achievementId) == ["course.stage", "time.morning"])
+    #expect(grants.map(\.occurrence) == ["ru.1", "2026-09-21"])
+    #expect(grants.map(\.grantedAt) == [base.addingTimeInterval(80), base.addingTimeInterval(70)])
+    #expect(grants.map(\.value) == [nil, 2])
+    #expect(grants.map(\.seen) == [false, true])
+    let sessions = try target.fetch(FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.startedAt)]))
+    #expect(sessions.map(\.stepIndex) == [3, nil])
+    #expect(sessions.map(\.planSlot) == [nil, "training"])
+    #expect(sessions.map(\.textTraits) == [9, 2])
+
+    let second = try ProgressArchive.export(context: target, defaults: defaults, now: base)
+    #expect(first == second, "\(String(decoding: first, as: UTF8.self))\n≠\n\(String(decoding: second, as: UTF8.self))")
+}
+
+/// Повтор пары (ачивка, ключ получения) в файле отклоняется, база не меняется.
+@MainActor @Test func duplicateAchievementGrantInArchiveIsRejected() throws {
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    try populate(source)
+    var archive = try ProgressArchive.decode(ProgressArchive.export(context: source, defaults: defaults, now: base))
+    let morning = try #require(archive.achievementGrants.first { $0.achievementId == "time.morning" })
+    archive.achievementGrants.append(morning)
+
+    let targetContainer = try ModelStore.makeContainer(inMemory: true)
+    let target = targetContainer.mainContext
+    try populate(target, tag: "old")
+    let before = try counts(target)
+    #expect(throws: ArchiveError.duplicate("AchievementGrant", "time.morning/2026-09-21")) {
+        try ProgressArchive.replaceAll(with: archive, context: target)
+    }
+    #expect(!target.hasChanges)
+    #expect(try counts(target) == before)
+    #expect(try target.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source) == ["library:old"])
+    let data = try ProgressArchive.encode(archive)
+    #expect(throws: ArchiveError.duplicate("AchievementGrant", "time.morning/2026-09-21")) {
+        _ = try ProgressArchive.decode(data)
+    }
 }

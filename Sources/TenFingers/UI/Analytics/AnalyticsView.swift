@@ -13,6 +13,7 @@ struct AnalyticsView: View {
     @Environment(ToastCenter.self) private var toasts
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
+    @AppStorage(SettingsKey.firstWeekday) private var firstWeekday = SettingsDefault.firstWeekday
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @State private var period: AnalyticsPeriod = .month
@@ -45,6 +46,7 @@ struct AnalyticsView: View {
         .onAppear(perform: reloadAll)
         .onChange(of: activeLanguage) { reload() }
         .onChange(of: dayStartHour) { reload() }
+        .onChange(of: firstWeekday) { reload() }
         .onChange(of: dailyGoal) { reload() }
         .onChange(of: period) { reloadChart() }
     }
@@ -117,6 +119,7 @@ struct AnalyticsContent: View {
             KeyboardHeatmapView(snapshot: snapshot, language: data.language, keys: data.keys)
             FingerStatsView(rows: data.fingers)
             ActivityCalendarView(calendar: data.calendar, share: Self.canShareProgress(data) ? shareProgress : nil)
+            DayMetricsView(streak: data.streak)
             RecordsView(records: data.records, unit: unit)
             SessionHistoryView(rows: history, unit: unit)
             CourseProgressView(rows: data.courseProgress)

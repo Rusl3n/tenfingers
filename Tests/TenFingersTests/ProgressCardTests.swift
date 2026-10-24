@@ -81,6 +81,17 @@ private func session(_ day: String, language: Language = .ru, chars: Int = 400, 
     #expect(data.yearGrid == ActivityCalendar.make(today: "2026-10-05", statuses: summary.statuses, firstWeekday: monday))
 }
 
+/// Заходил и цель: из `StreakSummary`. Три дня подряд — полный, половинный, полный: заходил 3 из 3, цель 1 (последний) из 2.
+@Test func makeTakesVisitAndGoalCountsFromSummary() {
+    let days: [String: DayActivity] = ["2026-10-01": day(700), "2026-10-02": day(200), "2026-10-03": day(700)]
+    let data = ProgressCardData.make(days: days, sessions: [], today: "2026-10-03", goalSeconds: 600,
+                                     firstWeekday: monday)
+    #expect(data.visitCurrent == 3 && data.visitTotal == 3)
+    #expect(data.goalCurrent == 1 && data.goalTotal == 2)
+    let empty = ProgressCardData.make(days: [:], sessions: [], today: "2026-10-03", goalSeconds: 600, firstWeekday: monday)
+    #expect(empty.visitCurrent == 0 && empty.visitTotal == 0 && empty.goalCurrent == 0 && empty.goalTotal == 0)
+}
+
 @Test func makeWithoutHistoryHasEmptyStatsAndPlainGrids() {
     let data = ProgressCardData.make(days: [:], sessions: [], today: "2026-10-24", goalSeconds: 600, firstWeekday: monday)
     #expect(data.streak == 0 && data.fullDays == 0)
@@ -333,14 +344,21 @@ private func lessonStep(_ day: String, kind: ExerciseKind, chars: Int = 90, seco
 @Test func progressContentDefaultsAndEmptiness() {
     let content = ProgressCardContent()
     #expect(content.showsStreak && content.showsFullDays && content.showsTime && content.showsSpeed && content.showsAccuracy)
+    #expect(content.showsVisits && content.showsGoalDays)
     #expect(!content.isEmpty && content.showsMetrics)
     var none = ProgressCardContent(showsStreak: false, showsFullDays: false, showsTime: false, showsSpeed: false,
-                                   showsAccuracy: false)
+                                   showsAccuracy: false, showsVisits: false, showsGoalDays: false)
     #expect(none.isEmpty && !none.showsMetrics)
     none.showsAccuracy = true
     #expect(!none.isEmpty && none.showsMetrics)
+    none.showsAccuracy = false
+    none.showsVisits = true
+    #expect(!none.isEmpty && !none.showsMetrics)
+    none.showsVisits = false
+    none.showsGoalDays = true
+    #expect(!none.isEmpty && !none.showsMetrics)
     var flameOnly = ProgressCardContent(showsStreak: true, showsFullDays: false, showsTime: false, showsSpeed: false,
-                                        showsAccuracy: false)
+                                        showsAccuracy: false, showsVisits: false, showsGoalDays: false)
     #expect(!flameOnly.isEmpty && !flameOnly.showsMetrics)
     flameOnly.showsStreak = false
     #expect(flameOnly.isEmpty)
@@ -353,24 +371,29 @@ private func lessonStep(_ day: String, kind: ExerciseKind, chars: Int = 90, seco
     var content = ProgressCardContent()
     content.showsStreak = false
     content.showsSpeed = false
+    content.showsVisits = false
     content.save(to: defaults)
     #expect(defaults.object(forKey: "shareProgressShowStreak") as? Bool == false)
     #expect(defaults.object(forKey: "shareProgressShowFullDays") as? Bool == true)
     #expect(defaults.object(forKey: "shareProgressShowTime") as? Bool == true)
     #expect(defaults.object(forKey: "shareProgressShowSpeed") as? Bool == false)
     #expect(defaults.object(forKey: "shareProgressShowAccuracy") as? Bool == true)
+    #expect(defaults.object(forKey: "shareProgressShowVisits") as? Bool == false)
+    #expect(defaults.object(forKey: "shareProgressShowGoalDays") as? Bool == true)
     #expect(ProgressCardContent.load(from: defaults) == content)
     #expect(SettingsKey.shareProgressShowStreak == "shareProgressShowStreak")
     #expect(SettingsKey.shareProgressShowFullDays == "shareProgressShowFullDays")
     #expect(SettingsKey.shareProgressShowTime == "shareProgressShowTime")
     #expect(SettingsKey.shareProgressShowSpeed == "shareProgressShowSpeed")
     #expect(SettingsKey.shareProgressShowAccuracy == "shareProgressShowAccuracy")
+    #expect(SettingsKey.shareProgressShowVisits == "shareProgressShowVisits")
+    #expect(SettingsKey.shareProgressShowGoalDays == "shareProgressShowGoalDays")
 }
 
 /// Кнопки листа неактивны, когда не показано ничего: все переключатели выключены и нет календаря.
 @Test func nothingToShowOnlyWithoutContentAndCalendar() {
     let off = ProgressCardContent(showsStreak: false, showsFullDays: false, showsTime: false, showsSpeed: false,
-                                  showsAccuracy: false)
+                                  showsAccuracy: false, showsVisits: false, showsGoalDays: false)
     func options(_ content: ProgressCardContent, _ period: ProgressPeriod) -> ShareOptions {
         var options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .wide)
         options.progressContent = content

@@ -12,6 +12,8 @@ struct AnalyticsData: Equatable {
     let courseStartDate: Date?
     let records: Records
     let calendar: ActivityCalendar
+    /// Серия и метрики дней «Заходил» и «Цель» — для карточки «Дни».
+    let streak: StreakSummary
     /// Клавиши курса со статистикой (для тепловой карты) и пальцы.
     let keys: [KeyInfo]
     let fingers: [FingerRow]
@@ -24,8 +26,10 @@ struct AnalyticsData: Equatable {
 struct AnalyticsLoader {
     let context: ModelContext
 
+    /// `firstWeekday` — явное значение (1 — воскресенье, 2 — понедельник); без него — настройка из `defaults`.
     func summary(language: Language, courses: [Language: Course], today: String, goalSeconds: Double,
-                 firstWeekday: Int = Calendar.current.firstWeekday) throws -> AnalyticsData {
+                 firstWeekday: Int? = nil, defaults: UserDefaults = .standard) throws -> AnalyticsData {
+        let firstWeekday = firstWeekday ?? StoredSettings.firstWeekday(defaults)
         let days = try ProgressSnapshot(context: context).dayActivities()
         let streak = StreakCalculator.summarize(days: days, today: today, goalSeconds: goalSeconds)
         let keys = HeatmapModel.merge(try keyEntries(language: language))
@@ -36,6 +40,7 @@ struct AnalyticsLoader {
             courseStartDate: try ProgressSnapshot(context: context).firstSessionDate(language: language),
             records: Analytics.records(try recordCandidates(), longestStreak: streak.longest),
             calendar: ActivityCalendar.make(today: today, statuses: streak.statuses, firstWeekday: firstWeekday),
+            streak: streak,
             keys: keys,
             fingers: FingerRow.rows(keys),
             courseProgress: try courseProgress(courses: courses))
@@ -92,9 +97,9 @@ struct AnalyticsLoader {
 
     private func courseProgress(courses: [Language: Course]) throws -> [CourseProgressRow] {
         let progress = try context.fetch(FetchDescriptor<LessonProgress>())
-        let check: String? = ExerciseKind.check.rawValue
-        let checks = try context.fetch(FetchDescriptor<SessionRecord>(predicate: #Predicate {
-            $0.mode == "course" && $0.completed && $0.exerciseKind == check
+        // Все завершённые шаги уроков: проверки дают звёзды, остальные шаги — чистоту урока для ★★★★★.
+        let sessions = try context.fetch(FetchDescriptor<SessionRecord>(predicate: #Predicate {
+            $0.mode == "course" && $0.completed && $0.exerciseKind != nil
         })).compactMap(ProgressSnapshot.summary)
         return Language.allCases.compactMap { language in
             guard let course = courses[language] else { return nil }
@@ -102,7 +107,7 @@ struct AnalyticsLoader {
                 StoredLesson(lessonId: $0.lessonId, passed: $0.passedAt != nil, storedStars: $0.bestStars)
             }
             return CourseProgressRow.make(course: course, lessons: lessons,
-                                          checks: checks.filter { $0.language == language })
+                                          sessions: sessions.filter { $0.language == language })
         }
     }
 }

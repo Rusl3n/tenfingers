@@ -84,7 +84,7 @@ private let goldenIds: [String] = [
             #expect(parts.count == 3 && parts[0] == "letters" && parts[1] == language.rawValue, "«\(id)»")
         case .courseCompleted(let language):
             #expect(id == "course.\(language.rawValue)")
-        case .allThreeStars(let language):
+        case .allLessonsExcellent(let language):
             #expect(id == "course.stars.\(language.rawValue)")
         case .speedGrowth(let factor, _):
             #expect(id == "speed.growth.\(Int((factor * 100).rounded()))", "«\(id)»: \(factor)")
@@ -219,6 +219,22 @@ private let goldenIds: [String] = [
     // Знак процента в условии не ломает форматирование.
     let condition = AchievementConditionText.describe(sniper.condition, localization: "ru")
     #expect(!condition.contains("%%") && !condition.contains("%@"), "«\(condition)»")
+}
+
+/// «Отличник курса» сохраняет id `course.stars.*`, а условие — все уроки не ниже ★★★★ (прежние ★★★).
+@Test func courseStarsAchievementsRequireExcellentStars() throws {
+    for language in Language.allCases {
+        let achievement = try #require(AchievementCatalog.all.first { $0.id == "course.stars.\(language.rawValue)" })
+        #expect(achievement.condition == .allLessonsExcellent(language))
+    }
+    #expect(LessonScoring.excellentStars == 4)
+    let ru = try strings("ru"), en = try strings("en")
+    #expect(ru["achievement.course.stars.ru.title"] == "Отличник курса (RU)")
+    #expect(ru["achievement.course.stars.en.title"] == "Отличник курса (EN)")
+    #expect(en["achievement.course.stars.ru.title"] == "Top of the Class (RU)")
+    #expect(en["achievement.course.stars.en.title"] == "Top of the Class (EN)")
+    #expect(ru["achievement.course.stars.ru.detail"] == "Все уроки не ниже четырёх звёзд. Перфекционизм одобрен")
+    #expect(en["achievement.course.stars.en.detail"] == "Four stars or more in every lesson. Even the textbook is jealous")
 }
 
 /// Описание — шутка, а не пересказ условия (условие показывают «За что» и «Как получить»).

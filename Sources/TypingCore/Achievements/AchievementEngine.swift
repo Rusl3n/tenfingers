@@ -106,8 +106,8 @@ private struct Evaluator {
             let dates = Language.allCases.map(courseDate)
             guard dates.allSatisfy({ $0 != nil }) else { return nil }
             return dates.compactMap { $0 }.max()
-        case .allThreeStars(let language):
-            return allThreeStarsDate(language)
+        case .allLessonsExcellent(let language):
+            return allLessonsExcellentDate(language)
         case .volumeChars(let threshold):
             return crossing(exercises, Double(threshold)) { Double($0.chars) }
         case .volumeHours(let hours):
@@ -506,19 +506,21 @@ private struct Evaluator {
         facts.courses[language].flatMap { passDate(of: $0.lessons) }
     }
 
-    /// Все уроки на ★★★ по `starsByLesson`; дата — последняя из первых ★★★-проверок уроков,
-    /// а если хоть у одного урока такой проверки в истории нет — `now`.
-    private func allThreeStarsDate(_ language: Language) -> Date? {
+    /// Все уроки не ниже ★★★★ (`LessonScoring.excellentStars`) по `starsByLesson`; дата — последняя из первых
+    /// ★★★★-проверок уроков, а если хоть у одного урока такой проверки в истории нет — `now`.
+    private func allLessonsExcellentDate(_ language: Language) -> Date? {
+        let excellent = LessonScoring.excellentStars
         guard let course = facts.courses[language], !course.lessons.isEmpty,
-              course.lessons.allSatisfy({ (facts.starsByLesson[$0.id] ?? 0) >= 3 }) else { return nil }
+              course.lessons.allSatisfy({ (facts.starsByLesson[$0.id] ?? 0) >= excellent }) else { return nil }
         var latest: Date?
         for stage in course.stages {
             for lesson in stage.lessons {
-                let threeStar = completed.first {
+                let excellentCheck = completed.first {
                     $0.lessonId == lesson.id && $0.exerciseKind == .check
-                        && LessonScoring.stars(cpm: $0.cpm, accuracy: $0.accuracy, targetCpm: stage.targetCpm) >= 3
+                        && LessonScoring.stars(cpm: $0.cpm, accuracy: $0.accuracy,
+                                               targetCpm: stage.targetCpm) >= excellent
                 }
-                guard let date = threeStar?.endedAt else { return facts.now }
+                guard let date = excellentCheck?.endedAt else { return facts.now }
                 latest = max(latest ?? date, date)
             }
         }

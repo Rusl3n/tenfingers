@@ -333,8 +333,9 @@ struct ShareCardText: Equatable {
             let count = Formatting.days(data.streak, bundle: bundle, locale: locale)
             header = String(localized: "Мой прогресс", bundle: bundle, locale: locale)
             headline = String(localized: "\(count) подряд", bundle: bundle, locale: locale)
-            subtitle = options.progressContent.showsFullDays
-                ? String(localized: "Полных дней: \(data.fullDays)", bundle: bundle, locale: locale) : nil
+            let lines = ProgressCardText.subtitleLines(data: data, content: options.progressContent, bundle: bundle,
+                                                       locale: locale)
+            subtitle = lines.isEmpty ? nil : lines.joined(separator: "\n")
             footnote = nil
             progress = ProgressCardText(data: data, period: options.progressPeriod, content: options.progressContent,
                                         unit: unit, bundle: bundle, locale: locale)

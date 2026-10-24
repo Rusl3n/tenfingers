@@ -31,9 +31,19 @@ public struct StreakSummary: Equatable, Sendable {
     public let today: DayStatus
     /// Статусы всех дней от первого занятия до сегодня. Ключ — логический день "yyyy-MM-dd".
     public let statuses: [String: DayStatus]
+    /// «Заходил»: дни с хотя бы одним завершённым упражнением. Подряд (без заморозок), рекорд и всего.
+    public let visitCurrent: Int
+    public let visitLongest: Int
+    public let visitTotal: Int
+    /// «Цель»: полные дни по цели того дня. Подряд (без заморозок), рекорд и всего.
+    public let goalCurrent: Int
+    public let goalLongest: Int
+    public let goalTotal: Int
 
     public init(current: Int, fullInRow: Int, fullInCurrent: Int, freezes: Int, longest: Int,
-                today: DayStatus, statuses: [String: DayStatus]) {
+                today: DayStatus, statuses: [String: DayStatus],
+                visitCurrent: Int = 0, visitLongest: Int = 0, visitTotal: Int = 0,
+                goalCurrent: Int = 0, goalLongest: Int = 0, goalTotal: Int = 0) {
         self.current = current
         self.fullInRow = fullInRow
         self.fullInCurrent = fullInCurrent
@@ -41,6 +51,12 @@ public struct StreakSummary: Equatable, Sendable {
         self.longest = longest
         self.today = today
         self.statuses = statuses
+        self.visitCurrent = visitCurrent
+        self.visitLongest = visitLongest
+        self.visitTotal = visitTotal
+        self.goalCurrent = goalCurrent
+        self.goalLongest = goalLongest
+        self.goalTotal = goalTotal
     }
 }
 
@@ -66,10 +82,17 @@ public enum StreakCalculator {
         }
         var statuses: [String: DayStatus] = [:]
         var streak = 0, fullInRow = 0, fullInCurrent = 0, freezes = 0, longest = 0
+        var visitRun = 0, visitLongest = 0, visitTotal = 0, goalRun = 0, goalLongest = 0, goalTotal = 0
         for day in dayKeys(from: first, to: today) {
             // Прошлый день — по цели того дня (если записана), сегодня — по текущей.
             let goal = day < today ? days[day]?.goalSeconds ?? goalSeconds : goalSeconds
             let raw = status(days[day], goalSeconds: goal)
+            // «Заходил» и «Цель»: заморозки не действуют; сегодняшний день без зачёта серию не обрывает.
+            let isToday = day == today
+            if raw == .full || raw == .half { visitRun += 1; visitTotal += 1 } else if !isToday { visitRun = 0 }
+            if raw == .full { goalRun += 1; goalTotal += 1 } else if !isToday { goalRun = 0 }
+            visitLongest = max(visitLongest, visitRun)
+            goalLongest = max(goalLongest, goalRun)
             if day == today && raw == .none {
                 statuses[day] = DayStatus.none   // сегодня ещё можно успеть
                 break
@@ -102,7 +125,9 @@ public enum StreakCalculator {
         }
         return StreakSummary(current: streak, fullInRow: fullInRow, fullInCurrent: fullInCurrent,
                              freezes: freezes, longest: longest, today: statuses[today] ?? .none,
-                             statuses: statuses)
+                             statuses: statuses,
+                             visitCurrent: visitRun, visitLongest: visitLongest, visitTotal: visitTotal,
+                             goalCurrent: goalRun, goalLongest: goalLongest, goalTotal: goalTotal)
     }
 
     /// Все ключи дней от `from` до `to` включительно (григорианский календарь, UTC — ключи уже логические даты).

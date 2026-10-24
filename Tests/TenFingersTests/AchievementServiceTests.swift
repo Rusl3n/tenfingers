@@ -59,7 +59,7 @@ private func at(_ text: String) -> Date {
 
     let first = LessonProgress(lessonId: "ru.1.1", language: "ru")
     first.attempts = 2
-    first.bestStars = 3   // в базе 3, но по истории проверок — 1 (точность 97,8%)
+    first.bestStars = 3   // в базе 3, но по истории проверок — ★★ (197 зн/мин, точность 97,8%)
     first.passedAt = at("2026-10-23 21:42:30")
     context.insert(first)
     let second = LessonProgress(lessonId: "ru.1.2", language: "ru")
@@ -128,12 +128,41 @@ private func at(_ text: String) -> Date {
     #expect(facts.lessonPasses == ["ru.1.1": at("2026-10-23 21:42:30"), "ru.1.2": at("2026-10-24 02:34:32")])
     #expect(facts.lessonAttempts == ["ru.1.1": 2, "ru.1.2": 1])
     // Звёзды — только `LessonScoring.effectiveStars`: по истории проверок, а без неё — из базы.
-    #expect(facts.starsByLesson["ru.1.1"] == 1)
-    #expect(facts.starsByLesson["ru.1.2"] == 2)
+    #expect(facts.starsByLesson["ru.1.1"] == 2)
+    #expect(facts.starsByLesson["ru.1.2"] == 3)   // хранимые 2 (прежняя шкала) → ★★★
     #expect(facts.counters == [CounterName.capsLockPresses: 0])
     #expect(facts.courses[.ru] != nil && facts.courses[.en] != nil)
     #expect(facts.timeZone == msk)
     #expect(facts.now == at("2026-10-24 07:00"))
+}
+
+/// ★★★★★ — только за чистый урок: проверка на пятёрку, а «Слова» 93,4% — четыре звезды; после чистых «Слов» — пять.
+/// Ачивки (`course.stars.*` — от четырёх звёзд) от этого не меняются, но звёзды идут тем же правилом, что на карте.
+@MainActor @Test func starsOfLessonNeedCleanStepsForFifthStar() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let target = try #require(CourseCatalog.load(.ru).context(for: "ru.1.1")).targetCpm
+    insertSession(context, ended: "2026-10-23 21:40:00", day: "2026-10-23", lessonId: "ru.1.1", kind: "words",
+                  chars: 120, accuracy: 0.934, cpm: 100, wrong: 8)
+    insertSession(context, ended: "2026-10-23 21:42:30", day: "2026-10-23", lessonId: "ru.1.1", kind: "check",
+                  chars: 120, accuracy: 1, cpm: Double(target) * 2, wrong: 0)
+    // Урок «ru.1.2»: проверка на пятёрку, шагов в истории нет — не мешает.
+    insertSession(context, ended: "2026-10-23 21:50:00", day: "2026-10-23", lessonId: "ru.1.2", kind: "check",
+                  chars: 120, accuracy: 1, cpm: Double(target) * 2, wrong: 0)
+    for id in ["ru.1.1", "ru.1.2"] {
+        let progress = LessonProgress(lessonId: id, language: "ru")
+        progress.bestStars = 3
+        progress.passedAt = at("2026-10-23 21:42:30")
+        context.insert(progress)
+    }
+    try context.save()
+    let before = try makeService(context).facts().starsByLesson
+    #expect(before["ru.1.1"] == 4 && before["ru.1.2"] == 5)
+
+    insertSession(context, ended: "2026-10-23 22:00:00", day: "2026-10-23", lessonId: "ru.1.1", kind: "words",
+                  chars: 120, accuracy: 0.99, cpm: 100, wrong: 1)
+    try context.save()
+    #expect(try makeService(context).facts().starsByLesson["ru.1.1"] == 5)
 }
 
 /// Открытые буквы (§21): курс — до последнего засчитанного урока (дата — `passedAt`), адаптивный режим — только

@@ -13,9 +13,12 @@ struct RunSummaryView: View {
     var speedTitle: LocalizedStringKey = "Скорость"
     let cpm: Double
     let accuracy: Double
+    let errors: Int
     var lines: [String] = []
     /// Ачивки этой порции; у итога «Слабых мест» — всей тренировки (`runAchievements`).
     var newAchievements: [Achievement] = []
+    /// Полный огонь этой порции (у «Слабых мест» — всей тренировки): карточка перед ачивками.
+    var fullFlame: FullFlame?
     let primaryTitle: LocalizedStringKey
     let onPrimary: () -> Void
     var secondaryTitle: LocalizedStringKey?
@@ -33,14 +36,18 @@ struct RunSummaryView: View {
                     metricView(metric.title, metric.value)
                 }
                 metricView(speedTitle, unit.format(cpm))
-                metricView("Точность", Formatting.percent(accuracy))
+                VStack(spacing: 4) {
+                    Text("Ошибки").foregroundStyle(.secondary)
+                    Text("\(errors)").font(.title2.bold()).monospacedDigit()
+                    Text(Formatting.percent(accuracy)).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                }
             }
             if !lines.isEmpty {
                 VStack(spacing: 6) {
                     ForEach(lines, id: \.self) { Text($0).font(.title3) }
                 }
             }
-            NewAchievementCards(achievements: newAchievements)
+            NewAchievementCards(achievements: newAchievements, fullFlame: fullFlame)
             HStack(spacing: 12) {
                 if let secondaryTitle, let onSecondary {
                     Button(secondaryTitle, action: onSecondary)

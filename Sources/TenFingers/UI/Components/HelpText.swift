@@ -15,8 +15,20 @@ enum HelpText {
     static var freezes: String {
         String(localized: "Заморозка закрывает один пропущенный день, и серия не прерывается. Новая выдаётся за каждые 7 полных дней подряд, больше двух не копится. Тратится сама, если день пропущен.")
     }
+    static var visitDays: String {
+        String(localized: "«Заходил» — дни, когда завершено хотя бы одно упражнение. Заморозки здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни.")
+    }
+    static var goalDays: String {
+        String(localized: "«Цель» — дни, когда набрано время дневной цели того дня, то есть полный огонь. Заморозки здесь не действуют: «подряд» — полные дни без перерыва, «всего» — все полные дни.")
+    }
     static var weekStrip: String {
-        String(localized: "Последние семь дней: огонь — день с занятиями, снежинка — заморозка, кружок — пропуск. Сегодня обведено пунктиром.")
+        String(localized: "Текущая неделя: огонь — день с занятиями, снежинка — заморозка, кружок — пропуск. Сегодня обведено пунктиром, дни впереди бледные.")
+    }
+    static var futureDay: String {
+        String(localized: "Этот день ещё впереди.")
+    }
+    static var firstWeekday: String {
+        String(localized: "Влияет на ленту недели, календарь занятий и карточку «Мой прогресс».")
     }
     static var dailyGoal: String {
         String(localized: "Цель дня — сколько минут чистого времени нужно набрать, чтобы день стал полным огнём.")
@@ -95,6 +107,6 @@ enum HelpText {
     static var all: [String] {
         [fireFull, fireHalf, fireNone, freezes, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots,
          speedUnits, dayStart, hintMode, spaceThumb, adaptiveTarget, keyboardSize, keyboardOffset, quitOnClose, interfaceLanguage,
-         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange]
+         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, visitDays, goalDays, futureDay, firstWeekday]
     }
 }

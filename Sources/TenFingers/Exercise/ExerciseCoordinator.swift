@@ -6,6 +6,12 @@ import TypingCore
 /// Откладывает действие на заданное время (в тестах заменяется ручным таймером).
 typealias DayDelay = @MainActor (Duration, @escaping @MainActor () -> Void) -> Void
 
+/// День стал «полным огнём» в сохранении: карточка «Цель дня выполнена» на экране итога.
+struct FullFlame: Equatable {
+    /// Серия на этот момент (`StreakSummary.current`); 0 — прочитать не удалось, строка «N дней подряд» скрыта.
+    let days: Int
+}
+
 /// Общий жизненный цикл упражнения: создание сессии, звук, запись результата
 /// одной транзакцией, запись брошенного упражнения и алерт об ошибке сохранения.
 @MainActor @Observable
@@ -21,8 +27,9 @@ final class ExerciseCoordinator {
     /// Вызывается, если алерт закрыт кнопкой «Отмена», а сохранение шло не при выходе.
     @ObservationIgnored var onSaveCancelled: (() -> Void)?
 
-    /// Вызывается после успешного сохранения, которое впервые за логический день сделало день «полным огнём»
-    /// (звук `.streak` играет с задержкой `streakDelay`, чтобы не накладываться на звук результата).
+    /// Вызывается, когда «Начать урок заново» (`recordAbandonIfNeeded(announce: true)`) впервые за логический день
+    /// сделало день «полным огнём»: итога с карточкой нет, поэтому сообщение (тост) и звук `.streak`
+    /// (с задержкой `streakDelay`, чтобы не накладываться на звук результата) сразу.
     @ObservationIgnored var onDayCompleted: (() -> Void)?
 
     /// Вызывается после каждого успешного сохранения (в том числе брошенного упражнения):
@@ -36,6 +43,10 @@ final class ExerciseCoordinator {
     private(set) var newAchievements: [Achievement] = []
     /// Ачивки всех сохранений с последнего `resetRunAchievements()` (карточки на итоге урока: и с промежуточных шагов).
     private(set) var runAchievements: [Achievement] = []
+    /// Полный огонь последнего сохранения (карточка на итоге шага, порции, практики).
+    private(set) var newFullFlame: FullFlame?
+    /// Полный огонь с последнего `resetRunAchievements()` (карточка на итоге урока: и с промежуточного шага).
+    private(set) var runFullFlame: FullFlame?
     /// «Взрослый юмор» (читается при каждой проверке).
     @ObservationIgnored var adultHumor: () -> Bool = { StoredSettings.adultHumor() }
 
@@ -78,7 +89,7 @@ final class ExerciseCoordinator {
         }
     }
 
-    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» и проверка ачивок.
+    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» (только при «Начать урок заново») и проверка ачивок.
     static func live(context: ModelContext, sound: SoundPlayer, toasts: ToastCenter,
                      reminders: ReminderScheduler? = nil) -> ExerciseCoordinator {
         let coordinator = ExerciseCoordinator(recorder: .live(context: context), playSound: { sound.play($0) })
@@ -135,7 +146,8 @@ final class ExerciseCoordinator {
 
     /// Кнопка «Выйти»: записывает брошенное упражнение. `true` — можно уходить сразу,
     /// `false` — сохранение не удалось, показан алерт (после него вызовется `onExitAfterAlert`).
-    /// `announce` — после выхода будет итог с карточками ачивок («Слабые места»): тогда звук ачивки есть.
+    /// `announce` — после выхода будет итог с карточками ачивок и огня («Слабые места»): тогда звук ачивки
+    /// и звук серии (карточка полного огня) есть.
     func exit(announce: Bool = false) -> Bool {
         guard let session, !session.isRecorded else { return true }
         // Пока открыт алерт об ошибке, монитор клавиш не должен забирать Return и Esc.
@@ -196,12 +208,29 @@ final class ExerciseCoordinator {
         afterDelay(afterStreak ? Self.streakDelay * 2 : Self.streakDelay) { [playSound] in playSound(.achievement) }
     }
 
-    /// Начало урока или нового прохода («Ещё раз»): копилка ачивок запуска пустеет.
+    /// Начало урока или нового прохода («Ещё раз»): копилки ачивок и полного огня запуска пустеют.
     func resetRunAchievements() {
         runAchievements = []
+        runFullFlame = nil
     }
 
-    /// Тост сразу, звук серии — через `streakDelay`.
+    /// Звук серии — через `streakDelay` после звука результата. Только если после сохранения будет экран итога
+    /// с карточкой «Полный огонь» (`announceAfterSave`): «Выйти» без итога день закрывает молча.
+    private func announceFullDayOnSummary() {
+        let flame = FullFlame(days: currentStreakDays())
+        newFullFlame = flame
+        runFullFlame = flame
+        guard announceAfterSave else { return }
+        afterDelay(Self.streakDelay) { [playSound] in playSound(.streak) }
+    }
+
+    private func currentStreakDays() -> Int {
+        let streak = try? ProgressSnapshot(context: recorder.context)
+            .streak(goalSeconds: goalSeconds(), dayStartHour: recorder.dayStartHour())
+        return streak?.current ?? 0
+    }
+
+    /// Тост сразу, звук серии — через `streakDelay` (только «Начать урок заново»).
     private func announceFullDay() {
         afterDelay(Self.streakDelay) { [playSound] in playSound(.streak) }
         onDayCompleted?()
@@ -254,6 +283,7 @@ final class ExerciseCoordinator {
         guard let body else { return true }
         dayCompletedKey = nil
         newAchievements = []
+        newFullFlame = nil
         bodyRecordedSession = true
         do {
             try recorder.commit(body)
@@ -261,9 +291,11 @@ final class ExerciseCoordinator {
             let dayCompleted = dayCompletedKey != nil
             if dayCompleted {
                 dayCompletedKey = nil
-                announceFullDay()
+                announceFullDayOnSummary()
             }
-            if bodyRecordedSession { checkAchievements(announce: announceAfterSave, afterStreak: dayCompleted) }
+            if bodyRecordedSession {
+                checkAchievements(announce: announceAfterSave, afterStreak: dayCompleted && announceAfterSave)
+            }
             onSaved?()
             return true
         } catch {

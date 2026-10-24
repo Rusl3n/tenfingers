@@ -1,6 +1,13 @@
 import SwiftUI
 import TypingCore
 
+/// Строка-значок под числом серии («Заходил», «Цель»).
+struct DayMetricLine: Hashable {
+    let icon: String
+    let text: String
+    let help: String
+}
+
 /// Шапка главной: огонь, число дней серии, заморозки и цель на сегодня.
 struct StreakHeader: View {
     let streak: StreakSummary
@@ -23,6 +30,12 @@ struct StreakHeader: View {
                     .accessibilityLabel(Text("Серия: \(days)"))
                 ForEach(Self.lines(streak), id: \.self) { line in
                     Text(line).font(.subheadline).foregroundStyle(.secondary)
+                }
+                ForEach(Self.dayMetrics(streak), id: \.self) { line in
+                    Label(line.text, systemImage: line.icon)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .help(line.help)
                 }
                 freezes
                 if let shareProgress, Self.canShare(streak) {
@@ -52,14 +65,21 @@ struct StreakHeader: View {
             .accessibilityHidden(true)
     }
 
-    /// Подписи под числом дней: призыв заняться сегодня (если ещё не занимались) и, при любой серии,
-    /// сколько в ней полных дней.
+    /// Подписи под числом дней: призыв заняться сегодня (если ещё не занимались).
     nonisolated static func lines(_ streak: StreakSummary) -> [String] {
         guard streak.current > 0 else { return [String(localized: "Займитесь сегодня, чтобы начать серию")] }
-        var lines: [String] = []
-        if streak.today == DayStatus.none { lines.append(String(localized: "Займитесь сегодня, чтобы не прервать серию")) }
-        lines.append(String(localized: "из них полных: \(streak.fullInCurrent)"))
-        return lines
+        return streak.today == DayStatus.none ? [String(localized: "Займитесь сегодня, чтобы не прервать серию")] : []
+    }
+
+    /// Строки-значки под числом серии; пусто, пока нет ни одного дня с занятиями.
+    nonisolated static func dayMetrics(_ streak: StreakSummary) -> [DayMetricLine] {
+        guard streak.visitTotal > 0 else { return [] }
+        return [DayMetricLine(icon: "figure.walk",
+                              text: DayMetricsText.visits(current: streak.visitCurrent, total: streak.visitTotal),
+                              help: HelpText.visitDays),
+                DayMetricLine(icon: "target",
+                              text: DayMetricsText.goals(current: streak.goalCurrent, total: streak.goalTotal),
+                              help: HelpText.goalDays)]
     }
 
     private var freezes: some View {

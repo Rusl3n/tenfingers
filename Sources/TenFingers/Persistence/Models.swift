@@ -31,12 +31,21 @@ import SwiftData
     var fingerErrors: Data? = nil
     /// «ё» и «Ё», набранные без ошибки (у английских сессий 0); `nil` у записей до фазы 5.
     var yoPresses: Int? = nil
+    /// Номер шага в плане урока (`ExerciseSpec.id`, с нуля); `nil` вне курса и у записей до поколения 6.
+    /// Нужен, потому что в уроке издания 2 бывает несколько шагов одного вида (фаза 6, §11).
+    var stepIndex: Int? = nil
+    /// Пункт «Плана на сегодня»: `warmup`, `lesson`, `training`, `text` (фаза 6, §10.1). Пишет подфаза 6c; до неё `nil`.
+    var planSlot: String? = nil
+    /// Свойства набранного текста (`TextTraits`, битовая маска): 1 — заглавные, 2 — пунктуация, 4 — цифры,
+    /// 8 — связный текст. `nil` у записей до поколения 6.
+    var textTraits: Int? = nil
 
     init(mode: String, language: String, lessonId: String?, startedAt: Date, endedAt: Date,
          logicalDay: String, activeSeconds: Double, chars: Int, errorCount: Int, cpm: Double,
          accuracy: Double, completed: Bool, hintLevel: String, maxErrorStreak: Int, wrongKeystrokes: Int,
          exerciseKind: String? = nil, pinkyPresses: Int = 0, pinkyErrors: Int = 0, source: String? = nil,
-         fingerPresses: Data? = nil, fingerErrors: Data? = nil, yoPresses: Int? = nil) {
+         fingerPresses: Data? = nil, fingerErrors: Data? = nil, yoPresses: Int? = nil, stepIndex: Int? = nil,
+         planSlot: String? = nil, textTraits: Int? = nil) {
         id = UUID()
         self.mode = mode
         self.language = language
@@ -60,6 +69,9 @@ import SwiftData
         self.fingerPresses = fingerPresses
         self.fingerErrors = fingerErrors
         self.yoPresses = yoPresses
+        self.stepIndex = stepIndex
+        self.planSlot = planSlot
+        self.textTraits = textTraits
     }
 }
 
@@ -191,6 +203,29 @@ import SwiftData
     init(achievementId: String, unlockedAt: Date, seen: Bool = false) {
         self.achievementId = achievementId
         self.unlockedAt = unlockedAt
+        self.seen = seen
+    }
+}
+
+/// Одно получение повторяемой ачивки (поколение схемы 6, спецификация фазы 6 §8.4). Пишет подфаза 6d;
+/// в 6a модель только заведена. `occurrence` — ключ получения: логический день, id сессии, этапа или урока,
+/// неделя `2026-W44`, месяц `2026-11`. Пара (`achievementId`, `occurrence`) уникальна: повторная проверка
+/// ничего не дублирует. `AchievementRecord` не меняется и создаётся при первом получении.
+@Model final class AchievementGrant {
+    #Unique<AchievementGrant>([\.achievementId, \.occurrence])
+    var achievementId: String
+    var occurrence: String
+    var grantedAt: Date
+    /// Значение получения: скорость рекорда, звёзды, ступень, число заходов; `nil` — значения нет.
+    var value: Double? = nil
+    /// Показано ли получение пользователю (выданные задним числом — сразу просмотрены).
+    var seen: Bool = false
+
+    init(achievementId: String, occurrence: String, grantedAt: Date, value: Double? = nil, seen: Bool = false) {
+        self.achievementId = achievementId
+        self.occurrence = occurrence
+        self.grantedAt = grantedAt
+        self.value = value
         self.seen = seen
     }
 }

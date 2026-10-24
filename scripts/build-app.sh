@@ -135,4 +135,6 @@ fi
 rm -rf "/Applications/$NAME"
 cp -R "$APP" /Applications/
 rm -rf "/Applications/$OLD_NAME"
+# Промежуточный бандл в build/ больше не нужен: иначе Spotlight и Launchpad показывают второе приложение.
+rm -rf "$APP"
 echo "Установлено: /Applications/$NAME"

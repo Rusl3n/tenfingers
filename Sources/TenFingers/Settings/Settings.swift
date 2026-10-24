@@ -17,6 +17,8 @@ enum SettingsKey {
     static let hintMode = "hintMode"
     static let speedUnit = "speedUnit"
     static let dayStartHour = "dayStartHour"
+    /// Первый день недели (`FirstWeekday`): system | monday | sunday. Влияет на ленту недели, календарь занятий и «Мой прогресс».
+    static let firstWeekday = "firstWeekday"
     static let dailyGoalMinutes = "dailyGoalMinutes"
     static let quitOnWindowClose = "quitOnWindowClose"
     static let keyboardUnit = "keyboardUnit"
@@ -60,12 +62,14 @@ enum SettingsKey {
     static let shareQR = "shareQR"
     /// Период карточки «Мой прогресс» (`ProgressPeriod`): month, year или all — без календаря (по умолчанию month).
     static let shareProgressPeriod = "shareProgressPeriod"
-    /// Что показывать на карточке «Мой прогресс» (`ProgressCardContent`): все пять — по умолчанию включены.
+    /// Что показывать на карточке «Мой прогресс» (`ProgressCardContent`): все семь — по умолчанию включены.
     static let shareProgressShowStreak = "shareProgressShowStreak"
     static let shareProgressShowFullDays = "shareProgressShowFullDays"
     static let shareProgressShowTime = "shareProgressShowTime"
     static let shareProgressShowSpeed = "shareProgressShowSpeed"
     static let shareProgressShowAccuracy = "shareProgressShowAccuracy"
+    static let shareProgressShowVisits = "shareProgressShowVisits"
+    static let shareProgressShowGoalDays = "shareProgressShowGoalDays"
     /// Что показывать на карточке ачивки (`AchievementCardContent`): шутку (по умолчанию да) и «За что» (по умолчанию нет).
     static let shareAchievementShowJoke = "shareAchievementShowJoke"
     static let shareAchievementShowReason = "shareAchievementShowReason"
@@ -75,6 +79,7 @@ enum SettingsKey {
 
 enum SettingsDefault {
     static let dayStartHour = 4
+    static let firstWeekday = FirstWeekday.system.rawValue
     static let dailyGoalMinutes = 10
     static let dailyGoalOptions = [5, 10, 15, 20, 30]
     static let adaptiveTargetCpm = 175
@@ -101,6 +106,12 @@ enum SettingsDefault {
 enum StoredSettings {
     static func dayStartHour(_ defaults: UserDefaults = .standard) -> Int {
         defaults.object(forKey: SettingsKey.dayStartHour) as? Int ?? SettingsDefault.dayStartHour
+    }
+
+    /// Первый день недели как у `Calendar.firstWeekday`: 1 — воскресенье, 2 — понедельник. «Как в системе» и любое
+    /// непонятное значение — регион системы. Единственное место, откуда все экраны берут первый день недели.
+    static func firstWeekday(_ defaults: UserDefaults = .standard) -> Int {
+        (defaults.string(forKey: SettingsKey.firstWeekday).flatMap(FirstWeekday.init(rawValue:)) ?? .system).value
     }
 
     /// Дневная цель в секундах.
@@ -136,6 +147,30 @@ enum StoredSettings {
         return ReminderSettings(
             enabled: defaults.object(forKey: SettingsKey.remindersEnabled) as? Bool ?? SettingsDefault.remindersEnabled,
             config: config)
+    }
+}
+
+/// «Первый день недели»: как в системе, понедельник или воскресенье.
+enum FirstWeekday: String, CaseIterable, Identifiable {
+    case system, monday, sunday
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: String(localized: "Как в системе")
+        case .monday: String(localized: "Понедельник")
+        case .sunday: String(localized: "Воскресенье")
+        }
+    }
+
+    /// 1 — воскресенье, 2 — понедельник (как `Calendar.firstWeekday`).
+    var value: Int {
+        switch self {
+        case .system: Calendar.current.firstWeekday
+        case .monday: 2
+        case .sunday: 1
+        }
     }
 }
 

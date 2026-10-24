@@ -22,8 +22,8 @@ public enum AchievementCondition: Equatable, Sendable {
     case cleanDay(exercises: Int, minimum: Double)
     case firstLesson, firstStage
     case courseCompleted(Language), polyglot
-    /// Все уроки курса языка на ★★★ (по `LessonScoring.effectiveStars`).
-    case allThreeStars(Language)
+    /// Все уроки курса языка не ниже `LessonScoring.excellentStars` (по `LessonScoring.effectiveStars`).
+    case allLessonsExcellent(Language)
     case volumeChars(Int), volumeHours(Double)
     /// Локальное время завершения упражнения в [startHour, endHour).
     case finishedBetween(startHour: Int, endHour: Int)

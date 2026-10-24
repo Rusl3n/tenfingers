@@ -15,6 +15,7 @@ struct PracticeRunnerView: View {
         let portion: Int
         let cpm: Double
         let accuracy: Double
+        let errors: Int
         let lines: [String]
         /// Свой текст дочитан до конца: вместо «Ещё» — «Начать сначала».
         let textFinished: Bool
@@ -81,8 +82,10 @@ struct PracticeRunnerView: View {
             }
         case .summary(let summary):
             RunSummaryView(title: summaryTitle(summary),
-                           cpm: summary.cpm, accuracy: summary.accuracy, lines: summary.lines,
+                           cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
+                           lines: summary.lines,
                            newAchievements: coordinator?.newAchievements ?? [],
+                           fullFlame: coordinator?.newFullFlame,
                            primaryTitle: primaryTitle(summary),
                            onPrimary: { summary.textFinished ? restart(after: summary.portion) : begin(summary.portion + 1) },
                            secondaryTitle: "Закончить", onSecondary: exit)
@@ -172,7 +175,7 @@ struct PracticeRunnerView: View {
 
     private func finish(portion: Int, next: Int?, session: ExerciseSession, result: ExerciseResult) {
         sound.play(.exerciseDone)
-        let cpm = result.cpm, accuracy = result.accuracy
+        let cpm = result.cpm, accuracy = result.accuracy, errors = result.errorCount
         let id = customId
         let saved = coordinator?.recordFinish(session, result) { recorder in
             guard let id, let next else { return }
@@ -182,19 +185,19 @@ struct PracticeRunnerView: View {
         // следующая порция началась бы с места, которого нет в базе.
         if saved {
             if let next { customOffset = next }
-            showSummary(portion: portion, cpm: cpm, accuracy: accuracy)
+            showSummary(portion: portion, cpm: cpm, accuracy: accuracy, errors: errors)
             return
         }
         // Сохранение не удалось: итог показываем после «Повторить» или «Отмена».
         phase = .saving
         coordinator?.onRetrySucceeded = {
             if let next { customOffset = next }
-            showSummary(portion: portion, cpm: cpm, accuracy: accuracy)
+            showSummary(portion: portion, cpm: cpm, accuracy: accuracy, errors: errors)
         }
-        coordinator?.onSaveCancelled = { showSummary(portion: portion, cpm: cpm, accuracy: accuracy) }
+        coordinator?.onSaveCancelled = { showSummary(portion: portion, cpm: cpm, accuracy: accuracy, errors: errors) }
     }
 
-    private func showSummary(portion: Int, cpm: Double, accuracy: Double) {
+    private func showSummary(portion: Int, cpm: Double, accuracy: Double, errors: Int) {
         var lines: [String] = []
         var finished = false
         if case .library(let item) = run.source {
@@ -209,7 +212,7 @@ struct PracticeRunnerView: View {
                 lines.append(String(localized: "Пройдено: \(percent)"))
             }
         }
-        phase = .summary(Summary(portion: portion, cpm: cpm, accuracy: accuracy, lines: lines,
+        phase = .summary(Summary(portion: portion, cpm: cpm, accuracy: accuracy, errors: errors, lines: lines,
                                  textFinished: finished))
     }
 

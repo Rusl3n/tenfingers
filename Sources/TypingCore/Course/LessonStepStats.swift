@@ -33,10 +33,10 @@ public enum LessonStepStats {
         }
     }
 
-    /// Средняя из лучших точностей пройденных шагов; `nil`, если шагов нет.
-    public static func averageAccuracy(_ steps: [StepStat]) -> Double? {
+    /// Сумма ошибок лучших попыток шагов (строка урока на карте курса); `nil`, если шагов нет.
+    public static func totalErrors(_ steps: [StepStat]) -> Int? {
         guard !steps.isEmpty else { return nil }
-        return steps.reduce(0) { $0 + $1.bestAccuracy } / Double(steps.count)
+        return steps.reduce(0) { $0 + $1.errorsInBest }
     }
 
     /// Новая попытка лучше прежней лучшей: точнее, а при той же точности — быстрее её же.

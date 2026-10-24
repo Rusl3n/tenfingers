@@ -119,3 +119,11 @@ private func makeSession(_ text: String = "ао") -> ExerciseSession {
     _ = session.handleKey(characters: "б", keyCode: 43, modifiers: [], timestamp: 0.2)
     #expect(events == [.keyClick, .error])
 }
+
+@MainActor @Test func stepIndexIsRecordedOnlyInCourseMode() {
+    let spec = ExerciseSpec(id: 3, kind: .words, title: "t", text: "ао")
+    let course = ExerciseSession(spec: spec, language: .ru, mode: .course, lessonId: "ru.1.1", hint: .full)
+    #expect(course.makeResult().stepIndex == 3)
+    let adaptive = ExerciseSession(spec: spec, language: .ru, mode: .adaptive, lessonId: nil, hint: .full)
+    #expect(adaptive.makeResult().stepIndex == nil)
+}

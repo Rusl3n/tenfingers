@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Семь последних логических дней со статусами; сегодня обведено пунктиром.
+/// Календарная неделя со статусами дней; сегодня обведено пунктиром, дни впереди бледные и без статуса.
 struct WeekStrip: View {
+    nonisolated static let futureIcon = "circle.dotted"
     let days: [WeekDay]
     @Environment(\.palette) private var palette
 
@@ -9,10 +10,11 @@ struct WeekStrip: View {
         HStack(spacing: 0) {
             ForEach(days) { day in
                 VStack(spacing: 6) {
-                    Text(day.label).font(.caption).foregroundStyle(.secondary)
-                    Image(systemName: DayStatusStyle.icon(day.status))
+                    Text(day.label).font(.caption).foregroundStyle(.secondary).opacity(day.isFuture ? 0.5 : 1)
+                    // Будущий день — пунктирный кружок, чтобы его нельзя было спутать с пропущенным.
+                    Image(systemName: day.isFuture ? WeekStrip.futureIcon : DayStatusStyle.icon(day.status))
                         .font(.title2)
-                        .foregroundStyle(DayStatusStyle.color(day.status))
+                        .foregroundStyle(day.isFuture ? Color.secondary.opacity(0.5) : DayStatusStyle.color(day.status))
                         .frame(width: 40, height: 40)
                         .overlay {
                             if day.isToday {
@@ -21,9 +23,10 @@ struct WeekStrip: View {
                         }
                 }
                 .frame(maxWidth: .infinity)
-                .help(HelpText.fire(day.status))
+                .help(day.isFuture ? HelpText.futureDay : HelpText.fire(day.status))
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text("\(day.label): \(DayStatusStyle.title(day.status))"))
+                .accessibilityLabel(day.isFuture ? Text("\(day.label): ещё впереди")
+                                                 : Text("\(day.label): \(DayStatusStyle.title(day.status))"))
                 .accessibilityValue(day.isToday ? Text("сегодня") : Text(verbatim: ""))
             }
         }

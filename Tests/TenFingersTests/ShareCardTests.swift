@@ -488,7 +488,7 @@ private func progressData() -> ProgressCardData {
                               bundle: localization("ru"), locale: ru)
     #expect(month.header == "Мой прогресс")
     #expect(month.headline == "20 дней подряд")
-    #expect(month.subtitle == "Полных дней: 18")
+    #expect(month.subtitle == "Полных дней: 18\nЗаходил: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
     #expect(month.footnote == nil)
     #expect(month.signature == "rusl3n")
     let progress = month.progress
@@ -516,7 +516,7 @@ private func progressData() -> ProgressCardData {
                              unit: .cpm, bundle: localization("en"), locale: en)
     #expect(text.header == "My Progress")
     #expect(text.headline == "0 days in a row")
-    #expect(text.subtitle == "Full days: 0")
+    #expect(text.subtitle == "Full days: 0\nVisited: 0 days in a row · 0 total\nGoal: 0 days in a row · 0 total")
     #expect(text.progress?.periodLabel == "October 2026")
     #expect(text.progress?.weekdays.first == "Sun")
     #expect(text.progress?.metrics.map(\.title) == ["Practice time", "Best speed", "Average accuracy"])
@@ -572,9 +572,24 @@ private func progressData() -> ProgressCardData {
     content.showsAccuracy = false
     #expect(text(content).progress?.metrics.isEmpty == true)
     #expect(text(content, "en", en).progress?.metrics.isEmpty == true)
+    content.showsVisits = false
+    content.showsGoalDays = false
+    #expect(text(content).subtitle == "Полных дней: 18")
     content.showsFullDays = false
     #expect(text(content).subtitle == nil)
-    #expect(text(all).subtitle == "Полных дней: 18")
+    #expect(text(all).subtitle == "Полных дней: 18\nЗаходил: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
+    // Каждая строка включается отдельно, порядок всегда «Полные дни», «Заходил», «Цель».
+    content.showsGoalDays = true
+    #expect(text(content).subtitle == "Цель: 3 дня подряд · всего 18")
+    content.showsVisits = true
+    #expect(text(content).subtitle == "Заходил: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
+    content.showsGoalDays = false
+    #expect(text(content, "en", en).subtitle == "Visited: 3 days in a row · 19 total")
+    content.showsVisits = false
+    content.showsFullDays = true
+    #expect(text(content, "en", en).subtitle == "Full days: 18")
+    #expect(text(content).progress?.hasSubtitle == true)
+    #expect(text(ProgressCardContent(showsFullDays: false, showsVisits: false, showsGoalDays: false)).progress?.hasSubtitle == false)
     #expect(text(content).progress?.showsStreak == true)
     content.showsStreak = false
     #expect(text(content).progress?.showsStreak == false)
@@ -668,13 +683,16 @@ private func progressData() -> ProgressCardData {
     let sizes: [ShareFormat: (Int, Int)] = [.wide: (2400, 1260), .square: (2160, 2160), .story: (2160, 3840)]
     let card = ShareCard(.progress(progressData()), now: fixedDate)
     func content(streak: Bool = false, fullDays: Bool = false, time: Bool = false, speed: Bool = false,
-                 accuracy: Bool = false) -> ProgressCardContent {
+                 accuracy: Bool = false, visits: Bool = false, goals: Bool = false) -> ProgressCardContent {
         ProgressCardContent(showsStreak: streak, showsFullDays: fullDays, showsTime: time, showsSpeed: speed,
-                            showsAccuracy: accuracy)
+                            showsAccuracy: accuracy, showsVisits: visits, showsGoalDays: goals)
     }
     let variants: [(String, ProgressCardContent, ProgressPeriod)] = [
         ("только огонь", content(streak: true), .all),
         ("огонь и полные дни", content(streak: true, fullDays: true), .all),
+        ("заходил и цель, без календаря", content(streak: true, visits: true, goals: true), .all),
+        ("все строки под огнём с календарём", content(streak: true, fullDays: true, visits: true, goals: true), .month),
+        ("только цель", content(goals: true), .year),
         ("только точность", content(accuracy: true), .all),
         ("календарь без показателей", content(), .month),
         ("год без показателей", content(), .year),
@@ -802,7 +820,7 @@ private let cardPadding: [ShareFormat: Int] = [.wide: 72, .square: 80, .story: 9
     #expect(data.streak == 365)
     let card = ShareCard(.progress(data), now: fixedDate)
     let flameOnly = ProgressCardContent(showsStreak: true, showsFullDays: false, showsTime: false, showsSpeed: false,
-                                        showsAccuracy: false)
+                                        showsAccuracy: false, showsVisits: false, showsGoalDays: false)
     for format in ShareFormat.allCases {
         for period in ProgressPeriod.allCases {
             for content in [ProgressCardContent(), flameOnly] {
@@ -843,7 +861,7 @@ private func inkBounds(_ rep: NSBitmapImageRep, rows: Range<Int>) throws -> (min
     defer { removeTestDefaults(name) }
     let card = ShareCard(.progress(progressData()), now: fixedDate)
     let flameOnly = ProgressCardContent(showsStreak: true, showsFullDays: false, showsTime: false, showsSpeed: false,
-                                        showsAccuracy: false)
+                                        showsAccuracy: false, showsVisits: false, showsGoalDays: false)
     for format in ShareFormat.allCases {
         for theme in ShareTheme.allCases {
             var options = ShareOptions(signature: .none, theme: theme, background: .transparent, format: format)

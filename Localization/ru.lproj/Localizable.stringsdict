@@ -42,5 +42,65 @@
 			<string>Получено %lld ачивки за прошлые занятия</string>
 		</dict>
 	</dict>
+	<key>errors.atMost %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>не больше %lld ошибки</string>
+			<key>few</key>
+			<string>не больше %lld ошибок</string>
+			<key>many</key>
+			<string>не больше %lld ошибок</string>
+			<key>other</key>
+			<string>не больше %lld ошибки</string>
+		</dict>
+	</dict>
+	<key>errors.withAtMost %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>не больше чем с %lld ошибкой</string>
+			<key>few</key>
+			<string>не больше чем с %lld ошибками</string>
+			<key>many</key>
+			<string>не больше чем с %lld ошибками</string>
+			<key>other</key>
+			<string>не больше чем с %lld ошибками</string>
+		</dict>
+	</dict>
+	<key>errors.count %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld ошибка</string>
+			<key>few</key>
+			<string>%lld ошибки</string>
+			<key>many</key>
+			<string>%lld ошибок</string>
+			<key>other</key>
+			<string>%lld ошибки</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

@@ -158,21 +158,27 @@ struct AchievementService {
     }
 
     /// Звёзды уроков — только `LessonScoring.effectiveStars` (как карта курса и аналитика): история —
-    /// скорость и точность завершённых проверок урока.
+    /// завершённые шаги урока (проверки дают звёзды, остальные шаги — чистоту урока для ★★★★★).
     private func stars(progress: [LessonProgress], exercises: [ExerciseFact]) -> [String: Int] {
         let stored = Dictionary(progress.map { ($0.lessonId, $0) }, uniquingKeysWith: { first, _ in first })
-        var checks: [String: [(cpm: Double, accuracy: Double)]] = [:]
-        for fact in exercises where fact.completed && fact.exerciseKind == .check {
+        var lessonSessions: [String: [SessionSummary]] = [:]
+        for fact in exercises where fact.completed && fact.exerciseKind != nil {
             guard let lessonId = fact.lessonId else { continue }
-            checks[lessonId, default: []].append((cpm: fact.cpm, accuracy: fact.accuracy))
+            // Для звёзд нужны только скорость, точность и вид шага; число ошибок оценкой по длине текста.
+            lessonSessions[lessonId, default: []].append(SessionSummary(
+                day: fact.logicalDay, endedAt: fact.endedAt, language: fact.language, mode: fact.mode,
+                chars: fact.chars, activeSeconds: fact.activeSeconds, accuracy: fact.accuracy, completed: true,
+                lessonId: lessonId, exerciseKind: fact.exerciseKind, cpm: fact.cpm,
+                errorCount: Int((Double(fact.chars) * (1 - fact.accuracy)).rounded())))
         }
         var result: [String: Int] = [:]
         for course in courses.values {
             for stage in course.stages {
-                for lesson in stage.lessons where stored[lesson.id] != nil || checks[lesson.id] != nil {
+                for lesson in stage.lessons
+                where stored[lesson.id] != nil || lessonSessions[lesson.id]?.contains(where: { $0.exerciseKind == .check }) == true {
                     let record = stored[lesson.id]
                     result[lesson.id] = LessonScoring.effectiveStars(
-                        history: checks[lesson.id] ?? [], targetCpm: stage.targetCpm,
+                        sessions: lessonSessions[lesson.id] ?? [], lessonId: lesson.id, targetCpm: stage.targetCpm,
                         passed: record?.passedAt != nil, storedStars: record?.bestStars ?? 0)
                 }
             }

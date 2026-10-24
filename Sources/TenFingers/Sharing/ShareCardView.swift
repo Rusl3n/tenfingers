@@ -248,7 +248,8 @@ struct ShareCardView: View {
                 .font(.system(size: size, weight: .medium, design: .rounded))
                 .foregroundStyle(style.secondary)
                 .multilineTextAlignment(alignment)
-                .lineLimit(3)
+                // У «Мой прогресс» до трёх строк, и каждая может перенестись: запас, чтобы ничего не обрезалось.
+                .lineLimit(text.progress == nil ? 3 : 6)
                 .minimumScaleFactor(0.7)
                 .cappedWidth(width)
         }

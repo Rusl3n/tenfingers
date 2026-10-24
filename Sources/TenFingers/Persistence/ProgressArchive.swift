@@ -28,7 +28,7 @@ enum ArchiveError: Error, Equatable, LocalizedError {
         case .notAnArchive:
             String(localized: "Это не файл прогресса «Десяти пальцев».")
         case .unsupported(let version):
-            String(localized: "Файл сохранён в формате версии \(version), а это приложение понимает только версию 1. Установите последнюю версию приложения.")
+            String(localized: "Файл сохранён в формате версии \(version), а это приложение понимает версии до \(ProgressArchive.version). Установите последнюю версию приложения.")
         case .newerGeneration:
             String(localized: "Файл сохранён более новой версией приложения. Установите последнюю версию.")
         case .damaged(let path):
@@ -74,6 +74,7 @@ enum ArchiveError: Error, Equatable, LocalizedError {
         case "CounterRecord": String(localized: "Счётчики")
         case "CustomText": String(localized: "Свои тексты")
         case "AchievementRecord": String(localized: "Ачивки")
+        case "AchievementGrant": String(localized: "Повторные получения ачивок")
         default: model
         }
     }
@@ -82,14 +83,15 @@ enum ArchiveError: Error, Equatable, LocalizedError {
 /// Файл всего прогресса (`.tenfingers`, JSON): все модели базы, настройки, профиль и продолжения уроков.
 ///
 /// Формат версии 1: `format`, `version`, `exportedAt`, `appVersion`, `schemaGeneration`, `profile`, `settings`,
-/// `lessonResume` и разделы моделей. Даты — числа: секунды от 1 января 2001 года UTC (как `Date` в Foundation),
+/// `lessonResume` и разделы моделей. Формат версии 2 (с поколения схемы 6): у сессий поля `stepIndex`, `planSlot`,
+/// `textTraits`, раздел `achievementGrants`; файлы версии 1 читаются. Даты — числа: секунды от 1 января 2001 года UTC (как `Date` в Foundation),
 /// без потери точности; при чтении принимаются и строки ISO 8601 (так писали первые сборки). Ключи упорядочены,
 /// записи разделов отсортированы: один и тот же прогресс всегда даёт один и тот же файл.
 /// Чтение терпимо к старым файлам: отсутствующие разделы и поля, у которых в модели есть значение
 /// по умолчанию, получают это значение. Файл более нового формата или поколения схемы не читается.
 enum ProgressArchive {
     static let format = "tenfingers-progress"
-    static let version = 1
+    static let version = 2
     static let fileExtension = "tenfingers"
 
     /// Тип файла: объявлен в `Info.plist` (`local.tenfingers.progress`, подтип `public.json`).
@@ -119,6 +121,8 @@ enum ProgressArchive {
         /// Полученные ачивки (поколение 3). В архиве более старого поколения раздела нет: ачивки выдаст
         /// проверка после загрузки (`AchievementService`).
         var achievements: [AchievementDTO]
+        /// Получения повторяемых ачивок (поколение 6). В файле версии 1 раздела нет — пустой список.
+        var achievementGrants: [AchievementGrantDTO]
 
         init(format: String = ProgressArchive.format, version: Int = ProgressArchive.version, exportedAt: Date?,
              appVersion: String, schemaGeneration: Int = SchemaGeneration.current, profile: ProfileDTO,
@@ -126,7 +130,7 @@ enum ProgressArchive {
              sessions: [SessionDTO], days: [DayDTO], keyStats: [KeyStatDTO], bigramStats: [BigramStatDTO],
              lessonProgress: [LessonProgressDTO], adaptiveStates: [AdaptiveStateDTO],
              adaptiveUnlocks: [AdaptiveUnlockDTO], counters: [CounterDTO], customTexts: [CustomTextDTO],
-             achievements: [AchievementDTO]) {
+             achievements: [AchievementDTO], achievementGrants: [AchievementGrantDTO] = []) {
             self.format = format
             self.version = version
             self.exportedAt = exportedAt
@@ -145,6 +149,7 @@ enum ProgressArchive {
             self.counters = counters
             self.customTexts = customTexts
             self.achievements = achievements
+            self.achievementGrants = achievementGrants
         }
 
         init(from decoder: any Decoder) throws {
@@ -167,13 +172,14 @@ enum ProgressArchive {
             counters = try c.value(.counters, default: [])
             customTexts = try c.value(.customTexts, default: [])
             achievements = try c.value(.achievements, default: [])
+            achievementGrants = try c.value(.achievementGrants, default: [])
         }
 
         /// Количество записей в каждом разделе (для проверки записанной резервной копии).
         var recordCounts: [Int] {
             [sessions.count, days.count, keyStats.count, bigramStats.count, lessonProgress.count,
              adaptiveStates.count, adaptiveUnlocks.count, counters.count, customTexts.count, lessonResume.count,
-             achievements.count]
+             achievements.count, achievementGrants.count]
         }
 
         /// Число записей по моделям (имя совпадает с сущностью `ModelStore.schema`): по нему тест проверяет,
@@ -183,7 +189,8 @@ enum ProgressArchive {
              KeyStatDTO.modelName: keyStats.count, BigramStatDTO.modelName: bigramStats.count,
              LessonProgressDTO.modelName: lessonProgress.count, AdaptiveStateDTO.modelName: adaptiveStates.count,
              AdaptiveUnlockDTO.modelName: adaptiveUnlocks.count, CounterDTO.modelName: counters.count,
-             CustomTextDTO.modelName: customTexts.count, AchievementDTO.modelName: achievements.count]
+             CustomTextDTO.modelName: customTexts.count, AchievementDTO.modelName: achievements.count,
+             AchievementGrantDTO.modelName: achievementGrants.count]
         }
     }
 
@@ -200,6 +207,7 @@ enum ProgressArchive {
         case "counters": CounterDTO.modelName
         case "customTexts": CustomTextDTO.modelName
         case "achievements": AchievementDTO.modelName
+        case "achievementGrants": AchievementGrantDTO.modelName
         default: nil
         }
     }
@@ -238,7 +246,9 @@ enum ProgressArchive {
             counters: try all(CounterRecord.self).map(CounterDTO.init).sorted { $0.name < $1.name },
             customTexts: try all(CustomText.self).map(CustomTextDTO.init)
                 .sorted { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) },
-            achievements: try all(AchievementRecord.self).map(AchievementDTO.init).sorted { $0.achievementId < $1.achievementId })
+            achievements: try all(AchievementRecord.self).map(AchievementDTO.init).sorted { $0.achievementId < $1.achievementId },
+            achievementGrants: try all(AchievementGrant.self).map(AchievementGrantDTO.init)
+                .sorted { ($0.achievementId, $0.occurrence) < ($1.achievementId, $1.occurrence) })
     }
 
     /// Весь прогресс (с несохранёнными изменениями контекста) в JSON.
@@ -407,6 +417,7 @@ enum ProgressArchive {
         try each(archive.counters, body)
         try each(archive.customTexts, body)
         try each(archive.achievements, body)
+        try each(archive.achievementGrants, body)
     }
 
     /// Настройки, профиль и продолжения уроков из архива (после успешной замены базы).
@@ -580,6 +591,10 @@ extension ProgressArchive {
         var fingerPresses: [String: Int]?
         var fingerErrors: [String: Int]?
         var yoPresses: Int?
+        /// Поколение 6: номер шага в плане урока, пункт плана дня, свойства текста; у прежних записей и файлов — нет.
+        var stepIndex: Int?
+        var planSlot: String?
+        var textTraits: Int?
 
         init(_ m: SessionRecord) {
             id = m.id; mode = m.mode; language = m.language; lessonId = m.lessonId
@@ -589,7 +604,7 @@ extension ProgressArchive {
             maxErrorStreak = m.maxErrorStreak; wrongKeystrokes = m.wrongKeystrokes; exerciseKind = m.exerciseKind
             pinkyPresses = m.pinkyPresses; pinkyErrors = m.pinkyErrors; source = m.source
             fingerPresses = FingerCounts.raw(m.fingerPresses); fingerErrors = FingerCounts.raw(m.fingerErrors)
-            yoPresses = m.yoPresses
+            yoPresses = m.yoPresses; stepIndex = m.stepIndex; planSlot = m.planSlot; textTraits = m.textTraits
         }
 
         init(from decoder: any Decoder) throws {
@@ -617,6 +632,9 @@ extension ProgressArchive {
             fingerPresses = try c.decodeIfPresent([String: Int].self, forKey: .fingerPresses)
             fingerErrors = try c.decodeIfPresent([String: Int].self, forKey: .fingerErrors)
             yoPresses = try c.decodeIfPresent(Int.self, forKey: .yoPresses)
+            stepIndex = try c.decodeIfPresent(Int.self, forKey: .stepIndex)
+            planSlot = try c.decodeIfPresent(String.self, forKey: .planSlot)
+            textTraits = try c.decodeIfPresent(Int.self, forKey: .textTraits)
         }
 
         static let modelName = "SessionRecord"
@@ -631,7 +649,8 @@ extension ProgressArchive {
                 wrongKeystrokes: wrongKeystrokes, exerciseKind: exerciseKind, pinkyPresses: pinkyPresses,
                 pinkyErrors: pinkyErrors, source: source,
                 fingerPresses: fingerPresses.map { FingerCounts.data(raw: $0) },
-                fingerErrors: fingerErrors.map { FingerCounts.data(raw: $0) }, yoPresses: yoPresses)
+                fingerErrors: fingerErrors.map { FingerCounts.data(raw: $0) }, yoPresses: yoPresses,
+                stepIndex: stepIndex, planSlot: planSlot, textTraits: textTraits)
             m.id = id
             return m
         }
@@ -894,6 +913,37 @@ extension ProgressArchive {
             AchievementRecord(achievementId: achievementId, unlockedAt: unlockedAt, seen: seen)
         }
     }
+
+    struct AchievementGrantDTO: Codable, Equatable, ArchiveRecord {
+        var achievementId: String
+        var occurrence: String
+        var grantedAt: Date
+        var value: Double?
+        var seen: Bool
+
+        init(_ m: AchievementGrant) {
+            achievementId = m.achievementId; occurrence = m.occurrence; grantedAt = m.grantedAt; value = m.value
+            seen = m.seen
+        }
+
+        init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            achievementId = try c.decode(String.self, forKey: .achievementId)
+            occurrence = try c.decode(String.self, forKey: .occurrence)
+            grantedAt = try c.decode(Date.self, forKey: .grantedAt)
+            value = try c.decodeIfPresent(Double.self, forKey: .value)
+            seen = try c.value(.seen, default: false)
+        }
+
+        static let modelName = "AchievementGrant"
+        var isValid: Bool { !achievementId.isEmpty && !occurrence.isEmpty }
+        var uniqueKey: String? { "\(achievementId)/\(occurrence)" }
+
+        func makeModel() -> any PersistentModel {
+            AchievementGrant(achievementId: achievementId, occurrence: occurrence, grantedAt: grantedAt,
+                             value: value, seen: seen)
+        }
+    }
 }
 
 // MARK: - Настройки
@@ -941,7 +991,7 @@ enum ArchivedSettings {
             (SettingsKey.themeMode, .string), (SettingsKey.lightPalette, .string), (SettingsKey.darkPalette, .string),
             (SettingsKey.darkFromHour, .int), (SettingsKey.darkToHour, .int), (SettingsKey.uiScale, .double),
             (SettingsKey.activeLanguage, .string), (SettingsKey.hintMode, .string), (SettingsKey.speedUnit, .string),
-            (SettingsKey.dayStartHour, .int), (SettingsKey.dailyGoalMinutes, .int),
+            (SettingsKey.dayStartHour, .int), (SettingsKey.firstWeekday, .string), (SettingsKey.dailyGoalMinutes, .int),
             (SettingsKey.adaptiveTargetCpm, .int), (SettingsKey.spaceThumbHint, .bool),
             (SettingsKey.quitOnWindowClose, .bool), (SettingsKey.adultHumor, .bool),
             (SettingsKey.keyboardUnit, .double), (SettingsKey.keyboardOffset, .double),
@@ -957,6 +1007,7 @@ enum ArchivedSettings {
             (SettingsKey.shareProgressShowStreak, .bool), (SettingsKey.shareProgressShowFullDays, .bool),
             (SettingsKey.shareProgressShowTime, .bool), (SettingsKey.shareProgressShowSpeed, .bool),
             (SettingsKey.shareProgressShowAccuracy, .bool),
+            (SettingsKey.shareProgressShowVisits, .bool), (SettingsKey.shareProgressShowGoalDays, .bool),
             (SettingsKey.shareAchievementShowJoke, .bool), (SettingsKey.shareAchievementShowReason, .bool),
         ] + SoundEvent.allCases.flatMap { event -> [(key: String, kind: Kind)] in
             [(SoundSettings.enabledKey(event), .bool), (SoundSettings.volumeKey(event), .double)]
@@ -1011,6 +1062,8 @@ enum ArchivedSettings {
         SettingsKey.shareProgressShowStreak: 5, SettingsKey.shareProgressShowFullDays: 5,
         SettingsKey.shareProgressShowTime: 5, SettingsKey.shareProgressShowSpeed: 5,
         SettingsKey.shareProgressShowAccuracy: 5,
+        SettingsKey.shareProgressShowVisits: 6, SettingsKey.shareProgressShowGoalDays: 6,
+        SettingsKey.firstWeekday: 6,
         SettingsKey.shareAchievementShowJoke: 5, SettingsKey.shareAchievementShowReason: 5,
         SettingsKey.reminderSchedule: 4, SettingsKey.reminderTime1: 4, SettingsKey.reminderTime2: 4,
         SettingsKey.reminderTime3: 4, SettingsKey.reminderFromHour: 4, SettingsKey.reminderToHour: 4,

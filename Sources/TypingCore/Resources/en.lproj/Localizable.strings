@@ -164,10 +164,10 @@
 "achievement.course.en.detail" = "English course complete. Now QWERTY is a piece of cake";
 "achievement.course.polyglot.title" = "Polyglot";
 "achievement.course.polyglot.detail" = "Two courses, two layouts, zero panic";
-"achievement.course.stars.ru.title" = "Three Stars Everywhere (RU)";
-"achievement.course.stars.ru.detail" = "Three stars on every lesson. Perfectionism approved";
-"achievement.course.stars.en.title" = "Three Stars Everywhere (EN)";
-"achievement.course.stars.en.detail" = "Three stars in every lesson. Even the textbook is jealous";
+"achievement.course.stars.ru.title" = "Top of the Class (RU)";
+"achievement.course.stars.ru.detail" = "Four stars or more on every lesson. Perfectionism approved";
+"achievement.course.stars.en.title" = "Top of the Class (EN)";
+"achievement.course.stars.en.detail" = "Four stars or more in every lesson. Even the textbook is jealous";
 
 /* Ачивки: Объём */
 "achievement.volume.chars.10k.title" = "First 10,000";
@@ -298,7 +298,7 @@
 "achievement.condition.firstStage" = "Complete every lesson of one course stage";
 "achievement.condition.course" = "Complete the whole course: %@";
 "achievement.condition.polyglot" = "Complete both courses: Russian and English";
-"achievement.condition.threeStars" = "Every lesson of the course on three stars: %@";
+"achievement.condition.excellentStars" = "Every lesson of the course on four stars or more: %@";
 "achievement.condition.volumeChars" = "Characters typed: %@";
 "achievement.condition.volumeHours" = "Hours of pure practice: %@";
 "achievement.condition.finishedBetween" = "Finish an exercise between %lld:00 and %lld:00";

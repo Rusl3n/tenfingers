@@ -22,20 +22,20 @@ private func effective(_ history: [SessionSummary], passed: Bool = false, stored
 }
 
 @Test func starsFromHistoryTakeBestCheck() {
-    // 100% при 1,5×цели — ★★★; 97% при 2×цели — ★.
+    // 100% при 1,5×цели — ★★★★★; 97% при 2×цели — ★★.
     let history = [
         step(.check, accuracy: 1.0, cpm: 90),
         step(.check, accuracy: 0.97, cpm: 120),
         step(.words, accuracy: 1.0, cpm: 500),                 // не проверочный шаг
         step(.check, lessonId: "ru.1.2", accuracy: 1, cpm: 500), // другой урок
     ]
-    #expect(effective(history) == 3)
+    #expect(effective(history) == 5)
 }
 
 @Test func starsFromHistoryIgnoreAbandonedAndNeedCheck() {
-    // Без подходящей проверки истории нет — берутся сохранённые звёзды.
-    #expect(effective([step(.check, accuracy: 1, cpm: 500, completed: false)], stored: 2) == 2)
-    #expect(effective([step(.drill, accuracy: 1)], stored: 2) == 2)
+    // Без подходящей проверки истории нет — берутся сохранённые звёзды (прежняя шкала: 2 → ★★★).
+    #expect(effective([step(.check, accuracy: 1, cpm: 500, completed: false)], stored: 2) == 3)
+    #expect(effective([step(.drill, accuracy: 1)], stored: 2) == 3)
     #expect(effective([step(.check, accuracy: 0.9)], stored: 2) == 0)
 }
 
@@ -62,13 +62,14 @@ private func effective(_ history: [SessionSummary], passed: Bool = false, stored
     #expect(stats.first?.errorsInBest == 1)
 }
 
-@Test func averageAccuracyIsMeanOfBestPerStep() {
+@Test func totalErrorsSumBestAttempts() {
     let stats = [
         StepStat(kind: .drill, bestAccuracy: 1.0, errorsInBest: 0, cpmInBest: 60, bestCpm: 60),
-        StepStat(kind: .check, bestAccuracy: 0.946, errorsInBest: 5, cpmInBest: 60, bestCpm: 60),
+        StepStat(kind: .words, bestAccuracy: 0.9, errorsInBest: 6, cpmInBest: 60, bestCpm: 60),
+        StepStat(kind: .check, bestAccuracy: 0.98, errorsInBest: 1, cpmInBest: 60, bestCpm: 60),
     ]
-    #expect(abs((LessonStepStats.averageAccuracy(stats) ?? 0) - 0.973) < 1e-9)
-    #expect(LessonStepStats.averageAccuracy([]) == nil)
+    #expect(LessonStepStats.totalErrors(stats) == 7)
+    #expect(LessonStepStats.totalErrors([]) == nil)
 }
 
 @Test func improvementComparesWithPreviousBest() {

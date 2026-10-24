@@ -13,7 +13,7 @@ struct LessonRunnerView: View {
     let onStart: (LessonRun) -> Void
 
     private enum Phase: Equatable {
-        case loading, intro, exercise(Int), interim(Int, ExerciseSummary), result(ExerciseSummary, stars: Int)
+        case loading, intro, exercise(Int), interim(Int, ExerciseSummary), result(ExerciseSummary, stars: Int, steps: [StepStat])
         case stepResult(StepOutcome)
     }
 
@@ -24,6 +24,9 @@ struct LessonRunnerView: View {
         let errors: Int
         let improved: Bool
         let stars: Int?
+        /// Звёзды урока, если этот повтор шага (не проверки) их увеличил: вернулась пятая.
+        let lessonStarsGained: Int?
+        let steps: [StepStat]
         /// Проверка засчитала последний урок этапа или курса.
         let completion: ShareEvent?
     }
@@ -85,25 +88,29 @@ struct LessonRunnerView: View {
         case .interim(let index, let summary):
             VStack(spacing: 16) {
                 Text("Готово: шаг \(index + 1) из \(exercises.count)").font(.largeTitle.bold())
-                Text("\(unit.format(summary.cpm)) · \(Formatting.percent(summary.accuracy))")
+                let speed = unit.format(summary.cpm)
+                Text("\(speed) · ошибок: \(summary.errors)")
                     .font(.title2).monospacedDigit()
                 StepDotsView(current: index + 1, total: exercises.count)
                 Text("Дальше: \(exercises[index + 1].localizedTitle)").foregroundStyle(.secondary)
-                NewAchievementCards(achievements: coordinator?.newAchievements ?? [])
+                NewAchievementCards(achievements: coordinator?.newAchievements ?? [], fullFlame: coordinator?.newFullFlame)
                 Button("Дальше") { begin(index + 1) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
-        case .result(let summary, let stars):
-            LessonResultView(summary: summary, stars: stars, targetCpm: context?.targetCpm ?? 0,
+        case .result(let summary, let stars, let steps):
+            LessonResultView(summary: summary, stars: stars, steps: steps, targetCpm: context?.targetCpm ?? 0,
                              hasNext: nextRun != nil, newAchievements: coordinator?.runAchievements ?? [],
+                             fullFlame: coordinator?.runFullFlame,
                              completion: course.flatMap { ShareEvent.completion(course: $0, lessonId: run.lessonId, stars: stars) },
                              onRetry: prepare,
                              onNext: { if let nextRun { onStart(nextRun) } }, onExit: onExit)
         case .stepResult(let outcome):
             StepResultView(kind: outcome.kind, summary: outcome.summary, errors: outcome.errors,
-                           improved: outcome.improved, stars: outcome.stars, targetCpm: context?.targetCpm ?? 0,
-                           newAchievements: coordinator?.newAchievements ?? [], completion: outcome.completion,
+                           improved: outcome.improved, stars: outcome.stars,
+                           lessonStarsGained: outcome.lessonStarsGained, steps: outcome.steps, targetCpm: context?.targetCpm ?? 0,
+                           newAchievements: coordinator?.newAchievements ?? [], fullFlame: coordinator?.newFullFlame,
+                           completion: outcome.completion,
                            onRetry: prepare, onExit: onExit)
         }
     }
@@ -176,11 +183,14 @@ struct LessonRunnerView: View {
         }
         let summary = ExerciseSummary(result)
         let isLast = index == exercises.count - 1
-        let stars = isLast ? LessonScoring.stars(cpm: result.cpm, accuracy: result.accuracy,
-                                                 targetCpm: context?.targetCpm ?? 0) : 0
+        // В базу идут звёзды проверки; на экране — звёзды урока: пятая только при чистых шагах.
+        let checkStars = isLast ? LessonScoring.stars(cpm: result.cpm, accuracy: result.accuracy,
+                                                      targetCpm: context?.targetCpm ?? 0) : 0
+        let steps = isLast ? lessonSteps() : []
+        let stars = LessonScoring.lessonStars(checkStars: checkStars, steps: steps)
         sound.play(isLast && stars > 0 ? .lessonDone : .exerciseDone)
         let saved = coordinator?.recordFinish(session, result) { recorder in
-            if isLast { try recorder.recordLesson(result, stars: stars) }
+            if isLast { try recorder.recordLesson(result, stars: checkStars) }
         } ?? false
         // Шаг считается пройденным только после записи в базу (в том числе после «Повторить» в алерте).
         // Последний шаг — иначе: итог урока показан, продолжать нечего, даже если запись не удалась
@@ -194,29 +204,52 @@ struct LessonRunnerView: View {
             coordinator?.onRetrySucceeded = saved ? nil : markStep
             if saved { markStep() }
         }
-        phase = isLast ? .result(summary, stars: stars) : .interim(index, summary)
+        phase = isLast ? .result(summary, stars: stars, steps: steps) : .interim(index, summary)
     }
 
     /// Повтор шага записывается как обычно; повтор проверки — полноценная проверка урока (со звёздами).
     /// Продолжение урока (`LessonResume`) не меняется.
     private func finishSingleStep(_ kind: ExerciseKind, session: ExerciseSession, result: ExerciseResult) {
-        let history = (try? ProgressSnapshot(context: modelContext).lessonSessions(lessonId: run.lessonId)) ?? []
-        let previous = LessonStepStats.summarize(sessions: history, lessonId: run.lessonId).first { $0.kind == kind }
+        // Шаги до этой попытки: «Лучший результат!» сравнивается с ними; для звёзд проверки остальные шаги
+        // этой попыткой не меняются.
+        let steps = lessonSteps()
+        let previous = steps.first { $0.kind == kind }
         let isCheck = kind == .check
-        let stars = isCheck ? LessonScoring.stars(cpm: result.cpm, accuracy: result.accuracy,
-                                                  targetCpm: context?.targetCpm ?? 0) : nil
+        let checkStars = isCheck ? LessonScoring.stars(cpm: result.cpm, accuracy: result.accuracy,
+                                                       targetCpm: context?.targetCpm ?? 0) : nil
+        let stars = checkStars.map { LessonScoring.lessonStars(checkStars: $0, steps: steps) }
         sound.play((stars ?? 0) > 0 ? .lessonDone : .exerciseDone)
+        // Чистый повтор нечекового шага может вернуть пятую звезду: сравниваем звёзды урока до и после записи.
+        let starsBefore = isCheck ? nil : currentLessonStars()
         coordinator?.onRetrySucceeded = nil
-        coordinator?.recordFinish(session, result) { recorder in
-            if let stars { try recorder.recordLesson(result, stars: stars) }
+        let saved = coordinator?.recordFinish(session, result) { recorder in
+            if let checkStars { try recorder.recordLesson(result, stars: checkStars) }
+        } ?? false
+        let gained = starsBefore.flatMap { before in
+            saved ? currentLessonStars().flatMap { LessonOverview.starsGained(before: before, after: $0) } : nil
         }
         phase = .stepResult(StepOutcome(
             kind: kind, summary: ExerciseSummary(result), errors: result.errorCount,
             improved: LessonStepStats.isImprovement(accuracy: result.accuracy, cpm: result.cpm, over: previous),
-            stars: stars,
+            stars: stars, lessonStarsGained: gained, steps: steps,
             completion: course.flatMap {
                 ShareEvent.stepCompletion(course: $0, lessonId: run.lessonId, kind: kind, stars: stars)
             }))
+    }
+
+    /// Действующие звёзды урока по истории (как на карте курса); `nil` — истории не прочитать или урока нет в курсе.
+    private func currentLessonStars() -> Int? {
+        guard let context, let history = try? ProgressSnapshot(context: modelContext).lessonSessions(lessonId: run.lessonId)
+        else { return nil }
+        let record = progress.first { $0.lessonId == run.lessonId }
+        return LessonOverview.make(lessonId: run.lessonId, targetCpm: context.targetCpm, sessions: history,
+                                   storedStars: record?.bestStars ?? 0, isPassed: record?.passedAt != nil).stars
+    }
+
+    /// Лучшие попытки шагов урока по истории (до текущей попытки).
+    private func lessonSteps() -> [StepStat] {
+        let history = (try? ProgressSnapshot(context: modelContext).lessonSessions(lessonId: run.lessonId)) ?? []
+        return LessonStepStats.summarize(sessions: history, lessonId: run.lessonId)
     }
 
     /// «Начать урок заново» на плашке продолжения: начатый шаг записывается как брошенный.

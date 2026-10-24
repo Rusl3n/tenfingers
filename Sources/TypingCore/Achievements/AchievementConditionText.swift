@@ -49,7 +49,7 @@ public enum AchievementConditionText {
         case .firstStage: return text("firstStage")
         case .courseCompleted(let language): return line("course", name(language))
         case .polyglot: return text("polyglot")
-        case .allThreeStars(let language): return line("threeStars", name(language))
+        case .allLessonsExcellent(let language): return line("excellentStars", name(language))
         case .volumeChars(let count): return line("volumeChars", integer(count))
         case .volumeHours(let hours): return line("volumeHours", number(hours))
         case .finishedBetween(let start, let end): return line("finishedBetween", start, end)

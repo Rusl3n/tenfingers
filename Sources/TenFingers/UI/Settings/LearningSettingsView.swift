@@ -6,6 +6,7 @@ struct LearningSettingsView: View {
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var adaptiveTarget = SettingsDefault.adaptiveTargetCpm
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
+    @AppStorage(SettingsKey.firstWeekday) private var firstWeekday = SettingsDefault.firstWeekday
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
     @AppStorage(SettingsKey.spaceThumbHint) private var spaceThumbHint = SettingsDefault.spaceThumbHint
     @Environment(ReminderScheduler.self) private var reminders
@@ -46,6 +47,10 @@ struct LearningSettingsView: View {
                 .help(HelpText.dailyGoal + " " + HelpText.dailyGoalChange)
                 Stepper("Новый день начинается в \(dayStartHour):00", value: $dayStartHour, in: 0...6)
                     .help(HelpText.dayStart)
+                Picker("Первый день недели", selection: $firstWeekday) {
+                    ForEach(FirstWeekday.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .help(HelpText.firstWeekday)
             }
         }
         .formStyle(.grouped)

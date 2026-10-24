@@ -159,7 +159,7 @@ extension ShareCardView {
                 header(size: progress.header)
             }
         }
-        if text.showsFullDays {
+        if text.hasSubtitle {
             Spacer().frame(height: progress.spacing * 0.6)
             subtitle(size: progress.subtitle, alignment: .center, width: contentWidth)
         }

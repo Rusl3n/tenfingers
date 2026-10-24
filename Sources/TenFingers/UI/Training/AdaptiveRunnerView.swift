@@ -14,6 +14,7 @@ struct AdaptiveRunnerView: View {
         let portion: Int
         let cpm: Double
         let accuracy: Double
+        let errors: Int
         let newLetter: Character?
         let focus: Character?
     }
@@ -65,8 +66,10 @@ struct AdaptiveRunnerView: View {
             }
         case .summary(let summary):
             RunSummaryView(title: String(localized: "Порция \(summary.portion) готова"),
-                           cpm: summary.cpm, accuracy: summary.accuracy, lines: lines(for: summary),
+                           cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
+                           lines: lines(for: summary),
                            newAchievements: coordinator?.newAchievements ?? [],
+                           fullFlame: coordinator?.newFullFlame,
                            primaryTitle: "Дальше", onPrimary: { begin(summary.portion + 1) },
                            secondaryTitle: "Закончить", onSecondary: exit)
         }
@@ -124,7 +127,7 @@ struct AdaptiveRunnerView: View {
         sound.play(.exerciseDone)
         let trainer = self.trainer
         let language = self.language
-        let cpm = result.cpm, accuracy = result.accuracy
+        let cpm = result.cpm, accuracy = result.accuracy, errors = result.errorCount
         let endedAt = result.endedAt
         // «Новая буква» считается от `before`, который вернул `AdaptiveProgress.record` внутри транзакции,
         // а не от чтения при старте порции: оно могло не удаться или устареть.
@@ -134,29 +137,30 @@ struct AdaptiveRunnerView: View {
                                                     at: endedAt).before
         } ?? false
         if saved {
-            showSummary(portion: portion, before: box.value ?? unlockedBefore, cpm: cpm, accuracy: accuracy, saved: true)
+            showSummary(portion: portion, before: box.value ?? unlockedBefore, cpm: cpm, accuracy: accuracy,
+                        errors: errors, saved: true)
             return
         }
         // Сохранение не удалось: итог показываем после «Повторить» (с новой буквой) или «Отмена» (без неё).
         phase = .saving
         coordinator?.onRetrySucceeded = {
             showSummary(portion: portion, before: box.value ?? unlockedBefore, cpm: cpm, accuracy: accuracy,
-                        saved: true)
+                        errors: errors, saved: true)
         }
         coordinator?.onSaveCancelled = {
             showSummary(portion: portion, before: box.value ?? unlockedBefore, cpm: cpm, accuracy: accuracy,
-                        saved: false)
+                        errors: errors, saved: false)
         }
     }
 
-    private func showSummary(portion: Int, before: Int, cpm: Double, accuracy: Double, saved: Bool) {
+    private func showSummary(portion: Int, before: Int, cpm: Double, accuracy: Double, errors: Int, saved: Bool) {
         let trainer = self.trainer
         let reader = StatsReader(context: modelContext)
         let after = saved ? ((try? reader.unlockedCount(language: language)) ?? before) : before
         let stats = (try? reader.keyMastery(language: language)) ?? [:]
         let unlocked = trainer.unlockedLetters(count: after)
         phase = .summary(PortionSummary(
-            portion: portion, cpm: cpm, accuracy: accuracy,
+            portion: portion, cpm: cpm, accuracy: accuracy, errors: errors,
             newLetter: after > before ? unlocked.last : nil,
             focus: trainer.focusLetter(unlocked: unlocked, stats: stats)))
     }

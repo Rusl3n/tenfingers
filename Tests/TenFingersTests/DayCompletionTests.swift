@@ -81,18 +81,26 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     let (coordinator, _, events) = try makeCoordinator(goalSeconds: 0)
     finishExercise(coordinator)
     events.fireDelayed()
-    #expect(events.completed == 1)
+    #expect(coordinator.newFullFlame == FullFlame(days: 1))
+    #expect(coordinator.runFullFlame == FullFlame(days: 1))
+    #expect(events.completed == 0, "тоста после упражнения нет: огонь показывает карточка итога")
     #expect(events.sounds.filter { $0 == .streak }.count == 1)
     finishExercise(coordinator)
     events.fireDelayed()
-    #expect(events.completed == 1, "день уже полный: второй раз сигнала нет")
+    #expect(coordinator.newFullFlame == nil, "день уже полный: второй раз огня нет")
+    #expect(coordinator.runFullFlame == FullFlame(days: 1), "флаг прохода держится до сброса")
     #expect(events.sounds.filter { $0 == .streak }.count == 1)
+    coordinator.resetRunAchievements()
+    #expect(coordinator.runFullFlame == nil)
+    finishExercise(coordinator)
+    #expect(coordinator.newFullFlame == nil && coordinator.runFullFlame == nil, "в тот же день заново не ставится")
 }
 
 @MainActor @Test func belowGoalDoesNotSignal() throws {
     let (coordinator, _, events) = try makeCoordinator(goalSeconds: 600)
     finishExercise(coordinator)
     #expect(events.completed == 0)
+    #expect(coordinator.newFullFlame == nil && coordinator.runFullFlame == nil)
     #expect(!events.sounds.contains(.streak))
 }
 
@@ -107,16 +115,16 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
         }
     }
     finishExercise(coordinator)
-    #expect(events.completed == 0)
+    #expect(coordinator.newFullFlame == nil)
     #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 0)
     coordinator.retrySave()
     events.fireDelayed()
-    #expect(events.completed == 1)
+    #expect(coordinator.newFullFlame == FullFlame(days: 1))
     #expect(events.sounds.filter { $0 == .streak }.count == 1)
 }
 
 @MainActor @Test func dayAlreadyFullBeforeDoesNotSignalAfterRelaunch() throws {
-    let (coordinator, container, events) = try makeCoordinator(goalSeconds: 600)
+    let (coordinator, container, _) = try makeCoordinator(goalSeconds: 600)
     // Сегодняшний день уже набрал цель раньше (например, в прошлом запуске приложения).
     let key = LogicalDay.key(for: .now, dayStartHour: 4)
     let day = DayRecord(logicalDay: key)
@@ -125,7 +133,7 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     container.mainContext.insert(day)
     try container.mainContext.save()
     finishExercise(coordinator)
-    #expect(events.completed == 0)
+    #expect(coordinator.newFullFlame == nil)
 }
 
 // MARK: - Звук серии не накладывается на звук результата
@@ -133,7 +141,7 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
 @MainActor @Test func streakSoundWaitsSoItDoesNotOverlapResultSound() throws {
     let (coordinator, _, events) = try makeCoordinator(goalSeconds: 0)
     finishExercise(coordinator)
-    #expect(events.completed == 1, "тост сразу")
+    #expect(coordinator.newFullFlame != nil, "карточка сразу")
     #expect(!events.sounds.contains(.streak), "звук серии не сразу")
     #expect(events.delayed.map(\.0) == [.milliseconds(600)])
     events.fireDelayed()
@@ -182,6 +190,30 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     #expect(events.completed == 1)
     #expect(events.sounds.filter { $0 == .streak }.count == 1)
     #expect(!events.pending.take(today: key), "уже объявлено: откладывать нечего")
+}
+
+/// «Выйти» без итога: день становится полным, но ни звука серии, ни ожидающего объявления нет
+/// (карточку показать негде, огонь на главной обновится сам).
+@MainActor @Test func exitWithoutSummaryCompletesTheDayWithoutSound() throws {
+    let (coordinator, container, events) = try makeCoordinator(goalSeconds: 600)
+    let key = try prepareAlmostFullDay(container, goal: 600)
+    startAbandonedExercise(coordinator)
+    #expect(coordinator.exit())
+    events.fireDelayed()
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 1)
+    #expect(events.delayed.isEmpty && !events.sounds.contains(.streak) && events.completed == 0)
+    #expect(!events.pending.take(today: key))
+}
+
+/// «Выйти» в итог («Слабые места»): экран с карточкой есть, поэтому звук серии играет.
+@MainActor @Test func exitIntoSummaryPlaysStreakSoundAndKeepsTheFlame() throws {
+    let (coordinator, container, events) = try makeCoordinator(goalSeconds: 600)
+    _ = try prepareAlmostFullDay(container, goal: 600)
+    startAbandonedExercise(coordinator)
+    #expect(coordinator.exit(announce: true))
+    events.fireDelayed()
+    #expect(coordinator.runFullFlame != nil)
+    #expect(events.sounds.filter { $0 == .streak }.count == 1)
 }
 
 @MainActor @Test func silentAbandonThatDoesNotCompleteTheDayLeavesNothingPending() throws {

@@ -1,12 +1,12 @@
 import TypingCore
 
-/// Что карта курса показывает об уроке: звёзды, шаги с лучшими попытками и средняя точность.
+/// Что карта курса показывает об уроке: звёзды, шаги с лучшими попытками и сумма ошибок лучших попыток шагов.
 /// Звёзды пересчитываются из истории по текущему правилу; `LessonProgress.bestStars` в базе не меняется.
 struct LessonOverview: Equatable {
     let stars: Int
     let steps: [StepStat]
 
-    var averageAccuracy: Double? { LessonStepStats.averageAccuracy(steps) }
+    var errors: Int? { LessonStepStats.totalErrors(steps) }
 
     /// Звёзды — `LessonScoring.effectiveStars`: `storedStars` (из базы) нужны, только если в истории нет ни одной
     /// проверки урока, а у пройденного урока (`isPassed`) их не меньше одной.
@@ -16,4 +16,7 @@ struct LessonOverview: Equatable {
                                                            passed: isPassed, storedStars: storedStars),
                        steps: LessonStepStats.summarize(sessions: sessions, lessonId: lessonId))
     }
+
+    /// Звёзды урока после повтора шага, если стали больше (например, вернулась пятая); иначе `nil`.
+    static func starsGained(before: Int, after: Int) -> Int? { after > before ? after : nil }
 }

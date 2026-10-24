@@ -19,7 +19,7 @@ enum ProgressPeriod: String, CaseIterable, Identifiable {
     var showsCalendar: Bool { self != .all }
 }
 
-/// Что показывать на карточке «Мой прогресс»: пять переключателей листа «Поделиться», по умолчанию включены все.
+/// Что показывать на карточке «Мой прогресс»: семь переключателей листа «Поделиться», по умолчанию включены все.
 struct ProgressCardContent: Equatable {
     /// Огонь серии: иконка и «N дней подряд».
     var showsStreak = true
@@ -28,12 +28,16 @@ struct ProgressCardContent: Equatable {
     var showsTime = true
     var showsSpeed = true
     var showsAccuracy = true
+    /// Строка «Заходил: … подряд · всего …».
+    var showsVisits = true
+    /// Строка «Цель: … подряд · всего …».
+    var showsGoalDays = true
 
     /// Хоть один из трёх показателей.
     var showsMetrics: Bool { showsTime || showsSpeed || showsAccuracy }
 
     /// Выключено всё.
-    var isEmpty: Bool { !showsStreak && !showsFullDays && !showsMetrics }
+    var isEmpty: Bool { !showsStreak && !showsFullDays && !showsVisits && !showsGoalDays && !showsMetrics }
 
     static func load(from defaults: UserDefaults) -> ProgressCardContent {
         func flag(_ key: String) -> Bool { defaults.object(forKey: key) as? Bool ?? true }
@@ -42,7 +46,9 @@ struct ProgressCardContent: Equatable {
             showsFullDays: flag(SettingsKey.shareProgressShowFullDays),
             showsTime: flag(SettingsKey.shareProgressShowTime),
             showsSpeed: flag(SettingsKey.shareProgressShowSpeed),
-            showsAccuracy: flag(SettingsKey.shareProgressShowAccuracy))
+            showsAccuracy: flag(SettingsKey.shareProgressShowAccuracy),
+            showsVisits: flag(SettingsKey.shareProgressShowVisits),
+            showsGoalDays: flag(SettingsKey.shareProgressShowGoalDays))
     }
 
     func save(to defaults: UserDefaults) {
@@ -51,6 +57,8 @@ struct ProgressCardContent: Equatable {
         defaults.set(showsTime, forKey: SettingsKey.shareProgressShowTime)
         defaults.set(showsSpeed, forKey: SettingsKey.shareProgressShowSpeed)
         defaults.set(showsAccuracy, forKey: SettingsKey.shareProgressShowAccuracy)
+        defaults.set(showsVisits, forKey: SettingsKey.shareProgressShowVisits)
+        defaults.set(showsGoalDays, forKey: SettingsKey.shareProgressShowGoalDays)
     }
 }
 
@@ -111,6 +119,11 @@ struct ProgressCardData: Equatable {
     /// Серия: дней подряд и полных дней в ней.
     let streak: Int
     let fullDays: Int
+    /// «Заходил» и «Цель»: дней подряд и всего (`StreakSummary`).
+    let visitCurrent: Int
+    let visitTotal: Int
+    let goalCurrent: Int
+    let goalTotal: Int
     let monthGrid: MonthGrid
     let yearGrid: ActivityCalendar
     let month: ProgressPeriodStats
@@ -137,6 +150,8 @@ struct ProgressCardData: Equatable {
         }
         return ProgressCardData(
             today: today, streak: summary.current, fullDays: summary.fullInCurrent,
+            visitCurrent: summary.visitCurrent, visitTotal: summary.visitTotal,
+            goalCurrent: summary.goalCurrent, goalTotal: summary.goalTotal,
             monthGrid: MonthGrid.make(today: today, statuses: summary.statuses, firstWeekday: firstWeekday),
             yearGrid: yearGrid, month: stats(from: monthStart), year: stats(from: yearStart),
             allTime: stats(from: ""))
@@ -154,8 +169,10 @@ struct ProgressCardData: Equatable {
 /// Читает из базы то, что нужно карточке: дни и сессии целиком — «Без календаря» считает показатели за всё время.
 @MainActor
 enum ProgressCardLoader {
+    /// `firstWeekday` — явное значение (1 — воскресенье, 2 — понедельник); без него — настройка из `defaults`.
     static func load(context: ModelContext, now: Date = .now, goalSeconds: Double, dayStartHour: Int,
-                     firstWeekday: Int = Calendar.current.firstWeekday) throws -> ProgressCardData {
+                     firstWeekday: Int? = nil, defaults: UserDefaults = .standard) throws -> ProgressCardData {
+        let firstWeekday = firstWeekday ?? StoredSettings.firstWeekday(defaults)
         let snapshot = ProgressSnapshot(context: context)
         let today = LogicalDay.key(for: now, dayStartHour: dayStartHour)
         let days = try snapshot.dayActivities()
@@ -186,13 +203,33 @@ struct ProgressCardText: Equatable {
 
     var showsCalendar: Bool { period.showsCalendar }
     var showsStreak: Bool { content.showsStreak }
-    var showsFullDays: Bool { content.showsFullDays }
 
-    /// Остался один огонь: ни полных дней, ни показателей (и, значит, при «Без календаря» — крупная карточка с одним числом).
-    var isFlameOnly: Bool { content.showsStreak && !content.showsFullDays && metrics.isEmpty }
+    /// Есть строки под огнём: полные дни, «Заходил» или «Цель».
+    var hasSubtitle: Bool { content.showsFullDays || content.showsVisits || content.showsGoalDays }
 
-    /// Есть что показать слева от календаря (или вместо него): огонь, полные дни или показатели.
-    var hasSummary: Bool { content.showsStreak || content.showsFullDays || !metrics.isEmpty }
+    /// Остался один огонь: ни строк под ним, ни показателей (и, значит, при «Без календаря» — крупная карточка с одним числом).
+    var isFlameOnly: Bool { content.showsStreak && !hasSubtitle && metrics.isEmpty }
+
+    /// Есть что показать слева от календаря (или вместо него): огонь, строки под ним или показатели.
+    var hasSummary: Bool { content.showsStreak || hasSubtitle || !metrics.isEmpty }
+
+    /// Строки под огнём в порядке «Полные дни», «Заходил», «Цель» — только включённые.
+    static func subtitleLines(data: ProgressCardData, content: ProgressCardContent, bundle: Bundle,
+                              locale: Locale) -> [String] {
+        var lines: [String] = []
+        if content.showsFullDays {
+            lines.append(String(localized: "Полных дней: \(data.fullDays)", bundle: bundle, locale: locale))
+        }
+        if content.showsVisits {
+            lines.append(DayMetricsText.visits(current: data.visitCurrent, total: data.visitTotal, bundle: bundle,
+                                               locale: locale))
+        }
+        if content.showsGoalDays {
+            lines.append(DayMetricsText.goals(current: data.goalCurrent, total: data.goalTotal, bundle: bundle,
+                                              locale: locale))
+        }
+        return lines
+    }
 
     init(data: ProgressCardData, period: ProgressPeriod, content: ProgressCardContent, unit: SpeedUnit,
          bundle: Bundle, locale: Locale) {

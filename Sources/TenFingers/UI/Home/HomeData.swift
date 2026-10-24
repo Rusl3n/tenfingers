@@ -8,6 +8,8 @@ struct WeekDay: Identifiable, Equatable {
     let label: String
     let status: DayStatus
     let isToday: Bool
+    /// День недели, который ещё не наступил: без статуса.
+    let isFuture: Bool
     var id: String { key }
 }
 
@@ -17,7 +19,7 @@ struct HomeData: Equatable {
     let streak: StreakSummary
     let goalMinutes: Int
     let todaySeconds: Double
-    /// Последние 7 логических дней, по возрастанию; сегодня — последний.
+    /// Календарная неделя от первого дня недели: семь логических дней, сегодня среди них, дни после него — будущие.
     let week: [WeekDay]
     /// Средняя скорость активного курса за 7 дней (знаков в минуту) или `nil`, если упражнений не было.
     let weekCpm: Double?
@@ -32,14 +34,16 @@ struct HomeData: Equatable {
     static func make(language: Language, streak: StreakSummary, days: [String: DayActivity],
                      sessions: [SessionSummary], today: String, goalMinutes: Int,
                      focus: Character? = nil, weakKeys: [Character] = [], canStartWeakSpots: Bool = false,
-                     firstSessionDate: Date? = nil,
+                     firstSessionDate: Date? = nil, firstWeekday: Int,
                      weekdaySymbols: [String] = weekdaySymbols(locale: Formatting.interfaceLocale())) -> HomeData {
-        let weekKeys = StreakCalculator.dayKeys(from: StreakCalculator.dayKey(today, offset: -6), to: today)
-        let week = weekKeys.map { key in
-            WeekDay(key: key, label: weekdayLabel(key, symbols: weekdaySymbols),
-                    status: streak.statuses[key] ?? DayStatus.none, isToday: key == today)
+        let week = weekKeys(today: today, firstWeekday: firstWeekday).map { key in
+            let isFuture = key > today
+            return WeekDay(key: key, label: weekdayLabel(key, symbols: weekdaySymbols),
+                           status: isFuture ? DayStatus.none : streak.statuses[key] ?? DayStatus.none,
+                           isToday: key == today, isFuture: isFuture)
         }
-        let weekSet = Set(weekKeys)
+        // Показатели недели — по-прежнему последние 7 дней, а не календарная неделя: в понедельник она почти пуста.
+        let weekSet = Set(StreakCalculator.dayKeys(from: StreakCalculator.dayKey(today, offset: -6), to: today))
         let points = Analytics.daily(sessions, language: language).filter { weekSet.contains($0.day) && $0.sessions > 0 }
         let weight = points.reduce(0.0) { $0 + $1.seconds }
         let cpm = weight > 0 ? points.reduce(0.0) { $0 + $1.cpm * $1.seconds } / weight : nil
@@ -51,6 +55,14 @@ struct HomeData: Equatable {
                         totalSeconds: Analytics.totals(secondsByDay: secondsByDay, today: today).all,
                         firstSessionDate: firstSessionDate ?? sessions.map(\.endedAt).min(),
                         focus: focus, weakKeys: weakKeys, canStartWeakSpots: canStartWeakSpots)
+    }
+
+    /// Семь ключей календарной недели, в которой лежит `today`, от `firstWeekday` (1 — воскресенье, 2 — понедельник);
+    /// пусто, если ключ не читается.
+    static func weekKeys(today: String, firstWeekday: Int) -> [String] {
+        guard let weekday = AnalyticsDates.weekday(today) else { return [] }
+        let start = StreakCalculator.dayKey(today, offset: -((weekday - firstWeekday + 7) % 7))
+        return StreakCalculator.dayKeys(from: start, to: StreakCalculator.dayKey(start, offset: 6))
     }
 
     /// Короткие названия дней недели (с воскресенья) на языке `locale`; для главной — язык интерфейса,

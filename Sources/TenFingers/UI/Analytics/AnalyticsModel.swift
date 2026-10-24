@@ -238,7 +238,7 @@ struct ActivityCalendar: Equatable {
 
     /// `firstWeekday` — первый день недели (1 — воскресенье, 2 — понедельник), как `Calendar.firstWeekday`.
     static func make(today: String, statuses: [String: DayStatus], weekCount: Int = weekCount,
-                     firstWeekday: Int = Calendar.current.firstWeekday) -> ActivityCalendar {
+                     firstWeekday: Int) -> ActivityCalendar {
         let weekday = AnalyticsDates.weekday(today) ?? firstWeekday
         let lastStart = StreakCalculator.dayKey(today, offset: -((weekday - firstWeekday + 7) % 7))
         let firstStart = StreakCalculator.dayKey(lastStart, offset: -7 * (weekCount - 1))
@@ -328,14 +328,14 @@ struct CourseProgressRow: Identifiable, Equatable {
     let stars: Int
 
     var id: Language { language }
-    var maxStars: Int { total * 3 }
+    var maxStars: Int { total * LessonScoring.maxStars }
     var fraction: Double { total > 0 ? Double(passed) / Double(total) : 0 }
 
-    /// Звёзды — по тому же правилу, что на карте курса: `LessonScoring.effectiveStars` (история проверок, иначе база,
-    /// у пройденного урока не меньше одной).
-    static func make(course: Course, lessons: [StoredLesson], checks: [SessionSummary]) -> CourseProgressRow {
+    /// Звёзды — по тому же правилу, что на карте курса: `LessonScoring.effectiveStars` (история шагов урока, иначе база,
+    /// у пройденного урока не меньше одной). `sessions` — завершённые шаги уроков курса.
+    static func make(course: Course, lessons: [StoredLesson], sessions: [SessionSummary]) -> CourseProgressRow {
         let stored = Dictionary(lessons.map { ($0.lessonId, $0) }, uniquingKeysWith: { first, _ in first })
-        let byLesson = Dictionary(grouping: checks) { $0.lessonId ?? "" }
+        let byLesson = Dictionary(grouping: sessions) { $0.lessonId ?? "" }
         var passed = 0, stars = 0
         for stage in course.stages {
             for lesson in stage.lessons {

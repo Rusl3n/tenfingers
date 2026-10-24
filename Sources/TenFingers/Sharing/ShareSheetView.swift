@@ -132,7 +132,7 @@ struct ShareSheetView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Пять переключателей содержимого «Мой прогресс» в два столбца.
+    /// Семь переключателей содержимого «Мой прогресс» в два столбца.
     private var progressContentToggles: some View {
         let content = $options.progressContent
         return Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 6) {
@@ -145,8 +145,12 @@ struct ShareSheetView: View {
                 Toggle("Лучшая скорость", isOn: content.showsSpeed)
             }
             GridRow {
-                Color.clear.frame(height: 0)
+                Toggle("Заходил", isOn: content.showsVisits)
                 Toggle("Средняя точность", isOn: content.showsAccuracy)
+            }
+            GridRow {
+                Toggle("Цель выполнена", isOn: content.showsGoalDays)
+                Color.clear.frame(height: 0)
             }
         }
         .toggleStyle(.checkbox)

@@ -4,51 +4,87 @@ import TypingCore
 /// Тексты объяснения звёзд и подсказки «до следующей звезды». Пороги берутся из `LessonScoring`,
 /// поэтому объяснение не может разойтись с подсчётом.
 enum StarHintText {
-    /// Скорость для ★★: цель этапа.
-    static func twoStarGoal(targetCpm: Int, unit: SpeedUnit) -> String {
-        unit.format(Double(targetCpm), rounding: .up)
+    /// Скорость порога: цель × множитель, округлённая вверх (названная скорость точно даёт звезду).
+    static func speedGoal(targetCpm: Int, factor: Double, unit: SpeedUnit) -> String {
+        unit.format(Double(targetCpm) * factor, rounding: .up)
     }
 
-    /// Скорость для ★★★: цель × 1,3, округлённая вверх (названная скорость точно даёт звезду).
-    static func threeStarGoal(targetCpm: Int, unit: SpeedUnit) -> String {
-        unit.format(Double(targetCpm) * LessonScoring.threeStarFactor, rounding: .up)
+    /// Порог ошибок на 100 знаков: «не больше 3 ошибок на 100 знаков», при доле меньше 1% —
+    /// «не больше 1 ошибки на 200 знаков», при 100% — «без ошибок».
+    static func errorsRule(accuracy: Double) -> String {
+        let rate = 1 - accuracy
+        guard rate > LessonScoring.accuracyTolerance else { return String(localized: "без ошибок") }
+        let perHundred = rate * 100 + LessonScoring.accuracyTolerance
+        // 0,995 → меньше одной ошибки на 100 знаков: «1 на 200».
+        let (count, chars) = perHundred >= 1 ? (Int(perHundred.rounded(.down)), 100) : (1, Int((1 / rate).rounded()))
+        let atMost = Formatting.atMostErrors(count)
+        return String(localized: "\(atMost) на \(chars) знаков")
     }
 
-    /// Условие ★★ для попапа; без цели этапа (`targetCpm` ≤ 0, урока нет в курсе) — без числа скорости.
-    static func twoStarRule(targetCpm: Int, unit: SpeedUnit, locale: Locale = .current) -> String {
-        let accuracy = Formatting.compactPercent(LessonScoring.twoStarAccuracy, locale: locale)
-        guard targetCpm > 0 else { return String(localized: "скорость не ниже цели этапа и точность от \(accuracy)") }
-        let goal = twoStarGoal(targetCpm: targetCpm, unit: unit)
-        return String(localized: "скорость не ниже цели этапа (\(goal)) и точность от \(accuracy)")
+    /// «урок засчитан: не больше 4 ошибок на 100 знаков».
+    static func passRule() -> String {
+        let errors = errorsRule(accuracy: LessonScoring.passAccuracy)
+        return String(localized: "урок засчитан: \(errors)")
     }
 
-    /// Условие ★★★ для попапа; без цели этапа — без числа скорости.
-    static func threeStarRule(targetCpm: Int, unit: SpeedUnit, locale: Locale = .current) -> String {
-        let accuracy = Formatting.compactPercent(LessonScoring.threeStarAccuracy, locale: locale)
-        let factor = LessonScoring.threeStarFactor.formatted(.number.locale(locale))
-        guard targetCpm > 0 else { return String(localized: "скорость от цели × \(factor) и точность от \(accuracy)") }
-        let goal = threeStarGoal(targetCpm: targetCpm, unit: unit)
-        return String(localized: "скорость от цели × \(factor) (\(goal)) и точность от \(accuracy)")
+    /// Строка порога для попапа; без цели (`targetCpm` ≤ 0, урока нет в курсе) — без числа скорости.
+    /// Множитель пишется по языку интерфейса (`locale` по умолчанию — из набора ресурсов `bundle`), а не по региону системы.
+    static func rule(_ threshold: StarThreshold, targetCpm: Int, unit: SpeedUnit, locale: Locale? = nil,
+                     bundle: Bundle = .main) -> String {
+        let locale = locale ?? Formatting.interfaceLocale(bundle: bundle)
+        let errors = errorsRule(accuracy: threshold.accuracy)
+        let goal = speedGoal(targetCpm: targetCpm, factor: threshold.speedFactor, unit: unit)
+        if threshold.speedFactor == 1 {
+            guard targetCpm > 0 else { return String(localized: "скорость не ниже цели, \(errors)") }
+            return String(localized: "скорость не ниже цели (\(goal)), \(errors)")
+        }
+        let factor = threshold.speedFactor.formatted(.number.locale(locale))
+        guard targetCpm > 0 else { return String(localized: "скорость от \(factor) × цели, \(errors)") }
+        return String(localized: "скорость от \(factor) × цели (\(goal)), \(errors)")
     }
 
-    /// «скорость от 60 зн/мин (у вас 52 зн/мин) и точность от 99,5% (у вас 98,9%)»; пусто, если условий нет.
-    /// Порог округляется вверх, результат — вниз: недостающее не выглядит достигнутым.
-    static func requirements(needCpm: Double?, needAccuracy: Double?, cpm: Double, accuracy: Double,
-                             unit: SpeedUnit, locale: Locale = .current) -> String {
+    /// ★★★★★ для попапа: условие проверки и чистота остальных шагов — в ошибках на 100 знаков.
+    /// «скорость от 1,5 × цели (90 зн/мин), без ошибок на проверке, а на остальных шагах — не больше 2 ошибок на 100 знаков».
+    static func topRule(_ threshold: StarThreshold, targetCpm: Int, unit: SpeedUnit, locale: Locale? = nil,
+                        bundle: Bundle = .main) -> String {
+        let check = rule(threshold, targetCpm: targetCpm, unit: unit, locale: locale, bundle: bundle)
+        let steps = errorsRule(accuracy: LessonScoring.cleanLessonStepAccuracy)
+        return String(localized: "\(check) на проверке, а на остальных шагах — \(steps)")
+    }
+
+    /// «пройдите шаг «Слова» не больше чем с 2 ошибками на 100 знаков»: что сделать с шагом, мешающим ★★★★★.
+    static func cleanStep(_ kind: ExerciseKind) -> String {
+        let chars = 100
+        let allowed = LessonScoring.allowedErrors(chars: chars, accuracy: LessonScoring.cleanLessonStepAccuracy)
+        let limit = Formatting.withAtMostErrors(allowed)
+        return String(localized: "пройдите шаг «\(kind.localizedTitle)» \(limit) на \(chars) знаков")
+    }
+
+    /// «скорость от 78 зн/мин (у вас 70 зн/мин) и не больше 1 ошибки (у вас 3)»; пусто, если условий нет.
+    /// Порог скорости округляется вверх, результат — вниз: недостающее не выглядит достигнутым.
+    /// `blockingStep` — шаг, мешающий ★★★★★: последним условием.
+    static func requirements(needCpm: Double?, maxErrors: Int?, cpm: Double, errors: Int, unit: SpeedUnit,
+                             blockingStep: ExerciseKind? = nil) -> String {
         var parts: [String] = []
         if let needCpm, needCpm > 0 {
             let need = unit.format(needCpm, rounding: .up), have = unit.format(cpm, rounding: .down)
             parts.append(String(localized: "скорость от \(need) (у вас \(have))"))
         }
-        if let needAccuracy {
-            let need = Formatting.compactPercent(needAccuracy, locale: locale)
-            let have = Formatting.percent(accuracy, rounding: .down, locale: locale)
-            parts.append(String(localized: "точность от \(need) (у вас \(have))"))
+        if let maxErrors {
+            if maxErrors > 0 {
+                let atMost = Formatting.atMostErrors(maxErrors)
+                parts.append(String(localized: "\(atMost) (у вас \(errors))"))
+            } else {
+                parts.append(String(localized: "без ошибок (у вас \(errors))"))
+            }
         }
+        if let blockingStep { parts.append(cleanStep(blockingStep)) }
         switch parts.count {
-        case 2: return String(localized: "\(parts[0]) и \(parts[1])")
+        case 0: return ""
         case 1: return parts[0]
-        default: return ""
+        default:
+            let head = parts.dropLast().joined(separator: ", "), last = parts[parts.count - 1]
+            return String(localized: "\(head) и \(last)")
         }
     }
 }
@@ -59,26 +95,24 @@ struct StarsExplanation: View {
     let unit: SpeedUnit
 
     var body: some View {
-        let pass = Formatting.compactPercent(LessonScoring.passAccuracy)
         VStack(alignment: .leading, spacing: 10) {
             Text("Как считаются звёзды").font(.headline)
-            Text("Звёзды за урок ставятся по проверочному тексту — последнему шагу урока. Остальные шаги — тренировка: на звёзды они не влияют, но показывают, где ошибки.")
-            Text("Урок засчитан при точности от \(pass).")
+            Text("Звёзды за урок ставятся по проверочному тексту — последнему шагу урока. Остальные шаги — тренировка: они влияют только на пятую звезду и показывают, где ошибки.")
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 6) {
                 GridRow {
                     StarsView(count: 1, size: 11)
-                    Text("урок засчитан")
+                    Text(verbatim: StarHintText.passRule())
                 }
-                GridRow {
-                    StarsView(count: 2, size: 11)
-                    Text(verbatim: StarHintText.twoStarRule(targetCpm: targetCpm, unit: unit))
-                }
-                GridRow {
-                    StarsView(count: 3, size: 11)
-                    Text(verbatim: StarHintText.threeStarRule(targetCpm: targetCpm, unit: unit))
+                ForEach(LessonScoring.thresholds, id: \.stars) { threshold in
+                    GridRow {
+                        StarsView(count: threshold.stars, size: 11)
+                        Text(verbatim: threshold.stars == LessonScoring.maxStars
+                             ? StarHintText.topRule(threshold, targetCpm: targetCpm, unit: unit)
+                             : StarHintText.rule(threshold, targetCpm: targetCpm, unit: unit))
+                    }
                 }
             }
-            Text("На коротких текстах первых этапов три звезды фактически означают «без единой ошибки».")
+            Text("На коротких текстах первых этапов четыре звезды фактически означают «без единой ошибки», а пятая отличается скоростью и чистотой остальных шагов.")
                 .foregroundStyle(.secondary)
             Text("Любой шаг можно пройти заново отдельно: раскройте урок на карте курса и нажмите «Пройти заново».")
                 .foregroundStyle(.secondary)
@@ -86,7 +120,7 @@ struct StarsExplanation: View {
         .font(.callout)
         .fixedSize(horizontal: false, vertical: true)
         .padding(16)
-        .frame(width: 380, alignment: .leading)
+        .frame(width: 420, alignment: .leading)
     }
 }
 
@@ -116,22 +150,27 @@ struct StarsHelpButton: View {
     }
 }
 
-/// «До ★★★: точность от 99,5% (у вас 98,9%)». Ничего не показывает, если урок не засчитан или звёзд уже три.
+/// «До ★★★★: без ошибок (у вас 1)»; к ★★★★★ — и шаг урока, мешающий чистоте. Ничего не показывает, если урок
+/// не засчитан или звёзд уже пять. `steps` — шаги урока (`LessonStepStats.summarize`).
 struct NextStarHintView: View {
     let cpm: Double
     let accuracy: Double
+    let errors: Int
+    let chars: Int
     let targetCpm: Int
+    let steps: [StepStat]
     let unit: SpeedUnit
 
     var body: some View {
-        if let hint = LessonScoring.nextStarHint(cpm: cpm, accuracy: accuracy, targetCpm: targetCpm) {
-            let next = LessonScoring.stars(cpm: cpm, accuracy: accuracy, targetCpm: targetCpm) + 1
-            let text = StarHintText.requirements(needCpm: hint.needCpm, needAccuracy: hint.needAccuracy,
-                                                 cpm: cpm, accuracy: accuracy, unit: unit)
+        if let hint = LessonScoring.nextStarHint(cpm: cpm, accuracy: accuracy, errors: errors, chars: chars,
+                                                 targetCpm: targetCpm, steps: steps) {
+            let text = StarHintText.requirements(needCpm: hint.needCpm, maxErrors: hint.maxErrors,
+                                                 cpm: cpm, errors: errors, unit: unit,
+                                                 blockingStep: hint.blockingStep)
             HStack(spacing: 0) {
                 Text("До")
                 HStack(spacing: 1) {
-                    ForEach(0..<next, id: \.self) { _ in
+                    ForEach(0..<hint.stars, id: \.self) { _ in
                         Image(systemName: "star.fill").foregroundStyle(.yellow)
                     }
                 }
@@ -140,7 +179,7 @@ struct NextStarHintView: View {
             }
             .foregroundStyle(.secondary)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text("До \(next) звёзд: \(text)"))
+            .accessibilityLabel(Text("До \(hint.stars) звёзд: \(text)"))
         }
     }
 }

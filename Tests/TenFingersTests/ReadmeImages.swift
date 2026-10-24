@@ -208,6 +208,7 @@ private func homeFixture() -> HomeData {
     return HomeData.make(language: .en, streak: streak, days: days, sessions: sessions, today: today,
                          goalMinutes: 10, focus: "k", weakKeys: ["q", "z", "x"], canStartWeakSpots: true,
                          firstSessionDate: start.addingTimeInterval(-19 * 86_400),
+                         firstWeekday: 2,
                          weekdaySymbols: HomeData.weekdaySymbols(locale: Locale(identifier: "ru")))
 }
 

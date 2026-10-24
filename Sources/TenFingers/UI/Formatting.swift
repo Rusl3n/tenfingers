@@ -29,11 +29,6 @@ enum Formatting {
         } ?? value
         return (value * 100).formatted(.number.precision(.fractionLength(1)).locale(locale)) + "%"
     }
-
-    /// Порог точности без лишнего нуля: «96%», «99,5%».
-    static func compactPercent(_ value: Double, locale: Locale = .current) -> String {
-        (value * 100).formatted(.number.precision(.fractionLength(0...1)).locale(locale)) + "%"
-    }
 }
 
 extension Formatting {
@@ -77,5 +72,45 @@ extension Formatting {
             return String(localized: "Получено \(count) ачивки за прошлые занятия", bundle: bundle)
         }
         return String(localized: "Получено \(count) ачивок за прошлые занятия", bundle: bundle)
+    }
+}
+
+extension Formatting {
+    /// «1 ошибка», «2 ошибки», «5 ошибок» (`errors.count %lld` в Localizable.stringsdict; без переводов —
+    /// русская форма, как у `days`).
+    static func errors(_ count: Int, bundle: Bundle = .main, locale: Locale? = nil) -> String {
+        let locale = locale ?? interfaceLocale(bundle: bundle)
+        let text = String(localized: "errors.count \(count)", bundle: bundle, locale: locale)
+        guard text.hasPrefix("errors.count") else { return text }
+        // Переводов нет (запуск без ресурсов приложения): склоняем по-русски.
+        let tens = abs(count) % 100, ones = abs(count) % 10
+        let word = if ones == 1 && tens != 11 { String(localized: "ошибка", bundle: bundle) }
+            else if (2...4).contains(ones) && !(12...14).contains(tens) { String(localized: "ошибки", bundle: bundle) }
+            else { String(localized: "ошибок", bundle: bundle) }
+        return "\(count) \(word)"
+    }
+
+    /// «не больше 1 ошибки», «не больше 3 ошибок» (`errors.atMost %lld` в Localizable.stringsdict; без переводов —
+    /// русская форма, как у `days`).
+    static func atMostErrors(_ count: Int, bundle: Bundle = .main, locale: Locale? = nil) -> String {
+        let locale = locale ?? interfaceLocale(bundle: bundle)
+        let text = String(localized: "errors.atMost \(count)", bundle: bundle, locale: locale)
+        guard text.hasPrefix("errors.atMost") else { return text }
+        // Переводов нет (запуск без ресурсов приложения): склоняем по-русски.
+        let tens = abs(count) % 100, ones = abs(count) % 10
+        return ones == 1 && tens != 11
+            ? String(localized: "не больше \(count) ошибки", bundle: bundle)
+            : String(localized: "не больше \(count) ошибок", bundle: bundle)
+    }
+
+    /// «не больше чем с 1 ошибкой», «не больше чем с 2 ошибками» (`errors.withAtMost %lld`; без переводов — русская форма).
+    static func withAtMostErrors(_ count: Int, bundle: Bundle = .main, locale: Locale? = nil) -> String {
+        let locale = locale ?? interfaceLocale(bundle: bundle)
+        let text = String(localized: "errors.withAtMost \(count)", bundle: bundle, locale: locale)
+        guard text.hasPrefix("errors.withAtMost") else { return text }
+        let tens = abs(count) % 100, ones = abs(count) % 10
+        return ones == 1 && tens != 11
+            ? String(localized: "не больше чем с \(count) ошибкой", bundle: bundle)
+            : String(localized: "не больше чем с \(count) ошибками", bundle: bundle)
     }
 }

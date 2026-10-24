@@ -295,30 +295,30 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
     #expect(earned(.polyglot, facts(lessonPasses: passes, courses: [.ru: ruCourse])) == nil)
 }
 
-@Test func engineAllThreeStarsUsesStarsAndDatesOfThreeStarChecks() {
-    // Цели: s1 — 60 (★★★ от 78 cpm и 99,5%), s2 — 90 (★★★ от 117).
+@Test func engineAllLessonsExcellentUsesStarsAndDatesOfFourStarChecks() {
+    // Цели: s1 — 60 (★★★★ от 78 cpm и 99,5%), s2 — 90 (★★★★ от 117).
     let list = [
-        ex("2026-10-01 10:00", mode: .course, lessonId: "l1", kind: .check, accuracy: 0.97, cpm: 200),  // ★
-        ex("2026-10-02 10:00", mode: .course, lessonId: "l1", kind: .check, accuracy: 1, cpm: 80),      // ★★★
+        ex("2026-10-01 10:00", mode: .course, lessonId: "l1", kind: .check, accuracy: 0.97, cpm: 200),  // ★★
+        ex("2026-10-02 10:00", mode: .course, lessonId: "l1", kind: .check, accuracy: 1, cpm: 80),      // ★★★★
         ex("2026-10-02 11:00", mode: .course, lessonId: "l2", kind: .words, accuracy: 1, cpm: 300),     // не проверка
-        ex("2026-10-03 10:00", mode: .course, lessonId: "l2", kind: .check, accuracy: 1, cpm: 300),     // ★★★
-        ex("2026-10-03 11:00", mode: .course, lessonId: "l3", kind: .check, accuracy: 1, cpm: 100),     // ★★ при 90
-        ex("2026-10-04 10:00", mode: .course, lessonId: "l3", kind: .check, accuracy: 1, cpm: 120),     // ★★★
-        ex("2026-10-05 10:00", mode: .course, lessonId: "l3", kind: .check, accuracy: 1, cpm: 150),     // ещё ★★★
+        ex("2026-10-03 10:00", mode: .course, lessonId: "l2", kind: .check, accuracy: 1, cpm: 300),     // ★★★★★
+        ex("2026-10-03 11:00", mode: .course, lessonId: "l3", kind: .check, accuracy: 1, cpm: 100),     // ★★★ при 90
+        ex("2026-10-04 10:00", mode: .course, lessonId: "l3", kind: .check, accuracy: 1, cpm: 120),     // ★★★★
+        ex("2026-10-05 10:00", mode: .course, lessonId: "l3", kind: .check, accuracy: 1, cpm: 150),     // ★★★★★
     ]
-    let all3: [String: Int] = ["l1": 3, "l2": 3, "l3": 3]
-    let f = facts(list, starsByLesson: all3, courses: [.ru: ruCourse])
-    #expect(earned(.allThreeStars(.ru), f) == at("2026-10-04 10:00"))
+    let all4: [String: Int] = ["l1": 4, "l2": 4, "l3": 4]
+    let f = facts(list, starsByLesson: all4, courses: [.ru: ruCourse])
+    #expect(earned(.allLessonsExcellent(.ru), f) == at("2026-10-04 10:00"))
     // Звёзды берутся только из starsByLesson (их считает приложение через effectiveStars).
-    #expect(earned(.allThreeStars(.ru), facts(list, starsByLesson: ["l1": 3, "l2": 3, "l3": 2],
-                                              courses: [.ru: ruCourse])) == nil)
-    #expect(earned(.allThreeStars(.ru), facts(list, starsByLesson: ["l1": 3, "l2": 3],
-                                              courses: [.ru: ruCourse])) == nil)
-    #expect(earned(.allThreeStars(.en), f) == nil)
-    // ★★★ без ★★★-проверок в истории (оценка из базы) — дату установить нельзя: `facts.now`, момент проверки ачивок.
-    #expect(earned(.allThreeStars(.ru), facts(starsByLesson: all3, courses: [.ru: ruCourse])) == testNow)
-    #expect(earned(.allThreeStars(.ru), facts(Array(list.prefix(4)), starsByLesson: all3,
-                                              courses: [.ru: ruCourse])) == testNow)
+    #expect(earned(.allLessonsExcellent(.ru), facts(list, starsByLesson: ["l1": 4, "l2": 4, "l3": 3],
+                                                    courses: [.ru: ruCourse])) == nil)
+    #expect(earned(.allLessonsExcellent(.ru), facts(list, starsByLesson: ["l1": 4, "l2": 4],
+                                                    courses: [.ru: ruCourse])) == nil)
+    #expect(earned(.allLessonsExcellent(.en), f) == nil)
+    // ★★★★ без ★★★★-проверок в истории (оценка из базы) — дату установить нельзя: `facts.now`, момент проверки ачивок.
+    #expect(earned(.allLessonsExcellent(.ru), facts(starsByLesson: all4, courses: [.ru: ruCourse])) == testNow)
+    #expect(earned(.allLessonsExcellent(.ru), facts(Array(list.prefix(4)), starsByLesson: all4,
+                                                    courses: [.ru: ruCourse])) == testNow)
 }
 
 // MARK: - Объём
@@ -591,7 +591,7 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
         let target = try #require(ru.context(for: id)).targetCpm
         let history = exercises.filter { $0.lessonId == id && $0.exerciseKind == .check && $0.completed }
             .map { (cpm: $0.cpm, accuracy: $0.accuracy) }
-        stars[id] = LessonScoring.effectiveStars(history: history, targetCpm: target, passed: true, storedStars: 3)
+        stars[id] = LessonScoring.effectiveStars(history: history, steps: [], targetCpm: target, passed: true, storedStars: 3)
     }
     // Открытые буквы: уроки курса + 6 стартовых адаптивных (дата — первая адаптивная тренировка).
     var letters: [Character: Date] = [:]

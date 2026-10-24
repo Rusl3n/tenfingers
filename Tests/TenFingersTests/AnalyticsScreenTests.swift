@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftData
 import Testing
@@ -210,13 +211,13 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
     let row = CourseProgressRow.make(
         course: course,
         lessons: [StoredLesson(lessonId: lessons[0].id, passed: true, storedStars: 3),   // история важнее: 1 звезда
-                  StoredLesson(lessonId: lessons[1].id, passed: true, storedStars: 2)],  // проверок нет — из базы
-        checks: [check])
+                  StoredLesson(lessonId: lessons[1].id, passed: true, storedStars: 2)],  // проверок нет — из базы: 2 → ★★★
+        sessions: [check])
     #expect(row.language == .ru)
     #expect(row.passed == 2)
     #expect(row.total == lessons.count)
-    #expect(row.stars == 3)
-    #expect(row.maxStars == lessons.count * 3)
+    #expect(row.stars == 4)
+    #expect(row.maxStars == lessons.count * 5)
     #expect(abs(row.fraction - 2 / Double(lessons.count)) < 0.0001)
 }
 
@@ -225,7 +226,7 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
     let lesson = course.lessons[0]
     let row = CourseProgressRow.make(course: course,
                                      lessons: [StoredLesson(lessonId: lesson.id, passed: true, storedStars: 0)],
-                                     checks: [])
+                                     sessions: [])
     #expect(row.stars == 1)
     #expect(row.stars == LessonOverview.make(lessonId: lesson.id, targetCpm: course.stages[0].targetCpm, sessions: [],
                                               storedStars: 0, isPassed: true).stars)
@@ -355,4 +356,43 @@ private func session(day: String, language: Language = .ru, mode: ExerciseMode =
     #expect(data.records.longestStreak == 2)
     #expect(data.calendar.weeks[52][0].status == .full)
     #expect(data.keys.map(\.keyCode) == [3])
+}
+
+// MARK: - Карточка «Дни»
+
+@Test func dayMetricRowsListFlameVisitsAndGoal() {
+    let streak = StreakSummary(current: 7, fullInRow: 3, fullInCurrent: 3, freezes: 1, longest: 15, today: .full,
+                               statuses: [:], visitCurrent: 4, visitLongest: 9, visitTotal: 40,
+                               goalCurrent: 2, goalLongest: 5, goalTotal: 22)
+    let rows = DayMetricRow.rows(streak)
+    #expect(rows.map(\.icon) == ["flame.fill", "figure.walk", "target"])
+    #expect(rows.map(\.title) == ["Огонь", "Заходил", "Цель выполнена"])
+    #expect(rows.map(\.current) == [7, 4, 2])
+    #expect(rows.map(\.longest) == [15, 9, 5])
+    #expect(rows.map(\.total) == [nil, 40, 22])
+    #expect(rows.map(\.help) == [HelpText.freezes, HelpText.visitDays, HelpText.goalDays])
+}
+
+@Test func dayMetricIconsAreExistingSymbols() {
+    let streak = StreakSummary(current: 0, fullInRow: 0, fullInCurrent: 0, freezes: 0, longest: 0, today: .none,
+                               statuses: [:])
+    for name in DayMetricRow.rows(streak).map(\.icon) + ["figure.walk", "target"] {
+        #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
+    }
+}
+
+@MainActor @Test func loaderSummaryCarriesDayMetrics() throws {
+    let container = try makeContainer()
+    let context = container.mainContext
+    for (key, seconds) in [("2026-03-08", 700.0), ("2026-03-09", 100), ("2026-03-10", 700)] {
+        let day = DayRecord(logicalDay: key)
+        day.activeSeconds = seconds
+        day.completedExercises = 1
+        context.insert(day)
+    }
+    try context.save()
+    let data = try AnalyticsLoader(context: context).summary(
+        language: .ru, courses: [:], today: "2026-03-10", goalSeconds: 600, firstWeekday: 2)
+    #expect(data.streak.visitTotal == 3)
+    #expect(data.streak.goalTotal == 2)
 }

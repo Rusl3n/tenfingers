@@ -26,6 +26,9 @@ struct ExerciseView: View {
     private var unit: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
     private var keyboardUnitValue: Double { KeyboardSizing.clampedUnit(keyboardUnit) }
 
+    /// Проценты в шапке упражнения — только вне курса (в курсе — одни ошибки, §5).
+    nonisolated static func showsAccuracyPercent(mode: ExerciseMode) -> Bool { mode != .course }
+
     var body: some View {
         VStack(spacing: 22) {
             header
@@ -109,7 +112,12 @@ struct ExerciseView: View {
                                typedChars: session.engine.position,
                                activeSeconds: session.engine.activeTime, unit: unit)
             HStack(spacing: 18) {
-                Text(Formatting.percent(session.engine.accuracy)).monospacedDigit()
+                HStack(spacing: 6) {
+                    Text("Ошибки: \(session.engine.errorPositions.count)").monospacedDigit()
+                    if Self.showsAccuracyPercent(mode: session.mode) {
+                        Text(Formatting.percent(session.engine.accuracy)).font(.caption).monospacedDigit()
+                    }
+                }
                 Text(Formatting.clock(session.engine.activeTime)).monospacedDigit()
                 Text(layout.snapshot.language?.shortName ?? "?")
                     .padding(.horizontal, 6)

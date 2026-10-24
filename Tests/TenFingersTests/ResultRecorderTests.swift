@@ -68,12 +68,24 @@ private func date(_ day: Int, _ hour: Int) -> Date {
     let container = try ModelStore.makeContainer(inMemory: true)
     let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
     try recorder.commit { try recorder.recordLesson(result(at: date(23, 12)), stars: 0) }
-    try recorder.commit { try recorder.recordLesson(result(at: date(23, 13)), stars: 2) }
-    try recorder.commit { try recorder.recordLesson(result(at: date(23, 14)), stars: 1) }
+    try recorder.commit { try recorder.recordLesson(result(at: date(23, 13)), stars: 4) }
+    try recorder.commit { try recorder.recordLesson(result(at: date(23, 14)), stars: 2) }
     let progress = try #require(try container.mainContext.fetch(FetchDescriptor<LessonProgress>()).first)
     #expect(progress.attempts == 3)
-    #expect(progress.bestStars == 2)
+    #expect(progress.bestStars == 3) // ★★★★ новой шкалы — прежние 3
     #expect(progress.passedAt == date(23, 13))
+}
+
+/// Уроки издания 1 хранят `bestStars` в прежней 3-звёздной шкале: 5 → 3, 3 → 2, 2 → 1.
+@MainActor @Test func lessonProgressStoresLegacyScale() throws {
+    for (stars, legacy) in [(5, 3), (3, 2), (2, 1)] {
+        let container = try ModelStore.makeContainer(inMemory: true)
+        let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+        try recorder.commit { try recorder.recordLesson(result(at: date(23, 12)), stars: stars) }
+        let progress = try #require(try container.mainContext.fetch(FetchDescriptor<LessonProgress>()).first)
+        #expect(progress.bestStars == legacy, "\(stars)")
+        #expect(progress.passedAt == date(23, 12))
+    }
 }
 
 @MainActor @Test func countersIncrement() throws {
@@ -179,4 +191,44 @@ private struct Boom: Error {}
         FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.endedAt)])).last)
     #expect(last.language == "en" && last.yoPresses == 0)
     #expect(FingerCounts.counts(last.fingerPresses) == [:])
+}
+
+private func textResult(_ text: String, typed: Int? = nil, mode: ExerciseMode = .practice, lessonId: String? = nil,
+                        stepIndex: Int? = nil) -> ExerciseResult {
+    var engine = TypingEngine(text: text)
+    for (index, character) in text.prefix(typed ?? text.count).enumerated() {
+        _ = engine.handle(Keystroke(character: character, keyCode: 3, timestamp: Double(index)))
+    }
+    return ExerciseResult(engine: engine, mode: mode, language: .ru, lessonId: lessonId,
+                          startedAt: .now, endedAt: .now, hintLevel: .full, stepIndex: stepIndex)
+}
+
+@MainActor @Test func courseSessionStoresStepIndexAndTraits() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit {
+        try recorder.record(textResult("ао", mode: .course, lessonId: "ru.1.1", stepIndex: 2))
+    }
+    let session = try #require(try container.mainContext.fetch(FetchDescriptor<SessionRecord>()).first)
+    #expect(session.stepIndex == 2)
+    #expect(session.textTraits == 0)
+    #expect(session.planSlot == nil)
+}
+
+@MainActor @Test func practiceFromLibraryStoresConnectedTrait() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit { try recorder.record(textResult("Да"), source: "library:x") }
+    let session = try #require(try container.mainContext.fetch(FetchDescriptor<SessionRecord>()).first)
+    #expect(session.textTraits == 9)
+    #expect(session.stepIndex == nil)
+}
+
+@MainActor @Test func abandonedExerciseStillStoresTextTraits() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit { try recorder.record(textResult("Да, 2", typed: 1)) }
+    let session = try #require(try container.mainContext.fetch(FetchDescriptor<SessionRecord>()).first)
+    #expect(!session.completed)
+    #expect(session.textTraits == 7)
 }

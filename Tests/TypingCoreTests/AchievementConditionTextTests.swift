@@ -15,7 +15,7 @@ private let samples: [AchievementCondition] = [
     .streak(days: 7), .fullStreakNoFreeze(days: 30), .speed(.ru, cpm: 150), .speed(.en, cpm: 250),
     .perfectAccuracy, .accuracyRun(count: 10, minimum: 0.98), .cleanDay(exercises: 5, minimum: 0.97),
     .firstLesson, .firstStage, .courseCompleted(.ru), .courseCompleted(.en), .polyglot,
-    .allThreeStars(.ru), .volumeChars(100_000), .volumeHours(1), .volumeHours(0.5),
+    .allLessonsExcellent(.ru), .volumeChars(100_000), .volumeHours(1), .volumeHours(0.5),
     .finishedBetween(startHour: 0, endHour: 4), .noKeyboard, .steelPinkies(presses: 30),
     .lettersUnlocked(.ru, Set("пица")), .lettersUnlocked(.ru, Set("ё")), .lettersUnlocked(.en, Set(":q!")),
     .wholeAlphabet(.en),
@@ -88,8 +88,8 @@ private let samples: [AchievementCondition] = [
     #expect(en(.courseCompleted(.ru)) == "Complete the whole course: Russian")
     #expect(ru(.polyglot) == "Пройдите оба курса: русский и английский")
     #expect(en(.polyglot) == "Complete both courses: Russian and English")
-    #expect(ru(.allThreeStars(.ru)) == "Все уроки курса на три звезды: Русский")
-    #expect(en(.allThreeStars(.en)) == "Every lesson of the course on three stars: English")
+    #expect(ru(.allLessonsExcellent(.ru)) == "Все уроки курса не ниже четырёх звёзд: Русский")
+    #expect(en(.allLessonsExcellent(.en)) == "Every lesson of the course on four stars or more: English")
 }
 
 @Test func volumeConditions() {

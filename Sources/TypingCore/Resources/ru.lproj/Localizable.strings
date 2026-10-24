@@ -164,10 +164,10 @@
 "achievement.course.en.detail" = "Английский курс пройден. Теперь и QWERTY вам по плечу";
 "achievement.course.polyglot.title" = "Полиглот";
 "achievement.course.polyglot.detail" = "Два курса, две раскладки, ноль паники";
-"achievement.course.stars.ru.title" = "Три звезды везде (RU)";
-"achievement.course.stars.ru.detail" = "Все уроки на три звезды. Перфекционизм одобрен";
-"achievement.course.stars.en.title" = "Три звезды везде (EN)";
-"achievement.course.stars.en.detail" = "Три звезды в каждом уроке. Даже учебник завидует";
+"achievement.course.stars.ru.title" = "Отличник курса (RU)";
+"achievement.course.stars.ru.detail" = "Все уроки не ниже четырёх звёзд. Перфекционизм одобрен";
+"achievement.course.stars.en.title" = "Отличник курса (EN)";
+"achievement.course.stars.en.detail" = "Четыре звезды и выше в каждом уроке. Даже учебник завидует";
 
 /* Ачивки: Объём */
 "achievement.volume.chars.10k.title" = "Первые 10 000";
@@ -298,7 +298,7 @@
 "achievement.condition.firstStage" = "Пройдите все уроки одного этапа курса";
 "achievement.condition.course" = "Пройдите весь курс: %@";
 "achievement.condition.polyglot" = "Пройдите оба курса: русский и английский";
-"achievement.condition.threeStars" = "Все уроки курса на три звезды: %@";
+"achievement.condition.excellentStars" = "Все уроки курса не ниже четырёх звёзд: %@";
 "achievement.condition.volumeChars" = "Напечатано знаков: %@";
 "achievement.condition.volumeHours" = "Часов чистой практики: %@";
 "achievement.condition.finishedBetween" = "Завершите упражнение между %lld:00 и %lld:00";

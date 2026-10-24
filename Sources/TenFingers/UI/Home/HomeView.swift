@@ -14,6 +14,7 @@ struct HomeView: View {
     @Environment(ToastCenter.self) private var toasts
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
+    @AppStorage(SettingsKey.firstWeekday) private var firstWeekday = SettingsDefault.firstWeekday
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var targetCpm = SettingsDefault.adaptiveTargetCpm
@@ -56,6 +57,7 @@ struct HomeView: View {
         }
         .onChange(of: activeLanguage) { reload() }
         .onChange(of: dayStartHour) { reload() }
+        .onChange(of: firstWeekday) { reload() }
         .onChange(of: dailyGoal) { reload() }
         .onChange(of: targetCpm) { reload() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in reload() }
@@ -107,7 +109,7 @@ struct HomeView: View {
             data = HomeData.make(language: language, streak: streak, days: days, sessions: sessions, today: today,
                                  goalMinutes: dailyGoal, focus: training?.letters.first(where: \.isFocus)?.character,
                                  weakKeys: training?.weakKeys ?? [], canStartWeakSpots: training?.canStartWeakSpots ?? false,
-                                 firstSessionDate: first)
+                                 firstSessionDate: first, firstWeekday: StoredSettings.firstWeekday())
             loadFailed = false
         } catch {
             data = nil

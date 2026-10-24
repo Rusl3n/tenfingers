@@ -71,7 +71,8 @@ struct ResultRecorder {
             wrongKeystrokes: result.wrongKeystrokes, exerciseKind: result.exerciseKind?.rawValue,
             pinkyPresses: pinky.presses, pinkyErrors: pinky.errors, source: source,
             fingerPresses: FingerCounts.data(fingers.presses), fingerErrors: FingerCounts.data(fingers.errors),
-            yoPresses: KeyStats.yoCorrect(from: result)
+            yoPresses: KeyStats.yoCorrect(from: result), stepIndex: result.stepIndex,
+            textTraits: result.textTraits.union(TextTraits.connected(source: source)).rawValue
         ))
 
         let dayRecord = try fetchOrCreateDay(day)
@@ -101,7 +102,9 @@ struct ResultRecorder {
         }
     }
 
-    /// Вызывается после проверочного упражнения урока. `stars == 0` — урок не засчитан.
+    /// Вызывается после проверочного упражнения урока; `stars` — по 5-звёздной шкале, `stars == 0` — урок не засчитан.
+    /// Уроки издания 1 хранят прежнюю 3-звёздную шкалу (решение 1 фазы 6a): по ней работает запасное
+    /// правило `effectiveStars`. Зачёт — как раньше, при stars > 0.
     func recordLesson(_ result: ExerciseResult, stars: Int) throws {
         guard let lessonId = result.lessonId else { return }
         let descriptor = FetchDescriptor<LessonProgress>(predicate: #Predicate { $0.lessonId == lessonId })
@@ -111,7 +114,7 @@ struct ResultRecorder {
             return created
         }()
         progress.attempts += 1
-        progress.bestStars = max(progress.bestStars, stars)
+        progress.bestStars = max(progress.bestStars, LessonScoring.legacyScale(fiveStar: stars))
         progress.bestCpm = max(progress.bestCpm, result.cpm)
         progress.bestAccuracy = max(progress.bestAccuracy, result.accuracy)
         if stars > 0 && progress.passedAt == nil { progress.passedAt = result.endedAt }
