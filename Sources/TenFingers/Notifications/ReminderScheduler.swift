@@ -28,12 +28,15 @@ protocol ReminderCenter {
     func authorization() async -> ReminderAuthorization
     /// Показывает системный запрос разрешения (если оно ещё не решено) и возвращает итоговое состояние.
     func requestAuthorization() async -> ReminderAuthorization
+    /// Ожидающие уведомления приложения (все, без отбора).
+    func pending() async -> [ReminderNotification]
     func removePending(ids: [String])
     func add(_ notification: ReminderNotification) async
 }
 
-/// Планирует напоминания: удаляет прежние и ставит новые по `ReminderPlanner`.
-/// Вызывается при запуске, при активации приложения, при смене настроек и после каждой записи результата.
+/// Планирует напоминания по `ReminderPlanner`: сверяет план с ожидающими уведомлениями и меняет только разницу
+/// (`ReminderDiff`). Вызывается при запуске, при активации приложения (не чаще `activationInterval`), при смене
+/// настроек и после каждой записи результата.
 @MainActor @Observable
 final class ReminderScheduler {
     private(set) var authorization: ReminderAuthorization = .notDetermined
@@ -47,6 +50,11 @@ final class ReminderScheduler {
     @ObservationIgnored private var observer: (any NSObjectProtocol)?
     /// Номер последнего вызова: более ранний вызов, не успевший закончиться, прекращает работу.
     @ObservationIgnored private var generation = 0
+    /// Последний пересчёт по активации приложения.
+    @ObservationIgnored private var lastActivation: Date?
+    /// Активации чаще этого не пересчитывают: переключения между окнами не должны каждый раз дёргать систему.
+    /// Запись результата и смена настроек пересчитывают сразу.
+    static let activationInterval: TimeInterval = 60
 
     isolated deinit {
         if let observer { NotificationCenter.default.removeObserver(observer) }
@@ -64,8 +72,8 @@ final class ReminderScheduler {
     }
 
     /// Планировщик приложения. `context` — основной контекст базы (`nil`, если базу открыть нельзя).
-    /// При каждой активации приложения напоминания пересчитываются: так они не «протухают»,
-    /// пока приложение долго остаётся запущенным.
+    /// При активации приложения напоминания пересчитываются, чтобы не «протухали», пока приложение долго запущено,
+    /// но не чаще раза в `activationInterval`; смена разрешения учитывается сразу (`rescheduleOnActivation`).
     static func live(context: ModelContext?, defaults: UserDefaults = .standard) -> ReminderScheduler {
         let scheduler = ReminderScheduler(
             center: LiveReminderCenter(), defaults: defaults,
@@ -79,7 +87,7 @@ final class ReminderScheduler {
         scheduler.observer = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak scheduler] _ in
-            MainActor.assumeIsolated { scheduler?.rescheduleSoon() }
+            MainActor.assumeIsolated { _ = scheduler?.rescheduleOnActivation() }
         }
         return scheduler
     }
@@ -100,6 +108,22 @@ final class ReminderScheduler {
         Task { await reschedule() }
     }
 
+    /// Активация приложения: пересчёт, если с прошлого пересчёта по активации прошло не меньше `activationInterval`.
+    /// Чаще — только если изменилось разрешение (дали или отозвали в «Системных настройках» и сразу вернулись):
+    /// его чтение ничего не меняет в системе. Возвращает задачу (тесты дожидаются её).
+    @discardableResult
+    func rescheduleOnActivation(now: Date = .now) -> Task<Void, Never> {
+        let throttled = lastActivation.map { now.timeIntervalSince($0) < Self.activationInterval } ?? false
+        if !throttled { lastActivation = now }
+        return Task {
+            if throttled {
+                let known = authorization
+                guard await center.authorization() != known else { return }
+            }
+            await reschedule(now: now)
+        }
+    }
+
     func reschedule(now: Date = .now) async {
         generation += 1
         let mine = generation
@@ -113,11 +137,17 @@ final class ReminderScheduler {
             planned = ReminderPlanner.plan(now: now, config: settings.config, situation: input.situation,
                                            dayStartHour: StoredSettings.dayStartHour(defaults), calendar: calendar)
         }
-        center.removePending(ids: ReminderID.all)
-        for item in planned {
+        let wanted = planned.map {
+            ReminderNotification(id: $0.id, title: title, body: text($0.line), date: $0.date)
+        }
+        let current = await center.pending()
+        guard mine == generation else { return }
+        // То, что система отбросила в прошлый раз, здесь снова окажется в разнице и будет поставлено.
+        let diff = ReminderDiff.make(pending: current, planned: wanted)
+        if !diff.remove.isEmpty { center.removePending(ids: diff.remove) }
+        for notification in diff.add {
             guard mine == generation else { return }
-            await center.add(ReminderNotification(id: item.id, title: title,
-                                                  body: text(item.line), date: item.date))
+            await center.add(notification)
         }
     }
 }
@@ -178,6 +208,17 @@ struct LiveReminderCenter: ReminderCenter {
         return await authorization()
     }
 
+    func pending() async -> [ReminderNotification] {
+        guard isAvailable else { return [] }
+        return await center.pendingNotificationRequests().map { request in
+            // Дата, которую не восстановить (чужой триггер), не совпадёт с планом: такое напоминание заменится.
+            let date = (request.trigger as? UNCalendarNotificationTrigger)
+                .flatMap { ReminderTrigger.date(from: $0.dateComponents, calendar: calendar) } ?? .distantPast
+            return ReminderNotification(id: request.identifier, title: request.content.title,
+                                        body: request.content.body, date: date)
+        }
+    }
+
     func removePending(ids: [String]) {
         guard isAvailable else { return }
         center.removePendingNotificationRequests(withIdentifiers: ids)
@@ -189,7 +230,7 @@ struct LiveReminderCenter: ReminderCenter {
         content.title = notification.title
         content.body = notification.body
         content.sound = .default
-        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: notification.date)
+        let parts = ReminderTrigger.components(for: notification.date, calendar: calendar)
         let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
         do {
             try await center.add(UNNotificationRequest(identifier: notification.id, content: content, trigger: trigger))

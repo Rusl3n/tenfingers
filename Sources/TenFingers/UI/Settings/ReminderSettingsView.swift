@@ -85,6 +85,10 @@ struct ReminderSettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .task { await scheduler.refreshAuthorization() }
+        // Вернулись из «Системных настроек» (разрешение могли дать или отозвать): статус обновляется сразу.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await scheduler.refreshAuthorization() }
+        }
         .onChange(of: enabled) { _, isOn in
             // Разрешение запрашивается только здесь, при включении.
             Task { if isOn { await scheduler.enable() } else { await scheduler.reschedule() } }

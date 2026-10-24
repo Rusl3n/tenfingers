@@ -55,8 +55,7 @@ private func hours(_ plan: [PlannedReminder]) -> [Int] {
     let result = plan()
     #expect(result.count == 7)
     #expect(result.map(\.date) == (10...16).map { date($0, 20) })
-    #expect(result.map(\.id) == (0..<7).map { "reminder.d\($0)" })
-    #expect(ReminderPlanner.slotID(3) == "reminder.d3")
+    #expect(result.map(\.id) == (10...16).map { "reminder.2026-03-\($0)T20:00" })
     // Сегодня: серия под угрозой, ступень «мягко».
     let first = phrase(result[0])
     #expect(first.stage == .soft && first.need != .minutes)
@@ -66,7 +65,7 @@ private func hours(_ plan: [PlannedReminder]) -> [Int] {
 @Test func fullDayHasNoRemindersToday() {
     let result = plan(situation: situation(today: .full))
     #expect(result.map(\.date) == (11...17).map { date($0, 20) })
-    #expect(result.map(\.id) == (0..<7).map { "reminder.d\($0)" })
+    #expect(result.map(\.id) == (11...17).map { "reminder.2026-03-\($0)T20:00" })
     #expect(plan(situation: situation(today: .frozen)).first?.date == date(11, 20))
 }
 
@@ -80,7 +79,7 @@ private func hours(_ plan: [PlannedReminder]) -> [Int] {
     let result = plan(now: date(10, 16), config: ReminderConfig(mode: .thrice))
     #expect(result.count == 3 * 7 - 2)
     #expect(result.first?.date == date(10, 20))
-    #expect(result.map(\.id).last == "reminder.d18")
+    #expect(result.map(\.id).last == "reminder.2026-03-16T20:00")
 }
 
 @Test func intervalStepsFromTo() {
@@ -102,7 +101,7 @@ private func hours(_ plan: [PlannedReminder]) -> [Int] {
     #expect(result.count == ReminderPlanner.maxPending)
     #expect(result.count == 60)
     #expect(result.last?.date == date(14, 21))
-    #expect(result.map(\.id) == (0..<60).map(ReminderPlanner.slotID))
+    #expect(Set(result.map(\.id)).count == 60)
     #expect(result.map(\.date) == result.map(\.date).sorted())
 }
 
@@ -192,4 +191,34 @@ private func hours(_ plan: [PlannedReminder]) -> [Int] {
 @Test func toneNormalNeverPlansFunnyTexts() {
     let config = ReminderConfig(mode: .thrice, tone: .normal, escalating: true)
     #expect(plan(config: config).allSatisfy { phrase($0).tone == .normal })
+}
+
+// MARK: - Идентификаторы
+
+/// Идентификатор — время срабатывания (по календарю планировщика), а не номер по порядку: напоминание на то же
+/// время получает тот же идентификатор при любом «сейчас». Иначе после первого сработавшего все сдвигались бы,
+/// и разница с уже поставленными (`ReminderScheduler`) каждый раз была бы полной.
+@Test func idsAreStableAcrossReplanning() {
+    let morning = plan(now: date(10, 8), config: ReminderConfig(mode: .thrice))
+    let evening = plan(now: date(10, 16), config: ReminderConfig(mode: .thrice))
+    let byID = Dictionary(uniqueKeysWithValues: morning.map { ($0.id, $0.date) })
+    #expect(evening.allSatisfy { byID[$0.id] == $0.date })
+    #expect(Set(morning.map(\.id)).count == morning.count)
+    #expect(ReminderPlanner.id(for: date(9, 7, 5), calendar: utc()) == "reminder.2026-03-09T07:05")
+}
+
+/// Весенний перевод часов: 02:00 не существует и сдвигается на 03:00. Если в расписании есть и 02:00, и 03:00,
+/// в этот день остаётся одно напоминание на 03:00, а не два с одним идентификатором (иначе одно терялось бы,
+/// а разница с поставленными не сходилась бы никогда).
+@Test func springForwardDoesNotDuplicateASlot() {
+    var berlin = Calendar(identifier: .gregorian)
+    berlin.timeZone = TimeZone(identifier: "Europe/Berlin")!
+    let now = berlin.date(from: DateComponents(year: 2027, month: 3, day: 27, hour: 12))!
+    let config = ReminderConfig(mode: .thrice, thriceMinutes: [120, 180, 600])
+    let result = ReminderPlanner.plan(now: now, config: config, situation: situation(), dayStartHour: 4,
+                                      calendar: berlin)
+    #expect(Set(result.map(\.id)).count == result.count)
+    #expect(Set(result.map(\.date)).count == result.count)
+    let switchDay = result.filter { berlin.component(.day, from: $0.date) == 28 }
+    #expect(switchDay.map { berlin.component(.hour, from: $0.date) } == [3, 10])
 }

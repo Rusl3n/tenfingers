@@ -8,11 +8,30 @@ struct ReminderSettings: Equatable {
 }
 
 enum ReminderID {
-    /// Идентификаторы прежних версий: при пересчёте удаляются, чтобы не оставить дубли.
-    static let legacy = ["reminder.today", "reminder.tomorrow"]
-    /// Всё, что планировщик может оставить ожидающим: удаляется перед каждой постановкой.
-    /// Идентификаторы прежних версий (`d0…d6`) — часть того же ряда.
-    static let all = (0..<ReminderPlanner.maxPending).map(ReminderPlanner.slotID) + legacy
+    /// Все напоминания приложения, нынешние (`ReminderPlanner.id`) и прежних версий (`reminder.d<i>`,
+    /// `reminder.today`, `reminder.tomorrow`), начинаются так; чужих ожидающих уведомлений нет.
+    static let prefix = "reminder."
+
+    static func isReminder(_ id: String) -> Bool { id.hasPrefix(prefix) }
+}
+
+/// Что изменить в ожидающих уведомлениях, чтобы они совпали с планом: удалить напоминания, которых в плане нет
+/// (в том числе с идентификаторами прежних версий), и поставить новые или изменившиеся (время, заголовок, текст;
+/// уведомление с тем же идентификатором система заменяет). Совпадающие не трогаются: каждый запрос к системе
+/// расходует её лимит частоты, а лишние она отбрасывает («Too many requests»).
+struct ReminderDiff: Equatable {
+    let remove: [String]
+    let add: [ReminderNotification]
+
+    var isEmpty: Bool { remove.isEmpty && add.isEmpty }
+
+    static func make(pending: [ReminderNotification], planned: [ReminderNotification]) -> ReminderDiff {
+        let current = Dictionary(pending.filter { ReminderID.isReminder($0.id) }.map { ($0.id, $0) },
+                                 uniquingKeysWith: { first, _ in first })
+        let wanted = Set(planned.map(\.id))
+        return ReminderDiff(remove: current.keys.filter { !wanted.contains($0) }.sorted(),
+                            add: planned.filter { current[$0.id] != $0 })
+    }
 }
 
 /// Что нужно знать о прогрессе, чтобы выбрать текст напоминания.
@@ -40,5 +59,17 @@ struct ReminderInputs: Equatable {
 extension ReminderInputs {
     var situation: ReminderSituation {
         ReminderSituation(streak: streak, todayStatus: todayStatus, minutesLeft: minutesLeft)
+    }
+}
+
+/// Дата напоминания в триггере системы (`UNCalendarNotificationTrigger`) — компоненты до минуты по календарю;
+/// обратное преобразование нужно, чтобы сравнить ожидающие уведомления с планом (`ReminderDiff`).
+enum ReminderTrigger {
+    static func components(for date: Date, calendar: Calendar) -> DateComponents {
+        calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+    }
+
+    static func date(from components: DateComponents, calendar: Calendar) -> Date? {
+        calendar.date(from: components)
     }
 }

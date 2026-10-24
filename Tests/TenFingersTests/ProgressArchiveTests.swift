@@ -789,7 +789,9 @@ private struct SimulatedDiskFailure: Error {}
         let importer = ProgressImporter(context: context, defaults: defaults, backupDirectory: backups)
         let backup = try importer.importArchive(archive, now: base)
         #expect(backup.lastPathComponent == "pre-import-\(ProgressArchive.timestamp(base))-2.tenfingers")
-        #expect(defaults.string(forKey: SettingsKey.profileNickname) == "новый")
+        // Диагностика для CI: при сбое видно, что лежит в постоянном домене и что читает свежий экземпляр.
+        let nickname = defaults.string(forKey: SettingsKey.profileNickname)
+        #expect(nickname == "новый", Comment(rawValue: "archive=\(archive.profile.nickname) persistent=\(String(describing: UserDefaults().persistentDomain(forName: name)?[SettingsKey.profileNickname])) fresh=\(String(describing: UserDefaults(suiteName: name)?.string(forKey: SettingsKey.profileNickname)))"))
     }
     try await waitUntilStoreFilesClosed(in: storeDirectory)
 

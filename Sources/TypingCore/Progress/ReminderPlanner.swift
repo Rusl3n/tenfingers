@@ -74,8 +74,14 @@ public enum ReminderPlanner {
     /// Лимит системы — 64 ожидающих уведомления; берётся с запасом.
     public static let maxPending = 60
 
-    /// Идентификатор слота: `reminder.d<i>` (как в прежней схеме одного напоминания в день).
-    public static func slotID(_ index: Int) -> String { "reminder.d\(index)" }
+    /// Идентификатор напоминания — время срабатывания: `reminder.2026-03-10T20:00` (по `calendar`).
+    /// Не зависит от «сейчас» и порядка: при пересчёте то же напоминание узнаётся по идентификатору
+    /// (прежние версии нумеровали по порядку, `reminder.d<i>`).
+    public static func id(for date: Date, calendar: Calendar) -> String {
+        let c = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return String(format: "reminder.%04d-%02d-%02dT%02d:%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0,
+                      c.hour ?? 0, c.minute ?? 0)
+    }
 
     /// Просматривает `horizonDays + 2` календарных дня от `now` (два запасных компенсируют прошедший сегодняшний
     /// момент и дни без напоминаний) и собирает дни с напоминаниями, пока их меньше `horizonDays`;
@@ -90,6 +96,9 @@ public enum ReminderPlanner {
         guard !minutes.isEmpty else { return [] }
         let nowDay = LogicalDay.key(for: now, dayStartHour: dayStartHour, calendar: calendar)
         var found: [(date: Date, line: ReminderLine)] = []
+        // Весенний перевод часов сдвигает несуществующее время (02:00 → 03:00): два слота могут попасть
+        // на один момент и получить один идентификатор — второй пропускается.
+        var taken: Set<Date> = []
         var daysWithReminders = 0
         for offset in 0...(horizonDays + 1) {
             guard daysWithReminders < horizonDays else { break }
@@ -97,7 +106,7 @@ public enum ReminderPlanner {
             var added = false
             for (index, minute) in minutes.enumerated() {
                 guard let fire = calendar.date(bySettingHour: minute / 60, minute: minute % 60, second: 0, of: day),
-                      fire > now else { continue }
+                      fire > now, !taken.contains(fire) else { continue }
                 let dayKey = LogicalDay.key(for: fire, dayStartHour: dayStartHour, calendar: calendar)
                 let context: ReminderCatalog.Context
                 if dayKey == nowDay {
@@ -114,12 +123,13 @@ public enum ReminderPlanner {
                                                       adultHumor: config.adultHumor, dayKey: dayKey, slot: index)
                 else { continue }
                 found.append((fire, line))
+                taken.insert(fire)
                 added = true
             }
             if added { daysWithReminders += 1 }
         }
-        return found.sorted { $0.date < $1.date }.prefix(maxPending).enumerated().map {
-            PlannedReminder(id: slotID($0.offset), date: $0.element.date, line: $0.element.line)
+        return found.sorted { $0.date < $1.date }.prefix(maxPending).map {
+            PlannedReminder(id: id(for: $0.date, calendar: calendar), date: $0.date, line: $0.line)
         }
     }
 }

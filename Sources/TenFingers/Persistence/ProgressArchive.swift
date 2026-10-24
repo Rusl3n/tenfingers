@@ -411,9 +411,11 @@ enum ProgressArchive {
 
     /// Настройки, профиль и продолжения уроков из архива (после успешной замены базы).
     static func applyPreferences(of archive: Archive, to defaults: UserDefaults = .standard) {
+        // Сначала продолжение уроков: оно перечисляет ключи через `dictionaryRepresentation()`, а это может
+        // перечитать домен у cfprefsd. Записи профиля и настроек идут после, чтобы перечитывание их не откатило.
+        ArchivedSettings.applyLessonResume(archive.lessonResume, to: defaults)
         ArchivedSettings.apply(archive.settings, generation: archive.schemaGeneration, to: defaults)
         archive.profile.apply(to: defaults)
-        ArchivedSettings.applyLessonResume(archive.lessonResume, to: defaults)
     }
 
     // MARK: Имена файлов
