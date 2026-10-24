@@ -37,6 +37,16 @@ public struct Course: Codable, Sendable {
         guard !lessons.isEmpty else { return 0 }
         return Double(lessons.filter { passed.contains($0.id) }.count) / Double(lessons.count)
     }
+
+    /// Все символы, которые печатаются в курсе: изученные клавиши, заглавные буквы и пробел.
+    /// «Ё» исключена: в RussianWin Shift+ё даёт «Ë» (U+00CB).
+    public var typeableCharacters: Set<Character> {
+        var result: Set<Character> = [" "]
+        for lesson in lessons { result.formUnion(lesson.newCharacters) }
+        for letter in language.letters { result.formUnion(letter.uppercased()) }
+        result.remove("Ё")
+        return result
+    }
 }
 
 public struct Stage: Codable, Sendable, Identifiable {

@@ -91,3 +91,25 @@ private func finishedEngine() -> TypingEngine {
     let autumn = calendar.date(from: DateComponents(year: 2026, month: 10, day: 25, hour: 4, minute: 0))!
     #expect(LogicalDay.key(for: autumn, dayStartHour: 4, calendar: calendar) == "2026-10-25")
 }
+
+@Test func bigramSamplesUseConsecutiveLettersOnly() {
+    var engine = TypingEngine(text: "ав ло")
+    let keys: [(Character, Double)] = [("а", 0), ("в", 0.3), (" ", 0.5), ("л", 0.7), ("x", 0.8), ("о", 1.0)]
+    for (c, t) in keys { _ = engine.handle(Keystroke(character: c, keyCode: 0, timestamp: t)) }
+    let result = ExerciseResult(engine: engine, mode: .adaptive, language: .ru, lessonId: nil,
+                                startedAt: .now, endedAt: .now, hintLevel: .full)
+    let bigrams = KeyStats.bigramSamples(from: result)
+    #expect(Set(bigrams.keys) == ["ав", "ло"])
+    #expect(bigrams["ав"]?.outcomes == [false])
+    #expect(bigrams["ло"]?.outcomes == [true])
+    #expect(bigrams["ав"]?.intervalsMs.count == 1)
+}
+
+@Test func bigramsAreLowercased() {
+    var engine = TypingEngine(text: "Ав")
+    _ = engine.handle(Keystroke(character: "А", keyCode: 3, timestamp: 0))
+    _ = engine.handle(Keystroke(character: "в", keyCode: 2, timestamp: 0.2))
+    let result = ExerciseResult(engine: engine, mode: .course, language: .ru, lessonId: nil,
+                                startedAt: .now, endedAt: .now, hintLevel: .full)
+    #expect(KeyStats.bigramSamples(from: result).keys.contains("ав"))
+}

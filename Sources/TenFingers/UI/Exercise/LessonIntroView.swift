@@ -8,10 +8,10 @@ struct LessonIntroView: View {
     let onStart: () -> Void
 
     @Environment(KeyboardLayoutService.self) private var layout
+    @Environment(RunPresence.self) private var presence: RunPresence?
     @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
     @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
     @State private var showTarget = false
-    @State private var keyboardAreaWidth = 0.0
 
     private var keyboardUnitValue: Double { KeyboardSizing.clampedUnit(keyboardUnit) }
 
@@ -53,16 +53,15 @@ struct LessonIntroView: View {
                 }
             }
             KeyboardView(snapshot: layout.snapshot, marks: marks, unit: CGFloat(keyboardUnitValue))
-                .offset(x: CGFloat(KeyboardSizing.effectiveOffset(requested: keyboardOffset, unit: keyboardUnitValue,
-                                                                  availableWidth: keyboardAreaWidth)))
-                .frame(maxWidth: .infinity)
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { keyboardAreaWidth = Double($0) }
+                .keyboardPlacement(offset: keyboardOffset, unit: keyboardUnitValue)
             Button("Начать", action: onStart)
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return)
         }
         .padding(28)
-        .task {
+        // Пока запуск скрыт другим разделом, подсветка не мигает: таймер не работает.
+        .task(id: presence?.isVisible ?? true) {
+            guard presence?.isVisible ?? true else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(800))
                 showTarget.toggle()

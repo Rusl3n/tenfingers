@@ -24,6 +24,20 @@ public enum KeyStats {
         return samples
     }
 
+    /// Пары подряд идущих букв (без пробелов и знаков), в нижнем регистре. Исход и интервал — по второй букве.
+    public static func bigramSamples(from result: ExerciseResult) -> [String: KeyStatSample] {
+        var samples: [String: KeyStatSample] = [:]
+        for (previous, current) in zip(result.timings, result.timings.dropFirst())
+        where previous.character.isLetter && current.character.isLetter {
+            let key = (String(previous.character) + String(current.character)).lowercased()
+            var sample = samples[key, default: KeyStatSample()]
+            sample.outcomes.append(current.hadError)
+            if let ms = current.intervalMs { sample.intervalsMs.append(ms) }
+            samples[key] = sample
+        }
+        return samples
+    }
+
     /// Нажатия и ошибки на клавишах мизинцев (по `keyCode`).
     public static func pinkyCounts(from result: ExerciseResult) -> (presses: Int, errors: Int) {
         let pinky = result.timings.filter {

@@ -7,15 +7,18 @@ struct ExerciseView: View {
     let title: String
     let step: Int
     let totalSteps: Int
+    var targetCpm: Double?
     let onExit: () -> Void
 
     @Environment(KeyboardLayoutService.self) private var layout
+    /// Нет в окружении (превью, тесты) — экран считается видимым.
+    @Environment(RunPresence.self) private var presence: RunPresence?
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
     @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
     @State private var monitor: Any?
-    @State private var keyboardAreaWidth = 0.0
 
+    private var isVisible: Bool { presence?.isVisible ?? true }
     private var unit: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
     private var keyboardUnitValue: Double { KeyboardSizing.clampedUnit(keyboardUnit) }
 
@@ -42,15 +45,14 @@ struct ExerciseView: View {
                                  shiftDown: session.shiftDown, unit: CGFloat(keyboardUnitValue))
                     FingerLegend()
                 }
-                .offset(x: CGFloat(KeyboardSizing.effectiveOffset(requested: keyboardOffset, unit: keyboardUnitValue,
-                                                                  availableWidth: keyboardAreaWidth)))
-                .frame(maxWidth: .infinity)
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { keyboardAreaWidth = Double($0) }
+                .keyboardPlacement(offset: keyboardOffset, unit: keyboardUnitValue)
             }
         }
         .padding(28)
         .overlay { overlay }
-        .onAppear(perform: install)
+        // Монитор клавиш стоит только пока запуск виден: скрытый запуск остаётся в иерархии на паузе.
+        .onAppear(perform: visibilityChanged)
+        .onChange(of: isVisible) { visibilityChanged() }
         .onDisappear(perform: uninstall)
         .onChange(of: layout.snapshot) { _, snapshot in session.layoutLanguage = snapshot.language }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
@@ -68,22 +70,35 @@ struct ExerciseView: View {
                           errorFlash: session.errorFlash)
     }
 
+    /// Три колонки: боковые равной ширины, поэтому скорость стоит в центре окна при любой длине заголовка.
     private var header: some View {
-        HStack(spacing: 18) {
-            Text(title).font(.headline)
-            StepDotsView(current: step, total: totalSteps)
-            Text("Шаг \(step) из \(totalSteps)").monospacedDigit()
-            Spacer()
-            Text(unit.format(session.engine.cpm)).monospacedDigit()
-            Text(Formatting.percent(session.engine.accuracy)).monospacedDigit()
-            Text(Formatting.clock(session.engine.activeTime)).monospacedDigit()
-            Text(layout.snapshot.language?.shortName ?? "?")
-                .padding(.horizontal, 6)
-                .background(session.layoutMismatch ? Color.red.opacity(0.25) : Color.secondary.opacity(0.15),
-                            in: RoundedRectangle(cornerRadius: 4))
-            Button("Выйти", action: onExit)
+        HStack(alignment: .top, spacing: 18) {
+            HStack(spacing: 18) {
+                Text(title).font(.headline).lineLimit(1)
+                if totalSteps > 0 {
+                    StepDotsView(current: step, total: totalSteps)
+                    Text("Шаг \(step) из \(totalSteps)").monospacedDigit()
+                } else if step > 0 {
+                    Text("Порция \(step)").monospacedDigit()
+                }
+            }
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            SpeedIndicatorView(cpm: session.engine.cpm, target: targetCpm,
+                               typedChars: session.engine.position,
+                               activeSeconds: session.engine.activeTime, unit: unit)
+            HStack(spacing: 18) {
+                Text(Formatting.percent(session.engine.accuracy)).monospacedDigit()
+                Text(Formatting.clock(session.engine.activeTime)).monospacedDigit()
+                Text(layout.snapshot.language?.shortName ?? "?")
+                    .padding(.horizontal, 6)
+                    .background(session.layoutMismatch ? Color.red.opacity(0.25) : Color.secondary.opacity(0.15),
+                                in: RoundedRectangle(cornerRadius: 4))
+                Button("Выйти", action: onExit)
+            }
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .foregroundStyle(.secondary)
     }
 
     @ViewBuilder private var overlay: some View {
@@ -104,6 +119,16 @@ struct ExerciseView: View {
         }
         .padding(28)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func visibilityChanged() {
+        session.onPauseChanged = { [presence] paused, reason in presence?.pauseChanged(paused, reason: reason) }
+        if isVisible {
+            install()
+        } else {
+            uninstall()
+            session.pauseForHiding()
+        }
     }
 
     private func install() {

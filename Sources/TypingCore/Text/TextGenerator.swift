@@ -63,7 +63,8 @@ public struct TextGenerator: Sendable {
 
     /// Реальные слова из разрешённых букв (псевдослова, если слов мало), с фокусом на `focus`.
     public func words<G: RandomNumberGenerator>(
-        allowed: Set<Character>, focus: Set<Character>, length: Int, capitalRate: Double, rng: inout G
+        allowed: Set<Character>, focus: Set<Character>, length: Int, capitalRate: Double,
+        minimumRealWords: Int = TextGenerator.minimumRealWords, rng: inout G
     ) -> String {
         let letters = allowed.filter(\.isLetter)
         let symbols = allowed.filter { !$0.isLetter && $0 != " " }.sorted()
@@ -74,7 +75,7 @@ public struct TextGenerator: Sendable {
         let focusSorted = focusLetters.sorted()
         let focusedByLetter: [Character: [String]] = Dictionary(
             uniqueKeysWithValues: focusSorted.map { letter in (letter, pool.filter { $0.contains(letter) }) })
-        let usePseudo = pool.count < Self.minimumRealWords
+        let usePseudo = pool.count < minimumRealWords
         let decorateRate = focusSymbols.isEmpty ? 0.2 : 0.6
         guard !letters.isEmpty else { return "" }
 
@@ -138,6 +139,39 @@ public struct TextGenerator: Sendable {
             chars[Int.random(in: 0..<chars.count, using: &rng)] = usableFocus.randomElement(using: &rng)!
         }
         return String(chars)
+    }
+
+    /// Слова из всего словаря с упором на слабые клавиши и сочетания (≈75% слов содержат фокус).
+    /// Цели (клавиши и биграммы) чередуются по кругу, чтобы частые не заглушали редкие.
+    public func focusedWords<G: RandomNumberGenerator>(letters: Set<Character>, focusKeys: [Character],
+                                                       focusBigrams: [String], length: Int,
+                                                       rng: inout G) -> String {
+        let pool = Array(wordList.words(using: letters).prefix(8000))
+        guard !pool.isEmpty else { return "" }
+        let plain = Array(pool.prefix(2000))
+        // Повторы убираем: иначе одна цель получала бы вдвое больше слов.
+        let targets = Set(focusKeys).sorted().map { String($0) } + Set(focusBigrams).sorted()
+        let wordsByTarget: [String: [String]] = Dictionary(
+            targets.map { target in (target, pool.filter { $0.contains(target) }) },
+            uniquingKeysWith: { first, _ in first })
+        var turn = 0
+        return fill(length: length, initial: [], rng: &rng) { rng in
+            if !targets.isEmpty && Double.random(in: 0..<1, using: &rng) < 0.75 {
+                // Берём следующую цель по кругу; цель без слов и без возможности замены пропускаем.
+                for _ in 0..<targets.count {
+                    let target = targets[turn % targets.count]
+                    turn += 1
+                    if let candidates = wordsByTarget[target], !candidates.isEmpty {
+                        return candidates.randomElement(using: &rng)!
+                    }
+                    if target.count == 1, let key = target.first, letters.contains(key) {
+                        let word = pseudoWord(letters: letters, focus: [key], rng: &rng)
+                        if !word.isEmpty { return word }
+                    }
+                }
+            }
+            return plain.randomElement(using: &rng)!
+        }
     }
 
     // MARK: - Вспомогательное

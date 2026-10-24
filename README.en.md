@@ -15,6 +15,12 @@
 - A mistake stops the cursor: you have to press the correct key first.
 - Hints that are gradually withdrawn: from a highlighted key and finger to typing blind.
 - A lesson step indicator and a detailed exercise summary.
+- A large speed readout in the center of the exercise screen: green when you are at or above the target, red when below; an up or down arrow next to the target repeats the color.
+- Adaptive training: letters unlock as you master them, with the focus on your weakest one.
+- "Weak spots": 5 minutes on your worst keys and key pairs.
+- Practice: frequent words, 24 classic excerpts (12 per language), digits and symbols, and your own text from the clipboard or a .txt file (Windows-1251 included) with your place remembered.
+- Esc pauses the exercise and opens the sidebar; from another section, Esc takes you back to the paused lesson.
+- Settings are split into sections; dragging the keyboard size or offset slider shows a full-size keyboard preview over the screen.
 - Speed and accuracy are collected for every key while you type; the result screen shows the keys with the most errors.
 - Sounds synthesized inside the app: key click, error, exercise finished, lesson passed. Each sound has its own volume and switch.
 - Light (white, beige, gray) and dark (graphite, night, coffee) palettes; theme follows the system, is set manually, or switches on a schedule.
@@ -23,7 +29,6 @@
 
 ### In development
 
-- Adaptive training: the app unlocks letters as you master them and picks text that targets your weak spots. Separate "Weak spots" and "Free practice" modes.
 - A daily streak with full and half fire and freezes, detailed analytics by key, finger and bigram, reminders.
 - Achievements, including funny ones.
 

@@ -22,11 +22,14 @@ import SwiftData
     var exerciseKind: String?
     var pinkyPresses: Int = 0
     var pinkyErrors: Int = 0
+    /// Откуда текст вне курса: `adaptive`, `weak`, `words`, `symbols`, `custom`, `library:<id>`;
+    /// `nil` для уроков и для записей до фазы 2.
+    var source: String? = nil
 
     init(mode: String, language: String, lessonId: String?, startedAt: Date, endedAt: Date,
          logicalDay: String, activeSeconds: Double, chars: Int, errorCount: Int, cpm: Double,
          accuracy: Double, completed: Bool, hintLevel: String, maxErrorStreak: Int, wrongKeystrokes: Int,
-         exerciseKind: String? = nil, pinkyPresses: Int = 0, pinkyErrors: Int = 0) {
+         exerciseKind: String? = nil, pinkyPresses: Int = 0, pinkyErrors: Int = 0, source: String? = nil) {
         id = UUID()
         self.mode = mode
         self.language = language
@@ -46,6 +49,7 @@ import SwiftData
         self.exerciseKind = exerciseKind
         self.pinkyPresses = pinkyPresses
         self.pinkyErrors = pinkyErrors
+        self.source = source
     }
 }
 
@@ -81,6 +85,21 @@ import SwiftData
     }
 }
 
+@Model final class BigramStat {
+    #Unique<BigramStat>([\.language, \.bigram])
+    var language: String
+    var bigram: String
+    var count: Int = 0
+    var errors: Int = 0
+    var ewmaMs: Double?
+    var recent: [Bool] = []
+
+    init(language: String, bigram: String) {
+        self.language = language
+        self.bigram = bigram
+    }
+}
+
 @Model final class DayRecord {
     #Unique<DayRecord>([\.logicalDay])
     var logicalDay: String
@@ -101,6 +120,48 @@ import SwiftData
 
     init(name: String) {
         self.name = name
+    }
+}
+
+@Model final class AdaptiveState {
+    #Unique<AdaptiveState>([\.language])
+    var language: String
+    var unlockedCount: Int
+
+    init(language: String, unlockedCount: Int) {
+        self.language = language
+        self.unlockedCount = unlockedCount
+    }
+}
+
+/// Когда в адаптивной тренировке открылась буква (одна запись на букву; для ачивок фазы 4).
+@Model final class AdaptiveUnlock {
+    var language: String
+    var letter: String
+    var unlockedAt: Date
+
+    init(language: String, letter: String, unlockedAt: Date) {
+        self.language = language
+        self.letter = letter
+        self.unlockedAt = unlockedAt
+    }
+}
+
+@Model final class CustomText {
+    var id: UUID
+    var title: String
+    var body: String
+    var language: String
+    /// Позиция в тексте (в символах), с которой начнётся следующая порция.
+    var offset: Int = 0
+    var createdAt: Date
+
+    init(title: String, body: String, language: String, createdAt: Date = Date()) {
+        id = UUID()
+        self.title = title
+        self.body = body
+        self.language = language
+        self.createdAt = createdAt
     }
 }
 

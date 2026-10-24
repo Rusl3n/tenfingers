@@ -20,6 +20,60 @@ cp -R Localization/*.lproj "$APP/Contents/Resources/"
 cp scripts/Info.plist "$APP/Contents/Info.plist"
 codesign --force --deep --sign - "$APP"
 
+# Резервная копия прогресса перед установкой новой сборки.
+# База копируется через `sqlite3 .backup` (согласованная копия, даже если приложение запущено);
+# источник открывается только для чтения, поэтому sqlite3 ничего в нём не меняет (не сливает -wal).
+# Хранятся последние 10 копий и, кроме них, самая новая копия каждого дня за последние 30 дней.
+# Старая ручная копия TenFingers.backup-before-phase2 лежит отдельно и не трогается.
+STORE_DIR="$HOME/Library/Application Support/TenFingers"
+BACKUPS="$HOME/Library/Application Support/TenFingers.backups"
+if [ -d "$STORE_DIR" ]; then
+    DEST="$BACKUPS/$(date +%Y-%m-%d_%H-%M-%S)"
+    mkdir -p "$DEST"
+    STORE="$STORE_DIR/TenFingers.store"
+    COPIED_DB=0
+    if [ -f "$STORE" ] && command -v sqlite3 >/dev/null 2>&1; then
+        if sqlite3 "file:$STORE?mode=ro" ".backup '$DEST/TenFingers.store'"; then
+            COPIED_DB=1
+        else
+            rm -f "$DEST/TenFingers.store"
+            echo "sqlite3 не смог скопировать базу, копирую файлы как есть" >&2
+        fi
+    fi
+    if [ "$COPIED_DB" = 1 ]; then
+        # Остальные файлы папки, кроме самой базы и её -wal/-shm (они уже в копии базы)
+        for item in "$STORE_DIR"/* "$STORE_DIR"/.[!.]*; do
+            [ -e "$item" ] || continue
+            case "$(basename "$item")" in
+                TenFingers.store|*-wal|*-shm) ;;
+                *) cp -R "$item" "$DEST/" ;;
+            esac
+        done
+    else
+        cp -R "$STORE_DIR"/. "$DEST/"
+    fi
+    echo "Резервная копия прогресса: $DEST"
+
+    CUTOFF=$(date -v-30d +%Y-%m-%d)
+    SEEN_DAYS=" "
+    INDEX=0
+    for dir in $(cd "$BACKUPS" && ls -1d [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_* 2>/dev/null | sort -r); do
+        DAY="${dir%%_*}"
+        KEEP=0
+        [ "$INDEX" -lt 10 ] && KEEP=1
+        case "$SEEN_DAYS" in
+            *" $DAY "*) ;;
+            *)
+                SEEN_DAYS="$SEEN_DAYS$DAY "
+                # Самая новая копия дня за последние 30 дней остаётся всегда
+                if [[ ! "$DAY" < "$CUTOFF" ]]; then KEEP=1; fi
+                ;;
+        esac
+        if [ "$KEEP" = 0 ]; then rm -rf "${BACKUPS:?}/$dir"; fi
+        INDEX=$((INDEX + 1))
+    done
+fi
+
 # Прежние установки под старым именем и в ~/Applications больше не нужны
 rm -rf ~/Applications/TenFingers.app /Applications/TenFingers.app
 rm -rf "/Applications/$NAME"

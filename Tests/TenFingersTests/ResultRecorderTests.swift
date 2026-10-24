@@ -48,6 +48,22 @@ private func date(_ day: Int, _ hour: Int) -> Date {
     #expect(o.keyCode == 38)
 }
 
+@MainActor @Test func bigramStatsAccumulate() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit { try recorder.record(result(at: date(23, 12))) }
+    try recorder.commit { try recorder.record(result(at: date(23, 13))) }
+    let stats = try container.mainContext.fetch(FetchDescriptor<BigramStat>())
+    #expect(stats.count == 1)
+    let ao = try #require(stats.first)
+    #expect(ao.bigram == "ао")
+    #expect(ao.language == "ru")
+    #expect(ao.count == 2)
+    #expect(ao.errors == 2)
+    #expect(ao.recent == [true, true])
+    #expect(ao.ewmaMs == 500)
+}
+
 @MainActor @Test func lessonProgressKeepsBestAndPassDate() throws {
     let container = try ModelStore.makeContainer(inMemory: true)
     let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
@@ -111,4 +127,25 @@ private struct Boom: Error {}
     #expect(sessions[1].exerciseKind == nil)
     #expect(sessions[1].pinkyPresses == 0)
     #expect(sessions[1].pinkyErrors == 0)
+}
+
+/// Час начала дня читается при каждой записи: смена настройки посреди запуска действует сразу.
+@MainActor @Test func dayStartHourIsReadAtCommitTime() throws {
+    let defaults = try #require(UserDefaults(suiteName: "ResultRecorderTests-\(UUID().uuidString)"))
+    defaults.set(4, forKey: SettingsKey.dayStartHour)
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext,
+                                  dayStartHour: { StoredSettings.dayStartHour(defaults) })
+    try recorder.commit { try recorder.record(result(at: date(24, 3))) }  // до 4:00 — ещё 23-е
+    defaults.set(0, forKey: SettingsKey.dayStartHour)
+    try recorder.commit { try recorder.record(result(at: date(24, 3))) }  // день с полуночи — уже 24-е
+    let days = try container.mainContext.fetch(FetchDescriptor<DayRecord>()).map(\.logicalDay).sorted()
+    #expect(days == ["2026-10-23", "2026-10-24"])
+}
+
+@Test func storedDayStartHourFallsBackToDefault() throws {
+    let defaults = try #require(UserDefaults(suiteName: "ResultRecorderTests-\(UUID().uuidString)"))
+    #expect(StoredSettings.dayStartHour(defaults) == SettingsDefault.dayStartHour)
+    defaults.set(2, forKey: SettingsKey.dayStartHour)
+    #expect(StoredSettings.dayStartHour(defaults) == 2)
 }

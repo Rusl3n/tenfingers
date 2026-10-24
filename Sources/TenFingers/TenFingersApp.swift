@@ -8,7 +8,9 @@ struct TenFingersApp: App {
     @State private var library = ContentLibrary()
     @State private var sound = SoundPlayer()
     @State private var systemAppearance = SystemAppearance()
-    private let container: ModelContainer
+    /// `nil`, если базу открыть нельзя: тогда вместо приложения окно с ошибкой, а база не трогается.
+    private let container: ModelContainer?
+    private let storeError: String?
 
     init() {
         let defaults = UserDefaults.standard
@@ -19,8 +21,13 @@ struct TenFingersApp: App {
         }
         do {
             container = try ModelStore.makeContainer()
+            storeError = nil
+        } catch ModelStoreError.newerStore {
+            container = nil
+            storeError = String(localized: "Прогресс сохранён более новой версией приложения. Установите последнюю версию.")
         } catch {
-            fatalError("Failed to open the data store: \(error)")
+            container = nil
+            storeError = String(localized: "Не удалось открыть сохранённый прогресс: \(error.localizedDescription)")
         }
     }
 
@@ -28,15 +35,35 @@ struct TenFingersApp: App {
         // Одно окно: монитор клавиш упражнения общий для всего приложения.
         Window(String(localized: "Десять пальцев"), id: "main") {
             ThemedRoot(system: systemAppearance) {
-                RootView()
-                    .environment(layout)
-                    .environment(library)
-                    .environment(sound)
+                if let container {
+                    RootView()
+                        .environment(layout)
+                        .environment(library)
+                        .environment(sound)
+                        .modelContainer(container)
+                } else {
+                    StoreErrorView(message: storeError ?? "")
+                }
             }
                 .frame(minWidth: 960, minHeight: 640)
         }
-        .modelContainer(container)
         .windowResizability(.contentMinSize)
+    }
+}
+
+/// Базу открыть нельзя: объясняем, что делать, и ничего не записываем.
+private struct StoreErrorView: View {
+    let message: String
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Не удалось открыть прогресс", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("Закрыть приложение") { NSApp.terminate(nil) }
+                .keyboardShortcut(.defaultAction)
+        }
     }
 }
 

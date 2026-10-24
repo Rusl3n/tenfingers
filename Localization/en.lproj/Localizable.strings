@@ -69,10 +69,15 @@
 
 /* Скорость и время */
 "%lld зн/мин" = "%lld CPM";
+"Скорость %@" = "Speed %@";
+"Скорость %@, цель %@" = "Speed %@, target %@";
+"Скорость %@, цель %@, быстрее цели" = "Speed %@, target %@, faster than target";
+"Скорость %@, цель %@, медленнее цели" = "Speed %@, target %@, slower than target";
 "%lld ч %lld мин" = "%lld h %lld min";
 "%lld мин" = "%lld min";
 
 /* Настройки */
+"Общие" = "General";
 "Внешний вид" = "Appearance";
 "Тема" = "Theme";
 "Светлая палитра" = "Light palette";
@@ -113,3 +118,83 @@
 "Прослушать" = "Play sound";
 "Окно" = "Window";
 "Закрывать приложение вместе с окном" = "Quit the app when the window is closed";
+
+/* Тренировка */
+"Тренировка" = "Training";
+"Практика" = "Practice";
+"Раздел появится в ближайшем обновлении" = "This section will arrive in an upcoming update";
+"Тренировка: %@" = "Training: %@";
+"Адаптивная тренировка" = "Adaptive training";
+"Следующая буква: %@" = "Next letter: %@";
+"Все буквы открыты" = "All letters unlocked";
+"Цель: %@" = "Goal: %@";
+"Слабые места" = "Weak spots";
+"Клавиши" = "Keys";
+"Сочетания" = "Combinations";
+"Нужно больше данных" = "More data needed";
+"5 минут на слабые места" = "5 minutes on weak spots";
+"Порция %lld" = "Portion %lld";
+"Порция %lld готова" = "Portion %lld done";
+"Открыта новая буква: %@" = "New letter unlocked: %@";
+"Фокус: %@" = "Focus: %@";
+"Закончить" = "Finish";
+"Ещё порция…" = "Another portion…";
+"Тренировка завершена" = "Training complete";
+"Время" = "Time";
+"Средняя скорость" = "Average speed";
+"Клавиши: %@" = "Keys: %@";
+"Готово" = "Done";
+"Цель тренировки" = "Training goal";
+"Текущий урок" = "Current lesson";
+"Тренировка идёт" = "Training in progress";
+"Слабые места идут" = "Weak spots in progress";
+"Практика идёт" = "Practice in progress";
+
+/* Практика */
+"Практика: %@" = "Practice: %@";
+"Частотные слова" = "Frequent words";
+"Отрывки классики" = "Classic excerpts";
+"Цифры и символы" = "Digits and symbols";
+"Свой текст" = "Your own text";
+"Самые употребительные слова языка" = "The most common words of the language";
+"Проза русских и английских авторов" = "Prose by Russian and English authors";
+"Числа, даты, скобки, кавычки и знаки" = "Numbers, dates, brackets, quotes and punctuation";
+"Вставьте текст или откройте файл" = "Paste a text or open a file";
+"Источник" = "Source";
+"Продолжить" = "Continue";
+"Вставить текст" = "Paste text";
+"Открыть файл…" = "Open file…";
+"Сохранённых текстов пока нет" = "No saved texts yet";
+"Удалить текст?" = "Delete this text?";
+"Удалить" = "Delete";
+"Название" = "Title";
+"Сохранить" = "Save";
+"В тексте почти нет символов, которые можно набрать" = "The text has almost no characters you can type";
+"Не удалось сохранить текст: %@" = "Could not save the text: %@";
+"Не удалось открыть файл" = "Could not open the file";
+"Файл слишком большой" = "The file is too large";
+"Не удалось прочитать файл: нужен обычный текстовый файл" = "Could not read the file: a plain text file is required";
+"Не удалось удалить текст: %@" = "Could not delete the text: %@";
+"Отрывок готов" = "Excerpt done";
+"Ещё" = "More";
+"Начать сначала" = "Start over";
+"Текст пройден" = "Text completed";
+"Пройдено: %@" = "Completed: %@";
+
+/* Хранилище */
+"Не удалось открыть прогресс" = "Can’t Open Your Progress";
+"Прогресс сохранён более новой версией приложения. Установите последнюю версию." = "Your progress was saved by a newer version of the app. Please install the latest version.";
+"Не удалось открыть сохранённый прогресс: %@" = "Couldn’t open your saved progress: %@";
+"Закрыть приложение" = "Quit App";
+
+/* Слабые места */
+"Сначала откройте больше букв в курсе или тренировке" = "Open more letters in the course or training first";
+
+/* Замена скрытого запуска */
+"Текущий урок будет завершён. Начать новый?" = "The current lesson will end. Start a new one?";
+"Начать новый" = "Start New";
+
+/* Отмена своего текста */
+"Отменить вставку текста?" = "Discard the pasted text?";
+"Не сохранять" = "Don’t Save";
+"Вставленный текст не сохранится." = "The pasted text won’t be saved.";

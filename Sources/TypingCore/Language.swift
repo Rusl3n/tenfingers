@@ -23,6 +23,14 @@ public enum Language: String, Codable, CaseIterable, Sendable, Identifiable {
         }
     }
 
+    /// Порядок открытия букв в адаптивной тренировке — по частоте в языке.
+    public var adaptiveOrder: [Character] {
+        switch self {
+        case .ru: Array("оеаинтсрвлкмдпуяыьгзбчйхжшюцщэфъё")
+        case .en: Array("etaoinsrhldcumfpgwybvkxjqz")
+        }
+    }
+
     /// Код языка источника ввода macOS: "ru", "en-US" и т. п.
     public init?(inputSourceLanguage code: String) {
         self.init(rawValue: String(code.prefix(2)).lowercased())

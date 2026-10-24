@@ -3,10 +3,20 @@ import Foundation
 import Observation
 import TypingCore
 
+/// Почему упражнение встало на паузу.
+enum PauseReason: Equatable, Sendable {
+    /// Esc на экране упражнения.
+    case escape
+    /// Окно потеряло фокус.
+    case focusLoss
+    /// Пользователь ушёл в другой раздел, запуск скрыт.
+    case hidden
+}
+
 /// Связывает нажатия клавиш окна с `TypingEngine`: пауза, Caps Lock, проверка раскладки.
 @MainActor @Observable
 final class ExerciseSession {
-    static let escapeKeyCode: UInt16 = 53
+    nonisolated static let escapeKeyCode: UInt16 = 53
 
     let spec: ExerciseSpec
     let language: Language
@@ -16,6 +26,8 @@ final class ExerciseSession {
 
     private(set) var engine: TypingEngine
     private(set) var isPaused = false
+    /// Причина текущей паузы; `nil`, если паузы нет.
+    private(set) var pauseReason: PauseReason?
     private(set) var errorFlash = false
     private(set) var shiftDown = false
     private(set) var capsLockOn = false
@@ -28,6 +40,8 @@ final class ExerciseSession {
     var layoutLanguage: Language?
     @ObservationIgnored var onFinish: ((ExerciseResult) -> Void)?
     @ObservationIgnored var onSound: ((SoundEvent) -> Void)?
+    /// Пауза поставлена (`true`) или снята (`false`). При снятии передаётся причина снятой паузы.
+    @ObservationIgnored var onPauseChanged: ((Bool, PauseReason) -> Void)?
     @ObservationIgnored private var startedAt: Date?
 
     init(spec: ExerciseSpec, language: Language, mode: ExerciseMode, lessonId: String?, hint: HintLevel) {
@@ -48,7 +62,11 @@ final class ExerciseSession {
 
     func markRecorded() { isRecorded = true }
 
-    func stop() { isStopped = true }
+    /// Остановка (выход, запись брошенного): снятая пауза сообщается, чтобы меню и иконка не остались «на паузе».
+    func stop() {
+        isStopped = true
+        if isPaused { resume() }
+    }
 
     func handleFlags(_ flags: NSEvent.ModifierFlags) {
         let caps = flags.contains(.capsLock)
@@ -78,7 +96,7 @@ final class ExerciseSession {
         }
         guard !engine.isFinished else { return true }
         if isPaused {
-            isPaused = false
+            resume()
             return true
         }
         guard let characters, characters.count == 1, let character = characters.first else { return true }
@@ -101,18 +119,37 @@ final class ExerciseSession {
     }
 
     func togglePause() {
-        if isPaused {
-            isPaused = false
-        } else {
-            isPaused = true
-            engine.pause()
-        }
+        if isPaused { resume() } else { pause(.escape) }
     }
 
     func pauseForFocusLoss() {
         guard !isPaused, engine.hasStarted, !engine.isFinished else { return }
+        pause(.focusLoss)
+    }
+
+    /// Запуск скрыт другим разделом: ставим паузу даже до первого нажатия, чтобы при возврате был виден
+    /// оверлей «Пауза». Пауза по Esc сохраняет свою причину; пауза из-за фокуса становится `.hidden`.
+    func pauseForHiding() {
+        guard !isStopped, !engine.isFinished else { return }
+        if isPaused {
+            if pauseReason == .focusLoss { pauseReason = .hidden }
+        } else {
+            pause(.hidden)
+        }
+    }
+
+    private func pause(_ reason: PauseReason) {
         isPaused = true
+        pauseReason = reason
         engine.pause()
+        onPauseChanged?(true, reason)
+    }
+
+    private func resume() {
+        let reason = pauseReason ?? .escape
+        isPaused = false
+        pauseReason = nil
+        onPauseChanged?(false, reason)
     }
 
     func makeResult() -> ExerciseResult {

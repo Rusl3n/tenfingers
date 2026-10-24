@@ -7,6 +7,8 @@ import TypingCore
 final class ContentLibrary {
     private(set) var courses: [Language: Course] = [:]
     private(set) var planners: [Language: LessonPlanner] = [:]
+    /// Отрывки классики для практики.
+    private(set) var texts: [Language: [LibraryText]] = [:]
     private(set) var loadError: String?
 
     init() {
@@ -14,6 +16,7 @@ final class ContentLibrary {
             for language in Language.allCases {
                 courses[language] = try CourseCatalog.load(language)
                 planners[language] = LessonPlanner(generator: TextGenerator(wordList: try WordList.load(language)))
+                texts[language] = try TextLibrary.load(language)
             }
         } catch CoreResourceError.missing(let file) {
             loadError = String(localized: "Не найден файл \(file)")

@@ -7,13 +7,34 @@ import TypingCore
 @MainActor
 struct ResultRecorder {
     let context: ModelContext
-    let dayStartHour: Int
+    /// Час начала логического дня. Читается при каждой записи, а не один раз на запуск:
+    /// смена настройки посреди тренировки действует на следующую же запись.
+    let dayStartHour: () -> Int
+    /// Шов для тестов: вызывается перед сохранением внутри `commit` и может бросить ошибку,
+    /// чтобы проверить откат и алерт «Повторить» / «Отмена» (в приложении не задаётся).
+    var beforeSave: (() throws -> Void)?
+
+    init(context: ModelContext, dayStartHour: @escaping () -> Int) {
+        self.context = context
+        self.dayStartHour = dayStartHour
+    }
+
+    /// Постоянный час начала дня (для тестов).
+    init(context: ModelContext, dayStartHour: Int) {
+        self.init(context: context, dayStartHour: { dayStartHour })
+    }
+
+    /// Для приложения: час начала дня берётся из настроек в момент записи.
+    static func live(context: ModelContext) -> ResultRecorder {
+        ResultRecorder(context: context, dayStartHour: { StoredSettings.dayStartHour() })
+    }
 
     /// Выполняет изменения и сохраняет их одной транзакцией. При ошибке откатывает контекст,
     /// поэтому тот же `body` можно безопасно выполнить повторно.
     func commit(_ body: () throws -> Void) throws {
         do {
             try body()
+            try beforeSave?()
             try context.save()
         } catch {
             context.rollback()
@@ -21,8 +42,9 @@ struct ResultRecorder {
         }
     }
 
-    func record(_ result: ExerciseResult) throws {
-        let day = LogicalDay.key(for: result.endedAt, dayStartHour: dayStartHour)
+    /// `source` — откуда текст вне курса (см. `SessionRecord.source`).
+    func record(_ result: ExerciseResult, source: String? = nil) throws {
+        let day = LogicalDay.key(for: result.endedAt, dayStartHour: dayStartHour())
         let pinky = KeyStats.pinkyCounts(from: result)
         context.insert(SessionRecord(
             mode: result.mode.rawValue, language: result.language.rawValue, lessonId: result.lessonId,
@@ -31,7 +53,7 @@ struct ResultRecorder {
             cpm: result.cpm, accuracy: result.accuracy, completed: result.completed,
             hintLevel: result.hintLevel.rawValue, maxErrorStreak: result.maxErrorStreak,
             wrongKeystrokes: result.wrongKeystrokes, exerciseKind: result.exerciseKind?.rawValue,
-            pinkyPresses: pinky.presses, pinkyErrors: pinky.errors
+            pinkyPresses: pinky.presses, pinkyErrors: pinky.errors, source: source
         ))
 
         let dayRecord = try fetchOrCreateDay(day)
@@ -45,6 +67,14 @@ struct ResultRecorder {
             let stat = try fetchOrCreateKeyStat(language: result.language.rawValue, character: String(character))
             if let code = sample.keyCode { stat.keyCode = Int(code) }
             stat.presses += sample.outcomes.count
+            stat.errors += sample.outcomes.filter { $0 }.count
+            for ms in sample.intervalsMs { stat.ewmaMs = KeyStats.ewma(stat.ewmaMs, ms) }
+            stat.recent = KeyStats.appendRecent(stat.recent, sample.outcomes)
+        }
+
+        for (bigram, sample) in KeyStats.bigramSamples(from: result) {
+            let stat = try fetchOrCreateBigramStat(language: result.language.rawValue, bigram: bigram)
+            stat.count += sample.outcomes.count
             stat.errors += sample.outcomes.filter { $0 }.count
             for ms in sample.intervalsMs { stat.ewmaMs = KeyStats.ewma(stat.ewmaMs, ms) }
             stat.recent = KeyStats.appendRecent(stat.recent, sample.outcomes)
@@ -77,6 +107,27 @@ struct ResultRecorder {
         counter.value += amount
     }
 
+    /// Сохраняет, сколько букв открыто в адаптивной тренировке для языка.
+    func recordAdaptive(language: Language, unlockedCount: Int) throws {
+        let code = language.rawValue
+        let descriptor = FetchDescriptor<AdaptiveState>(predicate: #Predicate { $0.language == code })
+        if let state = try context.fetch(descriptor).first {
+            state.unlockedCount = unlockedCount
+        } else {
+            context.insert(AdaptiveState(language: code, unlockedCount: unlockedCount))
+        }
+    }
+
+    /// Запоминает, когда открылась буква адаптивной тренировки.
+    func recordUnlock(language: Language, letter: Character, at date: Date) {
+        context.insert(AdaptiveUnlock(language: language.rawValue, letter: String(letter), unlockedAt: date))
+    }
+
+    /// Позиция в тексте всегда в пределах `0...длина`.
+    func advanceCustomText(_ text: CustomText, to offset: Int) {
+        text.offset = min(max(offset, 0), text.body.count)
+    }
+
     private func fetchOrCreateDay(_ key: String) throws -> DayRecord {
         let descriptor = FetchDescriptor<DayRecord>(predicate: #Predicate { $0.logicalDay == key })
         if let existing = try context.fetch(descriptor).first { return existing }
@@ -90,6 +141,15 @@ struct ResultRecorder {
             predicate: #Predicate { $0.language == language && $0.character == character })
         if let existing = try context.fetch(descriptor).first { return existing }
         let created = KeyStat(language: language, character: character)
+        context.insert(created)
+        return created
+    }
+
+    private func fetchOrCreateBigramStat(language: String, bigram: String) throws -> BigramStat {
+        let descriptor = FetchDescriptor<BigramStat>(
+            predicate: #Predicate { $0.language == language && $0.bigram == bigram })
+        if let existing = try context.fetch(descriptor).first { return existing }
+        let created = BigramStat(language: language, bigram: bigram)
         context.insert(created)
         return created
     }

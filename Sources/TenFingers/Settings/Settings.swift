@@ -15,6 +15,8 @@ enum SettingsKey {
     static let quitOnWindowClose = "quitOnWindowClose"
     static let keyboardUnit = "keyboardUnit"
     static let keyboardOffset = "keyboardOffset"
+    static let adaptiveTargetCpm = "adaptiveTargetCpm"
+    static let settingsSection = "settingsSection"
     /// Прежний ключ темы (system/light/dark), читается один раз как начальное значение `themeMode`.
     static let legacyTheme = "theme"
 }
@@ -23,8 +25,17 @@ enum SettingsDefault {
     static let dayStartHour = 4
     static let dailyGoalMinutes = 10
     static let dailyGoalOptions = [5, 10, 15, 20, 30]
+    static let adaptiveTargetCpm = 175
+    static let adaptiveTargetOptions = [100, 150, 175, 200, 250]
     static let darkFromHour = 20
     static let darkToHour = 7
+}
+
+/// Настройки, которые читаются вне SwiftUI (`@AppStorage` здесь не подходит: значение нужно в момент вызова).
+enum StoredSettings {
+    static func dayStartHour(_ defaults: UserDefaults = .standard) -> Int {
+        defaults.object(forKey: SettingsKey.dayStartHour) as? Int ?? SettingsDefault.dayStartHour
+    }
 }
 
 enum HintMode: String, CaseIterable, Identifiable {
