@@ -8,6 +8,9 @@ struct ExerciseView: View {
     let step: Int
     let totalSteps: Int
     var targetCpm: Double?
+    /// Урок продолжен с этого шага (с единицы): над текстом плашка с кнопкой «Начать урок заново».
+    var resumedStep: Int?
+    var onRestart: (() -> Void)?
     let onExit: () -> Void
 
     @Environment(KeyboardLayoutService.self) private var layout
@@ -16,6 +19,7 @@ struct ExerciseView: View {
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
     @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
+    @AppStorage(SettingsKey.spaceThumbHint) private var spaceThumbHint = SettingsDefault.spaceThumbHint
     @State private var monitor: Any?
 
     private var isVisible: Bool { presence?.isVisible ?? true }
@@ -25,6 +29,15 @@ struct ExerciseView: View {
     var body: some View {
         VStack(spacing: 22) {
             header
+            if let resumedStep, let onRestart {
+                HStack(spacing: 12) {
+                    Label("Продолжаем с шага \(resumedStep) из \(totalSteps)", systemImage: "arrow.forward.circle")
+                    Spacer()
+                    Button("Начать урок заново", action: onRestart)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            }
             if !session.layoutMismatch, !missingCharacters.isEmpty {
                 Label("В текущей раскладке нет символов: \(missingCharacters)",
                       systemImage: "exclamationmark.triangle")
@@ -41,8 +54,10 @@ struct ExerciseView: View {
                     .foregroundStyle(.secondary)
             } else {
                 VStack(spacing: 22) {
+                    let highlight = highlight
                     KeyboardView(snapshot: layout.snapshot, marks: KeyboardView.marks(for: highlight),
-                                 shiftDown: session.shiftDown, unit: CGFloat(keyboardUnitValue))
+                                 shiftDown: session.shiftDown, unit: CGFloat(keyboardUnitValue),
+                                 spaceHalf: KeyboardView.spaceHalf(for: highlight))
                     FingerLegend()
                 }
                 .keyboardPlacement(offset: keyboardOffset, unit: keyboardUnitValue)
@@ -67,7 +82,13 @@ struct ExerciseView: View {
     private var highlight: KeyHighlight? {
         KeyHint.highlight(expected: session.engine.expected, snapshot: layout.snapshot, hint: session.hint,
                           positionHasError: session.engine.currentPositionHasError,
-                          errorFlash: session.errorFlash)
+                          errorFlash: session.errorFlash, previous: previousCharacter, spaceThumb: spaceThumbHint)
+    }
+
+    /// Символ перед курсором: от него зависит, каким большим пальцем жать пробел.
+    private var previousCharacter: Character? {
+        let position = session.engine.position
+        return position > 0 && position <= session.engine.target.count ? session.engine.target[position - 1] : nil
     }
 
     /// Три колонки: боковые равной ширины, поэтому скорость стоит в центре окна при любой длине заголовка.

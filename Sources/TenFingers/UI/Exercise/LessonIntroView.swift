@@ -5,6 +5,8 @@ import TypingCore
 struct LessonIntroView: View {
     let lesson: Lesson
     let language: Language
+    /// Самый первый урок курса: рассказать, каким большим пальцем жать пробел.
+    var teachesSpaceThumb = false
     let onStart: () -> Void
 
     @Environment(KeyboardLayoutService.self) private var layout
@@ -12,6 +14,8 @@ struct LessonIntroView: View {
     @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
     @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
     @State private var showTarget = false
+    /// Какая половина пробела подсвечена в показе большого пальца.
+    @State private var spaceHalf: Hand = .left
 
     private var keyboardUnitValue: Double { KeyboardSizing.clampedUnit(keyboardUnit) }
 
@@ -51,8 +55,15 @@ struct LessonIntroView: View {
                     Text("Заглавная буква: зажмите Shift мизинцем противоположной руки и нажмите букву.")
                         .font(.title3)
                 }
+                if teachesSpaceThumb {
+                    Text("Пробел — большим пальцем руки, противоположной последней букве: так обе руки работают по очереди и печать быстрее")
+                        .font(.title3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            KeyboardView(snapshot: layout.snapshot, marks: marks, unit: CGFloat(keyboardUnitValue))
+            .frame(maxWidth: 760, alignment: .leading)
+            KeyboardView(snapshot: layout.snapshot, marks: marks, unit: CGFloat(keyboardUnitValue),
+                         spaceHalf: teachesSpaceThumb ? spaceHalf : nil)
                 .keyboardPlacement(offset: keyboardOffset, unit: keyboardUnitValue)
             Button("Начать", action: onStart)
                 .buttonStyle(.borderedProminent)
@@ -65,6 +76,14 @@ struct LessonIntroView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(800))
                 showTarget.toggle()
+            }
+        }
+        // Половины пробела по очереди, по секунде.
+        .task(id: (presence?.isVisible ?? true) && teachesSpaceThumb) {
+            guard presence?.isVisible ?? true, teachesSpaceThumb else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                spaceHalf = spaceHalf == .left ? .right : .left
             }
         }
     }
@@ -80,6 +99,7 @@ struct LessonIntroView: View {
             marks[KeyboardGeometry.leftShift] = .intro
             marks[KeyboardGeometry.rightShift] = .intro
         }
+        if teachesSpaceThumb { marks[KeyboardGeometry.space] = .intro }
         return marks
     }
 

@@ -12,7 +12,7 @@ private func englishStrings() throws -> [String: String] {
 
 @Test func settingsSectionsAreUnique() {
     let all = SettingsSection.allCases
-    #expect(all.count == 4)
+    #expect(all.count == 7)
     #expect(Set(all.map(\.rawValue)).count == all.count)
     #expect(Set(all.map(\.titleKey)).count == all.count)
     #expect(Set(all.map(\.icon)).count == all.count)

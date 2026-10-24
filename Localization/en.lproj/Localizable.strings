@@ -18,8 +18,26 @@
 "Всего практики" = "Total practice";
 "Занимаетесь с" = "Practicing since";
 "сегодня" = "today";
-"Пройдено уроков" = "Lessons passed";
-"%lld из %lld" = "%lld of %lld";
+
+/* Главная: серия */
+"Займитесь сегодня, чтобы начать серию" = "Practice today to start a streak";
+"Займитесь сегодня, чтобы не прервать серию" = "Practice today to keep your streak going";
+"из них полных: %lld" = "full days: %lld";
+"Заморозки: %lld из %lld" = "Freezes: %lld of %lld";
+"Заморозка закрывает один пропущенный день. Новая выдаётся за каждые 7 полных дней подряд." = "A freeze covers one missed day. You earn a new one for every 7 full days in a row.";
+"Серия: %@" = "Streak: %@";
+"Скорость за 7 дней" = "Speed, last 7 days";
+"Точность за 7 дней" = "Accuracy, last 7 days";
+"Адаптивные упражнения" = "Adaptive exercises";
+"Пока мало данных" = "Not enough data yet";
+"Слабые: %@" = "Weak: %@";
+"Слова, отрывки, свой текст" = "Words, excerpts, your own text";
+"Полный день" = "Full day";
+"Половинный день" = "Half day";
+"Заморозка" = "Freeze";
+"Без занятий" = "No practice";
+"%@: %@" = "%@: %@";
+"Полный огонь! Дневная цель выполнена" = "Full flame! Daily goal reached";
 
 /* Карта курса */
 "цель %@" = "goal %@";
@@ -191,10 +209,183 @@
 "Сначала откройте больше букв в курсе или тренировке" = "Open more letters in the course or training first";
 
 /* Замена скрытого запуска */
-"Текущий урок будет завершён. Начать новый?" = "The current lesson will end. Start a new one?";
-"Начать новый" = "Start New";
+"Текущий урок будет завершён. Начать новое занятие?" = "The current lesson will be ended. Start something new?";
+"Тренировка будет завершена. Начать новое занятие?" = "The training session will be ended. Start something new?";
+"Слабые места будут завершены. Начать новое занятие?" = "The weak-spots session will be ended. Start something new?";
+"Практика будет завершена. Начать новое занятие?" = "The practice session will be ended. Start something new?";
+"Начать новое" = "Start new";
 
 /* Отмена своего текста */
 "Отменить вставку текста?" = "Discard the pasted text?";
 "Не сохранять" = "Don’t Save";
 "Вставленный текст не сохранится." = "The pasted text won’t be saved.";
+"Резервные копии прогресса лежат в папке ~/Library/Application Support/TenFingers.backups" = "Progress backups are stored in the folder ~/Library/Application Support/TenFingers.backups";
+"Показать в Finder" = "Show in Finder";
+"Не удалось прочитать версию базы прогресса. Установите последнюю версию приложения." = "Could not read the progress database version. Please install the latest version of the app.";
+
+/* Версия и «О программе» */
+"О программе «Десять пальцев»" = "About Ten Fingers";
+"Версия %@" = "Version %@";
+"сборка %@" = "build %@";
+"Коммит: %@" = "Commit: %@";
+"Лицензия кода: MIT" = "Code license: MIT";
+"Списки слов: hermitdave/FrequencyWords (OpenSubtitles 2018), CC BY-SA 4.0. Отрывки для практики: общественное достояние, Project Gutenberg и Викитека." = "Word lists: hermitdave/FrequencyWords (OpenSubtitles 2018), CC BY-SA 4.0. Practice excerpts: public domain, Project Gutenberg and Wikisource.";
+
+/* Продолжение урока, большой палец для пробела */
+"Подсказка для пробела (противоположный большой палец)" = "Space bar hint (opposite thumb)";
+"Пробел — большим пальцем руки, противоположной последней букве: так обе руки работают по очереди и печать быстрее" = "Space bar — with the thumb of the hand opposite to the last letter: both hands take turns and you type faster";
+"Продолжаем с шага %lld из %lld" = "Resuming from step %lld of %lld";
+"Начать урок заново" = "Restart the lesson";
+
+/* Детали урока по шагам, повтор шага */
+"Средняя точность по шагам урока" = "Average accuracy across the lesson steps";
+"Скрыть шаги" = "Hide steps";
+"Показать шаги" = "Show steps";
+"ошибок: %lld" = "errors: %lld";
+"Пройти заново" = "Redo step";
+"Лучший результат!" = "Personal best!";
+"Ошибки" = "Errors";
+
+/* Аналитика */
+"Аналитика" = "Analytics";
+"Аналитика: %@" = "Analytics: %@";
+"Время занятий" = "Practice time";
+"Сегодня" = "Today";
+"7 дней" = "7 days";
+"30 дней" = "30 days";
+"90 дней" = "90 days";
+"Всё время" = "All time";
+"Всего" = "Total";
+"Первое занятие: %@" = "First session: %@";
+"Курс начат: %@" = "Course started: %@";
+"Скорость и точность" = "Speed and accuracy";
+"Период" = "Period";
+"Скорость, %@" = "Speed, %@";
+"зн/мин" = "cpm";
+"Ряд" = "Series";
+"Тренд" = "Trend";
+"Показать" = "Show";
+"Медленные" = "Slow";
+"Меньше ошибок" = "Fewer errors";
+"Больше ошибок" = "More errors";
+"Быстрее" = "Faster";
+"Медленнее" = "Slower";
+"Наведите на клавишу, чтобы увидеть подробности" = "Hover over a key to see details";
+"%@ — нажатий: %lld, ошибок: %@" = "%@ — presses: %lld, errors: %@";
+"%@ — нажатий: %lld, ошибок: %@, %lld мс" = "%@ — presses: %lld, errors: %@, %lld ms";
+"Пальцы" = "Fingers";
+"Палец" = "Finger";
+"Нажатий" = "Presses";
+"Среднее время" = "Average time";
+"%lld мс" = "%lld ms";
+"большие пальцы" = "thumbs";
+"Календарь занятий" = "Activity calendar";
+"Рекорды" = "Records";
+"Лучшая скорость" = "Best speed";
+"Лучшая точность" = "Best accuracy";
+"Самая длинная серия" = "Longest streak";
+"Скорость и точность считаются по завершённым упражнениям от %lld знаков" = "Speed and accuracy records count only completed exercises of at least %lld characters";
+"История занятий" = "Session history";
+"Занятий пока нет" = "No sessions yet";
+"Дата" = "Date";
+"Режим" = "Mode";
+"Язык" = "Language";
+"Урок или текст" = "Lesson or text";
+"брошено" = "abandoned";
+"Последние %lld занятий" = "Last %lld sessions";
+"Урок" = "Lesson";
+"Прогресс курсов" = "Course progress";
+"Уроков: %lld из %lld" = "Lessons: %lld of %lld";
+"%lld из %lld" = "%lld of %lld";
+
+/* Масштаб интерфейса */
+"Масштаб интерфейса" = "Interface scale";
+
+/* Как считаются звёзды */
+"Как считаются звёзды" = "How stars are earned";
+"Звёзды за урок ставятся по проверочному тексту — последнему шагу урока. Остальные шаги — тренировка: на звёзды они не влияют, но показывают, где ошибки." = "Lesson stars are given for the check text, the last step of the lesson. The other steps are practice: they don't affect stars, but they show where you make mistakes.";
+"Урок засчитан при точности от %@." = "A lesson is passed with an accuracy of %@ or higher.";
+"урок засчитан" = "lesson passed";
+"скорость не ниже цели этапа (%@) и точность от %@" = "speed at or above the stage goal (%@) and accuracy of %@ or higher";
+"скорость от цели × %@ (%@) и точность от %@" = "speed of goal × %@ (%@) or higher and accuracy of %@ or higher";
+"На коротких текстах первых этапов три звезды фактически означают «без единой ошибки»." = "On the short texts of the first stages, three stars effectively mean “no mistakes at all”.";
+"Любой шаг можно пройти заново отдельно: раскройте урок на карте курса и нажмите «Пройти заново»." = "Any step can be redone on its own: expand the lesson on the course map and click “Redo step”.";
+"До" = "For";
+"До %lld звёзд: %@" = "For %lld stars: %@";
+"скорость от %@ (у вас %@)" = "speed of %@ or higher (yours: %@)";
+"точность от %@ (у вас %@)" = "accuracy of %@ or higher (yours: %@)";
+"%@ и %@" = "%@ and %@";
+
+/* Напоминания */
+"Напоминания" = "Reminders";
+"Напоминать заниматься" = "Remind me to practice";
+"Время напоминания" = "Reminder time";
+"Напоминание придёт, только если сегодня ещё не набран полный огонь." = "The reminder is sent only if you haven't earned a full flame today.";
+"Уведомления разрешены" = "Notifications are allowed";
+"Разрешение будет запрошено при включении" = "Permission will be requested when you turn this on";
+"Уведомления выключены в системных настройках" = "Notifications are turned off in System Settings";
+"Открыть настройки уведомлений" = "Open notification settings";
+"Уведомления недоступны в этой сборке" = "Notifications are not available in this build";
+"Серия %lld дн. под угрозой" = "Your %lld-day streak is at risk";
+"Пора позаниматься: начните новую серию" = "Time to practice: start a new streak";
+"До полного огня осталось %lld мин" = "%lld min left until a full flame";
+"Пора позаниматься — не теряйте серию" = "Time to practice: keep your streak going";
+
+/* Профиль и данные (экспорт и импорт прогресса) */
+"Никнейм" = "Nickname";
+"Имя" = "Name";
+"Используется на карточках «Поделиться»" = "Used on “Share” cards";
+"Профиль" = "Profile";
+"Данные" = "Data";
+"Сохранить прогресс в файл…" = "Save Progress to File…";
+"Сохранение" = "Export";
+"В файл попадают все занятия, статистика клавиш, прогресс уроков, свои тексты, профиль и настройки." = "The file contains all sessions, key statistics, lesson progress, your own texts, profile and settings.";
+"Загрузить прогресс из файла…" = "Load Progress from File…";
+"Загрузка" = "Import";
+"Завершите текущее упражнение, чтобы загрузить прогресс." = "Finish the current exercise to load progress.";
+"Текущий прогресс будет заменён. Перед заменой он автоматически сохраняется в резервную копию." = "Your current progress will be replaced. Before that, it is automatically saved to a backup.";
+"Показать резервные копии в Finder" = "Show Backups in Finder";
+"Резервные копии лежат в папке ~/Library/Application Support/TenFingers.backups" = "Backups are kept in ~/Library/Application Support/TenFingers.backups";
+"Не удалось" = "Something went wrong";
+"Прогресс загружен" = "Progress loaded";
+"Показать копию в Finder" = "Show Backup in Finder";
+"Прежний прогресс сохранён в резервную копию «%@»." = "Your previous progress was saved to the backup “%@”.";
+"Сохранить прогресс" = "Save Progress";
+"Прогресс сохранён в файл" = "Progress saved to file";
+"Не удалось сохранить прогресс: %@" = "Couldn't save progress: %@";
+"Загрузить прогресс" = "Load Progress";
+"Не удалось загрузить прогресс. Текущий прогресс не изменён: %@" = "Couldn't load progress. Your current progress has not changed: %@";
+"Загрузить прогресс из файла?" = "Load progress from file?";
+"Файл сохранён" = "File saved";
+"Версия приложения" = "App version";
+"Период занятий" = "Practice period";
+"нет" = "none";
+"Упражнений" = "Exercises";
+"Дней с занятиями" = "Days practiced";
+"Весь текущий прогресс, профиль и настройки будут заменены данными из файла. Перед заменой текущий прогресс сохранится в резервную копию." = "All current progress, profile and settings will be replaced with the data from the file. Before that, your current progress will be saved to a backup.";
+"Заменить текущий прогресс" = "Replace Current Progress";
+"Это не файл прогресса «Десяти пальцев»." = "This is not a Ten Fingers progress file.";
+"Файл сохранён в формате версии %lld, а это приложение понимает только версию 1. Установите последнюю версию приложения." = "The file uses format version %lld, but this app only understands version 1. Install the latest version of the app.";
+"Файл сохранён более новой версией приложения. Установите последнюю версию." = "The file was saved by a newer version of the app. Install the latest version.";
+"Не удалось сохранить резервную копию текущего прогресса, загрузка отменена: %@" = "Couldn't back up your current progress, so loading was cancelled: %@";
+"Файл прогресса повреждён: раздел «%@», запись № %lld." = "The progress file is damaged: section “%@”, record #%lld.";
+"Файл прогресса повреждён: раздел «%@», запись № %lld, поле «%@»." = "The progress file is damaged: section “%@”, record #%lld, field “%@”.";
+"Файл прогресса повреждён: поле «%@»." = "The progress file is damaged: field “%@”.";
+"Файл прогресса повреждён: в разделе «%@» запись «%@» повторяется." = "The progress file is damaged: in section “%@”, record “%@” appears more than once.";
+"Упражнения" = "Exercises";
+"Дни с занятиями" = "Days with practice";
+"Статистика клавиш" = "Key statistics";
+"Статистика сочетаний букв" = "Letter pair statistics";
+"Прогресс уроков" = "Lesson progress";
+"Открытые буквы" = "Unlocked letters";
+"Счётчики" = "Counters";
+"Свои тексты" = "Custom texts";
+"резервная копия записалась не полностью." = "the backup was not written completely.";
+"Не удалось прочитать прогресс" = "Couldn't read your progress";
+"Данные не изменены. Попробуйте ещё раз." = "Nothing was changed. Please try again.";
+"скорость не ниже цели этапа и точность от %@" = "speed at or above the stage goal and accuracy of %@ or higher";
+"скорость от цели × %@ и точность от %@" = "speed of goal × %@ or higher and accuracy of %@ or higher";
+"Пора позаниматься" = "Time to practice";
+"день" = "day";
+"дня" = "days";
+"дней" = "days";

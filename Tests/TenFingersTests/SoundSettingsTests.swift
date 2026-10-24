@@ -15,3 +15,8 @@ import TypingCore
     #expect(!SoundSettings.isEnabled(.error, defaults: defaults))
     #expect(SoundSettings.volume(.keyClick, defaults: defaults) == 0.9)
 }
+
+@Test func streakSoundIsConfigurable() {
+    #expect(SoundSettings.activeEvents.contains(.streak))
+    #expect(SoundSettings.title(.streak) == "Серия дней")
+}

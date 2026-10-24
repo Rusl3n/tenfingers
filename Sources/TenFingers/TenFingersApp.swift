@@ -8,6 +8,7 @@ struct TenFingersApp: App {
     @State private var library = ContentLibrary()
     @State private var sound = SoundPlayer()
     @State private var systemAppearance = SystemAppearance()
+    @State private var reminders: ReminderScheduler
     /// `nil`, если базу открыть нельзя: тогда вместо приложения окно с ошибкой, а база не трогается.
     private let container: ModelContainer?
     private let storeError: String?
@@ -22,13 +23,20 @@ struct TenFingersApp: App {
         do {
             container = try ModelStore.makeContainer()
             storeError = nil
-        } catch ModelStoreError.newerStore {
+        } catch ModelStoreError.newerStore, ModelStoreError.newerGeneration {
             container = nil
             storeError = String(localized: "Прогресс сохранён более новой версией приложения. Установите последнюю версию.")
+        } catch ModelStoreError.unreadableGeneration {
+            container = nil
+            storeError = String(localized: "Не удалось прочитать версию базы прогресса. Установите последнюю версию приложения.")
         } catch {
             container = nil
             storeError = String(localized: "Не удалось открыть сохранённый прогресс: \(error.localizedDescription)")
         }
+        let scheduler = ReminderScheduler.live(context: container?.mainContext)
+        _reminders = State(initialValue: scheduler)
+        // Запуск: пересчёт напоминаний. Разрешение здесь не запрашивается, только читается.
+        scheduler.rescheduleSoon()
     }
 
     var body: some Scene {
@@ -40,14 +48,19 @@ struct TenFingersApp: App {
                         .environment(layout)
                         .environment(library)
                         .environment(sound)
+                        .environment(reminders)
                         .modelContainer(container)
                 } else {
                     StoreErrorView(message: storeError ?? "")
                 }
             }
-                .frame(minWidth: 960, minHeight: 640)
         }
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("О программе «Десять пальцев»") { AboutPanel.show() }
+            }
+        }
     }
 }
 
@@ -61,9 +74,25 @@ private struct StoreErrorView: View {
         } description: {
             Text(message)
         } actions: {
-            Button("Закрыть приложение") { NSApp.terminate(nil) }
-                .keyboardShortcut(.defaultAction)
+            Text("Резервные копии прогресса лежат в папке ~/Library/Application Support/TenFingers.backups")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            HStack {
+                Button("Показать в Finder") { Self.revealBackups() }
+                Button("Закрыть приложение") { NSApp.terminate(nil) }
+                    .keyboardShortcut(.defaultAction)
+            }
         }
+    }
+
+    /// Папка резервных копий, а если её ещё нет, — папка с данными приложения (Finder откроется в ней).
+    private static func revealBackups() {
+        let support = URL.applicationSupportDirectory
+        let backups = support.appending(path: "TenFingers.backups", directoryHint: .isDirectory)
+        let target = FileManager.default.fileExists(atPath: backups.path)
+            ? backups : support.appending(path: "TenFingers", directoryHint: .isDirectory)
+        NSWorkspace.shared.activateFileViewerSelecting([target])
     }
 }
 
@@ -76,7 +105,13 @@ private struct ThemedRoot<Content: View>: View {
     @AppStorage(SettingsKey.darkPalette) private var darkPalette = DarkPalette.graphite.rawValue
     @AppStorage(SettingsKey.darkFromHour) private var darkFrom = SettingsDefault.darkFromHour
     @AppStorage(SettingsKey.darkToHour) private var darkTo = SettingsDefault.darkToHour
+    @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
     @ViewBuilder let content: Content
+
+    /// Минимальный размер окна растёт с масштабом интерфейса (в пределах видимой области экрана).
+    private var minimumSize: CGSize {
+        UIScale.minimumWindowSize(scale: uiScale, visible: NSScreen.main?.visibleFrame.size)
+    }
 
     var body: some View {
         // Читаем до замыкания TimelineView, чтобы Observation гарантированно отслеживал свойство.
@@ -95,5 +130,6 @@ private struct ThemedRoot<Content: View>: View {
                     NSApp.appearance = name.flatMap { NSAppearance(named: $0) }
                 }
         }
+        .frame(minWidth: minimumSize.width, minHeight: minimumSize.height)
     }
 }

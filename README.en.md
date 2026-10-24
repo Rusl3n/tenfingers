@@ -4,7 +4,12 @@
 
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
-<p align="center"><a href="README.md">Русская версия</a></p>
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version 0.3.0-dev">
+  <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
+</p>
+
+<p align="center"><a href="README.md">Русская версия</a> · <a href="CHANGELOG.md">Changelog</a> (in Russian)</p>
 
 ![On-screen keyboard: Russian layout with "6" and the left Shift highlighted](docs/images/keyboard-ru.png)
 
@@ -14,7 +19,9 @@
 - An on-screen keyboard that follows your actual system layout (including remapped symbols, such as Shift+6 = ":" in "Russian – PC") and is colored by finger. Keyboard size is adjustable.
 - A mistake stops the cursor: you have to press the correct key first.
 - Hints that are gradually withdrawn: from a highlighted key and finger to typing blind.
-- A lesson step indicator and a detailed exercise summary.
+- A lesson step indicator and a detailed exercise summary. A lesson resumes from the first step you haven't finished.
+- Lesson stars take both speed and accuracy into account; a "?" next to the stars explains the rules, and the result screen tells you what is missing for the next star. The course map shows per-step details and lets you replay any single step.
+- A space bar hint: the half under the thumb of the hand opposite to the previous character is highlighted.
 - A large speed readout in the center of the exercise screen: green when you are at or above the target, red when below; an up or down arrow next to the target repeats the color.
 - Adaptive training: letters unlock as you master them, with the focus on your weakest one.
 - "Weak spots": 5 minutes on your worst keys and key pairs.
@@ -22,17 +29,25 @@
 - Esc pauses the exercise and opens the sidebar; from another section, Esc takes you back to the paused lesson.
 - Settings are split into sections; dragging the keyboard size or offset slider shows a full-size keyboard preview over the screen.
 - Speed and accuracy are collected for every key while you type; the result screen shows the keys with the most errors.
+- A daily streak: a full flame for reaching your daily goal (10 minutes of active typing by default), a half flame for any finished exercise. Freezes (up to two, a new one for every 7 full days in a row) cover a missed day. The home screen shows the streak, the last seven days, today's goal, and your weekly speed and accuracy.
+- Analytics: speed and accuracy charts with a trend line, a keyboard heat map of errors and slow keys, per-finger statistics, a year-long activity calendar, records, the last 100 exercises, and course progress.
+- Practice reminders at the time you choose; the text depends on your streak ("Your 12-day streak is at risk", "4 min left until a full flame").
+- A profile (nickname and name) and progress transfer: all your progress, profile and settings can be saved to a file and loaded from it, for example on another Mac. Before loading, your current progress is backed up automatically.
 - Sounds synthesized inside the app: key click, error, exercise finished, lesson passed. Each sound has its own volume and switch.
-- Light (white, beige, gray) and dark (graphite, night, coffee) palettes; theme follows the system, is set manually, or switches on a schedule.
+- Light (white, beige, gray) and dark (graphite, night, coffee) palettes; theme follows the system, is set manually, or switches on a schedule. Interface scale from 80 to 150%.
 - English interface; the language follows your system settings.
 - All data stays local: no network, no accounts, no telemetry.
 
 ### In development
 
-- A daily streak with full and half fire and freezes, detailed analytics by key, finger and bigram, reminders.
 - Achievements, including funny ones.
+- "Share" cards with your results.
 
 ## Screenshots
+
+![Home screen (Russian interface): a 20-day streak with 17 full days, the week with fires and a freeze, today's goal](docs/images/home.png)
+
+![Analytics (Russian interface): error heat map on the Russian layout](docs/images/analytics-heatmap.png)
 
 ![Exercise text: typed part in gray, current character highlighted in red after a mistake](docs/images/exercise-text.png)
 
@@ -67,6 +82,8 @@ The README images are rendered by a test that is skipped by default:
 ```bash
 RENDER_DOCS=1 swift test --filter renderReadmeImages
 ```
+
+Versions and history: [`CHANGELOG.md`](CHANGELOG.md), development rules: [`CONTRIBUTING.md`](CONTRIBUTING.md) (both in Russian). The app version is shown in About and at the bottom of Settings.
 
 Design and work plans live in [`docs/superpowers`](docs/superpowers): the [specification](docs/superpowers/specs/2026-10-23-typing-tutor-design.md) and the [plans](docs/superpowers/plans). They are written in Russian.
 

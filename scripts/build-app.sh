@@ -18,6 +18,29 @@ cp scripts/AppIcon.icns "$APP/Contents/Resources/"
 # Переводы приложения (Localizable.strings, InfoPlist.strings): ресурсы исполняемого таргета не попадают в Bundle.main
 cp -R Localization/*.lproj "$APP/Contents/Resources/"
 cp scripts/Info.plist "$APP/Contents/Info.plist"
+
+# Версия подставляется в копию Info.plist внутри .app (исходный scripts/Info.plist не меняется) и обязательно до codesign:
+#   CFBundleShortVersionString — файл VERSION (семантическая версия, например 0.3.0-dev);
+#   CFBundleVersion            — число коммитов (git rev-list --count HEAD);
+#   TFGitCommit                — короткий хэш коммита, с суффиксом -dirty при незакоммиченных изменениях.
+# Вне git-репозитория (например, из архива исходников) — сборка 0 и коммит unknown, без проверки изменений.
+VERSION=$(tr -d '[:space:]' < VERSION)
+[ -n "$VERSION" ] || { echo "Файл VERSION пуст" >&2; exit 1; }
+if command -v git >/dev/null 2>&1 && git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+    BUILD=$(git rev-list --count HEAD)
+    COMMIT=$(git rev-parse --short HEAD)
+    if [ -n "$(git status --porcelain)" ]; then COMMIT="$COMMIT-dirty"; fi
+else
+    BUILD=0
+    COMMIT=unknown
+    echo "Не git-репозиторий: номер сборки 0, коммит unknown" >&2
+fi
+PLIST="$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :TFGitCommit string $COMMIT" "$PLIST"
+echo "Версия: $VERSION (сборка $BUILD, $COMMIT)"
+
 codesign --force --deep --sign - "$APP"
 
 # Резервная копия прогресса перед установкой новой сборки.

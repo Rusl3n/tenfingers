@@ -18,6 +18,11 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             sectionBar
             content
+            Text(AppVersion.settingsLine(info: AppVersion.current))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .padding(.vertical, 6)
         }
         .overlay(alignment: .bottom) {
             if preview.isOverlayShown {
@@ -40,6 +45,9 @@ struct SettingsView: View {
         case .learning: LearningSettingsView()
         case .keyboard: KeyboardSettingsView(preview: $preview)
         case .sounds: SoundSettingsView()
+        case .reminders: ReminderSettingsView()
+        case .profile: ProfileSettingsView()
+        case .data: DataSettingsView()
         }
     }
 

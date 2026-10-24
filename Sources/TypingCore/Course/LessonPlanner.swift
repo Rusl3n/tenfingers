@@ -10,6 +10,9 @@ public enum ExerciseKind: String, CaseIterable, Sendable {
         case .check: "Проверочный текст"
         }
     }
+
+    /// Название шага на языке системы.
+    public var localizedTitle: String { CoreText.localized(titleKey) }
 }
 
 public struct ExerciseSpec: Identifiable, Equatable, Sendable {

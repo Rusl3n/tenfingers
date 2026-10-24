@@ -30,4 +30,6 @@ struct LessonRun: Identifiable, Equatable {
     let id = UUID()
     let language: Language
     let lessonId: String
+    /// Повтор одного шага урока: без знакомства с клавишами и без продолжения урока.
+    var onlyStep: ExerciseKind? = nil
 }

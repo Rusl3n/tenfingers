@@ -48,6 +48,8 @@ struct WeakSpotsRunnerView: View {
     @Environment(ContentLibrary.self) private var library
     @Environment(\.modelContext) private var modelContext
     @Environment(SoundPlayer.self) private var sound
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(ReminderScheduler.self) private var reminders
     @Environment(RunPresence.self) private var presence: RunPresence?
     @AppStorage(SettingsKey.hintMode) private var hintMode = HintMode.auto.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var targetCpm = SettingsDefault.adaptiveTargetCpm
@@ -112,9 +114,8 @@ struct WeakSpotsRunnerView: View {
 
     private func prepare() {
         guard coordinator == nil else { return }
-        let coordinator = ExerciseCoordinator(
-            recorder: ResultRecorder.live(context: modelContext),
-            playSound: { [sound] in sound.play($0) })
+        let coordinator = ExerciseCoordinator.live(context: modelContext, sound: sound, toasts: toasts,
+                                                     reminders: reminders)
         coordinator.onExitAfterAlert = finishOrExit
         self.coordinator = coordinator
         begin(1)

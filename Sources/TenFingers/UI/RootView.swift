@@ -3,7 +3,7 @@ import SwiftUI
 import TypingCore
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case home, course, training, practice, settings
+    case home, course, training, practice, analytics, settings
 
     var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .course: String(localized: "Курс")
         case .training: String(localized: "Тренировка")
         case .practice: String(localized: "Практика")
+        case .analytics: String(localized: "Аналитика")
         case .settings: String(localized: "Настройки")
         }
     }
@@ -23,6 +24,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .course: "graduationcap"
         case .training: "target"
         case .practice: "text.book.closed"
+        case .analytics: "chart.xyaxis.line"
         case .settings: "gearshape"
         }
     }
@@ -59,6 +61,16 @@ enum RunKind: Identifiable, Equatable {
         case .practice: String(localized: "Практика идёт")
         }
     }
+
+    /// Заголовок алерта при замене скрытого запуска: называет то, что будет завершено.
+    var replaceAlertTitle: String {
+        switch self {
+        case .lesson: String(localized: "Текущий урок будет завершён. Начать новое занятие?")
+        case .adaptive: String(localized: "Тренировка будет завершена. Начать новое занятие?")
+        case .weakSpots: String(localized: "Слабые места будут завершены. Начать новое занятие?")
+        case .practice: String(localized: "Практика будет завершена. Начать новое занятие?")
+        }
+    }
 }
 
 /// Выбор в боковой панели: активный запуск или раздел.
@@ -71,9 +83,11 @@ struct RootView: View {
     @Environment(ContentLibrary.self) private var library
     @Environment(\.palette) private var palette
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
+    @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
     @State private var selection: SidebarItem? = .home
     @State private var activeRun: RunKind?
     @State private var presence = RunPresence()
+    @State private var toasts = ToastCenter()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var visibilityBeforeLesson: NavigationSplitViewVisibility?
     @State private var escapeMonitor: Any?
@@ -101,21 +115,33 @@ struct RootView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Picker("Курс", selection: $activeLanguage) {
-                    ForEach(Language.allCases) { Text($0.shortName).tag($0.rawValue) }
+                VStack(spacing: 6) {
+                    Picker("Курс", selection: $activeLanguage) {
+                        ForEach(Language.allCases) { Text($0.shortName).tag($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text(AppVersion.short(info: AppVersion.current))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
                 .padding(12)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } detail: {
+            // Масштабируется содержимое раздела; боковая панель и заголовок окна — оформление окна, как в браузере.
             detail
+                .uiScaled(uiScale)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(palette.background)
         }
         .environment(presence)
+        .environment(toasts)
+        .overlay { ToastOverlay(toasts: toasts) }
         .onChange(of: activeRun?.id) { _, runId in
+            presence.hasRun = runId != nil
+            ReminderPresenter.shared.setRunActive(runId != nil)
             if runId != nil {
                 if visibilityBeforeLesson == nil { visibilityBeforeLesson = columnVisibility }
                 withAnimation { columnVisibility = .detailOnly }
@@ -135,11 +161,13 @@ struct RootView: View {
             if hidden { installEscapeMonitor() } else { removeEscapeMonitor() }
         }
         .onDisappear(perform: removeEscapeMonitor)
-        .alert("Текущий урок будет завершён. Начать новый?",
+        .alert(activeRun?.replaceAlertTitle ?? "",
                isPresented: Binding(get: { pendingRun != nil }, set: { if !$0 { pendingRun = nil } }),
                presenting: pendingRun) { run in
-            Button("Начать новый", role: .destructive) { replaceRun(with: run) }
+            Button("Начать новое", role: .destructive) { replaceRun(with: run) }
+            // Return нажимает «Отмена», а не разрушительную кнопку: случайный Return не должен терять запуск.
             Button("Отмена", role: .cancel) {}
+                .keyboardShortcut(.defaultAction)
         }
     }
 
@@ -181,10 +209,11 @@ struct RootView: View {
 
     @ViewBuilder private var section: some View {
         switch selection ?? .home {
-        case .home: HomeView(start: { start(.lesson($0)) })
+        case .home: HomeView(start: { start($0) }, navigate: { selection = $0 })
         case .course: CourseMapView(start: { start(.lesson($0)) })
         case .training: TrainingView(start: { start($0) })
         case .practice: PracticeView(start: { start($0) })
+        case .analytics: AnalyticsView()
         case .settings: SettingsView()
         }
     }

@@ -11,10 +11,24 @@
     <key>CFBundleExecutable</key><string>TenFingers</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <!-- Версия, номер сборки и TFGitCommit подставляет scripts/build-app.sh в копию внутри .app; здесь заглушки. -->
+    <key>CFBundleShortVersionString</key><string>0.0.0</string>
+    <key>CFBundleVersion</key><string>0</string>
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
     <key>NSHighResolutionCapable</key><true/>
+    <!-- Файл прогресса (экспорт и импорт в «Настройки → Данные»): JSON с расширением .tenfingers. -->
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key><string>local.tenfingers.progress</string>
+            <key>UTTypeDescription</key><string>Ten Fingers Progress</string>
+            <key>UTTypeConformsTo</key><array><string>public.json</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>tenfingers</string></array>
+            </dict>
+        </dict>
+    </array>
 </dict>
 </plist>

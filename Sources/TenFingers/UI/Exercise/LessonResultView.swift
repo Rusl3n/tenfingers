@@ -18,12 +18,17 @@ struct LessonResultView: View {
         VStack(spacing: 20) {
             Text(stars > 0 ? String(localized: "Урок пройден") : String(localized: "Нужна точность от 96%"))
                 .font(.largeTitle.bold())
+            // «?» сбоку, чтобы звёзды остались по центру.
             StarsView(count: stars, size: 34)
+                .overlay(alignment: .trailing) {
+                    StarsHelpButton(targetCpm: targetCpm, unit: unit, size: 17).offset(x: 30)
+                }
             HStack(spacing: 32) {
                 metric("Скорость", unit.format(summary.cpm))
                 metric("Точность", Formatting.percent(summary.accuracy))
-                metric("Цель", unit.format(Double(targetCpm)))
+                if targetCpm > 0 { metric("Цель", unit.format(Double(targetCpm))) }
             }
+            NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, targetCpm: targetCpm, unit: unit)
             if !summary.topErrors.isEmpty {
                 VStack(spacing: 6) {
                     Text("Больше всего ошибок").foregroundStyle(.secondary)

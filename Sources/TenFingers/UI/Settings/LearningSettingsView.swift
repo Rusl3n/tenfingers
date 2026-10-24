@@ -7,6 +7,8 @@ struct LearningSettingsView: View {
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var adaptiveTarget = SettingsDefault.adaptiveTargetCpm
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
+    @AppStorage(SettingsKey.spaceThumbHint) private var spaceThumbHint = SettingsDefault.spaceThumbHint
+    @Environment(ReminderScheduler.self) private var reminders
 
     private var speedUnitValue: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
 
@@ -16,6 +18,7 @@ struct LearningSettingsView: View {
                 Picker("Подсказки", selection: $hintMode) {
                     ForEach(HintMode.allCases) { Text($0.title).tag($0.rawValue) }
                 }
+                Toggle("Подсказка для пробела (противоположный большой палец)", isOn: $spaceThumbHint)
                 Picker("Скорость", selection: $speedUnit) {
                     ForEach(SpeedUnit.allCases) { Text($0.title).tag($0.rawValue) }
                 }
@@ -34,5 +37,8 @@ struct LearningSettingsView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+        // Цель и начало дня влияют на текст и дни напоминаний.
+        .onChange(of: dailyGoal) { reminders.rescheduleSoon() }
+        .onChange(of: dayStartHour) { reminders.rescheduleSoon() }
     }
 }

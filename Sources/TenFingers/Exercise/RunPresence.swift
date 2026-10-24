@@ -16,6 +16,9 @@ struct PauseEvent: Equatable {
 final class RunPresence {
     /// Экран запуска показан. Скрытый запуск остаётся в иерархии, но без монитора клавиш и на паузе.
     var isVisible = true
+    /// Есть активный запуск (виден он или скрыт). Пока он есть, загрузка прогресса из файла недоступна:
+    /// запуск держит объекты базы, которые замена удалила бы.
+    var hasRun = false
     private(set) var isPaused = false
     /// Последнее событие паузы: по нему `RootView` разворачивает или сворачивает меню.
     private(set) var lastEvent: PauseEvent?

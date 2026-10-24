@@ -2,8 +2,8 @@ import Foundation
 import TypingCore
 
 enum SoundSettings {
-    /// Звуки, которые уже звучат в приложении (ачивки и серия появятся в фазах 3–4).
-    static let activeEvents: [SoundEvent] = [.keyClick, .error, .exerciseDone, .lessonDone]
+    /// Звуки, которые уже звучат в приложении (ачивки появятся в фазе 4).
+    static let activeEvents: [SoundEvent] = [.keyClick, .error, .exerciseDone, .lessonDone, .streak]
 
     static func enabledKey(_ event: SoundEvent) -> String { "sound.\(event.rawValue).enabled" }
     static func volumeKey(_ event: SoundEvent) -> String { "sound.\(event.rawValue).volume" }

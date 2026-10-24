@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 import TypingCore
 
 /// Общий жизненный цикл упражнения: создание сессии, звук, запись результата
@@ -17,16 +18,39 @@ final class ExerciseCoordinator {
     /// Вызывается, если алерт закрыт кнопкой «Отмена», а сохранение шло не при выходе.
     @ObservationIgnored var onSaveCancelled: (() -> Void)?
 
+    /// Вызывается после успешного сохранения, которое впервые за логический день сделало день «полным огнём»
+    /// (звук `.streak` к этому моменту уже сыгран).
+    @ObservationIgnored var onDayCompleted: (() -> Void)?
+
+    /// Вызывается после каждого успешного сохранения (в том числе брошенного упражнения):
+    /// прогресс изменился, напоминания нужно пересчитать.
+    @ObservationIgnored var onSaved: (() -> Void)?
+
     @ObservationIgnored private let recorder: ResultRecorder
     @ObservationIgnored private let playSound: (SoundEvent) -> Void
+    @ObservationIgnored private let goalSeconds: () -> Double
+    /// Транзакция в `save` перевела день в «полный огонь» (выставляется внутри тела, сбрасывается перед каждой попыткой).
+    @ObservationIgnored private var dayCompletedInSave = false
     @ObservationIgnored private var pendingSave: (() throws -> Void)?
     @ObservationIgnored private var exitAfterSave = false
     /// Источник текста текущей сессии (`SessionRecord.source`).
     @ObservationIgnored private var source: String?
 
-    init(recorder: ResultRecorder, playSound: @escaping (SoundEvent) -> Void) {
+    /// `goalSeconds` читается при каждой записи: смена цели в настройках действует сразу.
+    init(recorder: ResultRecorder, playSound: @escaping (SoundEvent) -> Void,
+         goalSeconds: @escaping () -> Double = { StoredSettings.dailyGoalSeconds() }) {
         self.recorder = recorder
         self.playSound = playSound
+        self.goalSeconds = goalSeconds
+    }
+
+    /// Координатор приложения: запись в базу, звук и тост «Полный огонь».
+    static func live(context: ModelContext, sound: SoundPlayer, toasts: ToastCenter,
+                     reminders: ReminderScheduler? = nil) -> ExerciseCoordinator {
+        let coordinator = ExerciseCoordinator(recorder: .live(context: context), playSound: { sound.play($0) })
+        coordinator.onDayCompleted = { [toasts] in toasts.showFullFlame() }
+        coordinator.onSaved = { [weak reminders] in reminders?.rescheduleSoon() }
+        return coordinator
     }
 
     /// Создаёт сессию и подписывается на её завершение.
@@ -53,11 +77,11 @@ final class ExerciseCoordinator {
         let recorder = self.recorder
         let source = self.source
         exitAfterSave = false
-        return save {
+        return save(trackingDay(endedAt: result.endedAt) {
             try recorder.record(result, source: source)
             try Self.recordCounters(session, recorder)
             try extra(recorder)
-        }
+        })
     }
 
     /// Запись вне упражнения (например, сброс позиции в своём тексте) с тем же алертом «Повторить» / «Отмена».
@@ -78,7 +102,10 @@ final class ExerciseCoordinator {
         session.onFinish = nil
         session.markRecorded()
         exitAfterSave = true
-        return save(Self.abandonment(of: session, source: source, recorder))
+        // Результат собирается один раз: его же время конца определяет логический день для «полного огня».
+        let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
+        return save(trackingDay(endedAt: abandoned?.endedAt,
+                                Self.abandonment(abandoned, of: session, source: source, recorder)))
     }
 
     /// Уход без кнопки (меню, закрытие окна, выход из приложения): показать ошибку уже негде,
@@ -88,7 +115,8 @@ final class ExerciseCoordinator {
         session.stop()
         session.onFinish = nil
         session.markRecorded()
-        try? recorder.commit(Self.abandonment(of: session, source: source, recorder))
+        let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
+        if (try? recorder.commit(Self.abandonment(abandoned, of: session, source: source, recorder))) != nil { onSaved?() }
     }
 
     func retrySave() {
@@ -102,12 +130,28 @@ final class ExerciseCoordinator {
         if exitAfterSave { onExitAfterAlert?() } else { onSaveCancelled?() }
     }
 
-    private static func abandonment(of session: ExerciseSession, source: String?,
+    /// Запись брошенного упражнения: результат (`nil`, если набор не начинался) и счётчики.
+    private static func abandonment(_ abandoned: ExerciseResult?, of session: ExerciseSession, source: String?,
                                     _ recorder: ResultRecorder) -> () throws -> Void {
-        let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
-        return {
+        {
             if let abandoned { try recorder.record(abandoned, source: source) }
             try recordCounters(session, recorder)
+        }
+    }
+
+    /// Оборачивает запись: читает день до и после и запоминает, стал ли он «полным огнём».
+    private func trackingDay(endedAt: Date?, _ body: @escaping () throws -> Void) -> () throws -> Void {
+        guard let endedAt else { return body }
+        let recorder = self.recorder
+        let goalSeconds = self.goalSeconds
+        return { [weak self] in
+            let key = LogicalDay.key(for: endedAt, dayStartHour: recorder.dayStartHour())
+            let before = try recorder.dayActivity(forKey: key)
+            try body()
+            if let after = try recorder.dayActivity(forKey: key),
+               DayCompletion.didComplete(before: before, after: after, goalSeconds: goalSeconds()) {
+                self?.dayCompletedInSave = true
+            }
         }
     }
 
@@ -120,9 +164,16 @@ final class ExerciseCoordinator {
     @discardableResult
     private func save(_ body: (() throws -> Void)?) -> Bool {
         guard let body else { return true }
+        dayCompletedInSave = false
         do {
             try recorder.commit(body)
             pendingSave = nil
+            if dayCompletedInSave {
+                dayCompletedInSave = false
+                playSound(.streak)
+                onDayCompleted?()
+            }
+            onSaved?()
             return true
         } catch {
             pendingSave = body

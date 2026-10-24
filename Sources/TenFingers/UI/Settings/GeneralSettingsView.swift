@@ -8,10 +8,19 @@ struct GeneralSettingsView: View {
     @AppStorage(SettingsKey.darkFromHour) private var darkFrom = SettingsDefault.darkFromHour
     @AppStorage(SettingsKey.darkToHour) private var darkTo = SettingsDefault.darkToHour
     @AppStorage(SettingsKey.quitOnWindowClose) private var quitOnWindowClose = false
+    @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
+
+    /// Значение не из списка (например, записанное вручную) показывается ближайшим допустимым.
+    private var uiScaleSelection: Binding<Double> {
+        Binding(get: { UIScale.clamped(uiScale) }, set: { uiScale = $0 })
+    }
 
     var body: some View {
         Form {
             Section("Внешний вид") {
+                Picker("Масштаб интерфейса", selection: uiScaleSelection) {
+                    ForEach(UIScale.options, id: \.self) { Text(verbatim: UIScale.title($0)).tag($0) }
+                }
                 Picker("Тема", selection: $themeMode) {
                     ForEach(ThemeMode.allCases) { Text($0.title).tag($0.rawValue) }
                 }

@@ -72,4 +72,81 @@ func renderReadmeImages() throws {
             .environment(\.colorScheme, .light),
         to: "exercise-text.png"
     )
+
+    // Главная с серией: прокрутку `ImageRenderer` не рисует, поэтому — `HomeContent.column`.
+    // Курс английский: строки ядра (название языка) в тестах берутся на языке системы, а «English» читается
+    // одинаково в любом интерфейсе. Остальные строки — исходные русские.
+    try render(
+        HomeContent(data: homeFixture(), continueInfo: ContinueInfo(
+                        lessonTitle: "Буквы E и N", stageTitle: "Основной ряд", percent: 23,
+                        lessonRun: LessonRun(language: .en, lessonId: "en.1.3")),
+                    unit: .cpm, startLesson: { _ in }, openTraining: {}, startWeakSpots: {}, openPractice: {})
+            .column
+            .frame(width: 820)
+            .background(light.background)
+            .environment(\.palette, light)
+            .environment(\.colorScheme, .light),
+        to: "home.png"
+    )
+
+    // Тепловая карта ошибок по клавишам (без переключателя режима: элементы AppKit `ImageRenderer` не рисует;
+    // без таблицы пальцев: их названия — строки ядра, в тестах на языке системы).
+    let keys = heatmapFixture(ruSnap)
+    try render(
+        AnalyticsCard("Клавиатура") {
+            VStack(alignment: .leading, spacing: 10) {
+                HeatmapKeyboardView(snapshot: ruSnap, language: .ru, keys: keys,
+                                    heat: HeatmapModel.heat(keys, mode: .errors))
+                HeatLegend(mode: .errors)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(24)
+        .frame(width: 760)
+        .background(light.background)
+        .environment(\.palette, light)
+        .environment(\.colorScheme, .light),
+        to: "analytics-heatmap.png"
+    )
+}
+
+/// Три недели занятий: полные дни, половинный, пропуск под заморозкой и начатый сегодняшний день.
+private func homeFixture() -> HomeData {
+    let today = "2026-10-24"
+    var days: [String: DayActivity] = [:]
+    for offset in -19...0 {
+        let key = StreakCalculator.dayKey(today, offset: offset)
+        switch offset {
+        case -3: continue                                                        // пропуск: заморозка
+        case -5: days[key] = DayActivity(activeSeconds: 240, completedExercises: 2)  // половинный огонь
+        case 0: days[key] = DayActivity(activeSeconds: 420, completedExercises: 3)   // сегодня ещё не цель
+        default: days[key] = DayActivity(activeSeconds: 900 + Double(offset * 7), completedExercises: 6)
+        }
+    }
+    let streak = StreakCalculator.summarize(days: days, today: today, goalSeconds: 600)
+    let start = Date(timeIntervalSince1970: 1_790_000_000)
+    let sessions = (0..<7).map { index in
+        SessionSummary(day: StreakCalculator.dayKey(today, offset: -index), endedAt: start, language: .en,
+                       mode: .course, chars: 900, activeSeconds: 300, accuracy: 0.965 + Double(index) * 0.002,
+                       completed: true, cpm: 168 - Double(index) * 3)
+    }
+    return HomeData.make(language: .en, streak: streak, days: days, sessions: sessions, today: today,
+                         goalMinutes: 10, focus: "k", weakKeys: ["q", "z", "x"], canStartWeakSpots: true,
+                         firstSessionDate: start.addingTimeInterval(-19 * 86_400),
+                         weekdaySymbols: HomeData.weekdaySymbols(locale: Locale(identifier: "ru")))
+}
+
+/// Статистика букв раскладки: ошибок больше на краях (мизинцы) и в верхнем ряду.
+private func heatmapFixture(_ snapshot: LayoutSnapshot) -> [KeyInfo] {
+    let entries = snapshot.plain.compactMap { code, label -> KeyStatEntry? in
+        guard label.count == 1, let scalar = label.unicodeScalars.first, (0x430...0x44F).contains(scalar.value) || label == "ё"
+        else { return nil }
+        let x = KeyboardGeometry.position(of: code, shape: .ansi)?.x ?? 6.5
+        let edge = min(1, abs(x - 6.5) / 6.5)
+        let presses = 400 + Int(code) * 13 % 300
+        let errors = Int(Double(presses) * (0.01 + 0.07 * edge * edge + (Int(code) % 5 == 0 ? 0.03 : 0)))
+        return KeyStatEntry(character: label, stat: KeyStatSummary(keyCode: code, presses: presses, errors: errors,
+                                                                   ewmaMs: 180 + 120 * edge))
+    }
+    return HeatmapModel.merge(entries)
 }

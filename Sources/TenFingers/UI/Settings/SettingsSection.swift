@@ -2,7 +2,7 @@ import Foundation
 
 /// Раздел экрана настроек. `rawValue` хранится в `@AppStorage`.
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, learning, keyboard, sounds
+    case general, learning, keyboard, sounds, reminders, profile, data
 
     var id: String { rawValue }
 
@@ -13,6 +13,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .learning: "Обучение"
         case .keyboard: "Клавиатура"
         case .sounds: "Звуки"
+        case .reminders: "Напоминания"
+        case .profile: "Профиль"
+        case .data: "Данные"
         }
     }
 
@@ -24,6 +27,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .learning: "graduationcap"
         case .keyboard: "keyboard"
         case .sounds: "speaker.wave.2"
+        case .reminders: "bell"
+        case .profile: "person.crop.circle"
+        case .data: "externaldrive"
         }
     }
 }

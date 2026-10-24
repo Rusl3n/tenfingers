@@ -42,6 +42,14 @@ struct ResultRecorder {
         }
     }
 
+    /// Активность логического дня, как она видна в контексте (с несохранёнными изменениями).
+    func dayActivity(forKey key: String) throws -> DayActivity? {
+        let descriptor = FetchDescriptor<DayRecord>(predicate: #Predicate { $0.logicalDay == key })
+        return try context.fetch(descriptor).first.map {
+            DayActivity(activeSeconds: $0.activeSeconds, completedExercises: $0.completedExercises)
+        }
+    }
+
     /// `source` — откуда текст вне курса (см. `SessionRecord.source`).
     func record(_ result: ExerciseResult, source: String? = nil) throws {
         let day = LogicalDay.key(for: result.endedAt, dayStartHour: dayStartHour())

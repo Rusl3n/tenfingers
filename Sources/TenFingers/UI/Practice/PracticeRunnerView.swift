@@ -27,6 +27,8 @@ struct PracticeRunnerView: View {
     @Environment(ContentLibrary.self) private var library
     @Environment(\.modelContext) private var modelContext
     @Environment(SoundPlayer.self) private var sound
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(ReminderScheduler.self) private var reminders
     @AppStorage(SettingsKey.hintMode) private var hintMode = HintMode.auto.rawValue
     @State private var phase: Phase = .loading
     @State private var coordinator: ExerciseCoordinator?
@@ -125,9 +127,8 @@ struct PracticeRunnerView: View {
 
     private func prepare() {
         guard coordinator == nil else { return }
-        let coordinator = ExerciseCoordinator(
-            recorder: ResultRecorder.live(context: modelContext),
-            playSound: { [sound] in sound.play($0) })
+        let coordinator = ExerciseCoordinator.live(context: modelContext, sound: sound, toasts: toasts,
+                                                     reminders: reminders)
         coordinator.onExitAfterAlert = onExit
         self.coordinator = coordinator
         if let id = customId {

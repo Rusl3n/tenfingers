@@ -52,22 +52,26 @@ private func fingerprint(_ directory: URL) throws -> [String: String] {
 }
 
 /// Хранилище более новой версии (с моделью, которой текущая схема не знает) не открывается и не меняется.
-@MainActor @Test func newerStoreIsRefusedAndLeftUntouched() throws {
+/// Снимки снимаются только после закрытия всех файлов базы (см. `waitUntilStoreFilesClosed`).
+@MainActor @Test func newerStoreIsRefusedAndLeftUntouched() async throws {
     let url = try temporaryStoreURL()
-    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let directory = url.deletingLastPathComponent()
+    defer { try? FileManager.default.removeItem(at: directory) }
     do {
         let newer = Schema(SchemaV1.models + [FutureRecord.self])
         let container = try ModelContainer(for: newer, configurations: ModelConfiguration(schema: newer, url: url))
         container.mainContext.insert(FutureRecord(name: "из будущего"))
         try container.mainContext.save()
     }
-    let before = try fingerprint(url.deletingLastPathComponent())
+    try await waitUntilStoreFilesClosed(in: directory)
+    let before = try fingerprint(directory)
     #expect(before["TenFingers.store"] != nil)
 
     #expect(throws: ModelStoreError.newerStore(unknown: ["FutureRecord"])) {
         _ = try ModelStore.makeContainer(at: url)
     }
-    #expect(try fingerprint(url.deletingLastPathComponent()) == before)
+    try await waitUntilStoreFilesClosed(in: directory)
+    #expect(try fingerprint(directory) == before)
 }
 
 /// Хранилище текущей версии открывается повторно, данные на месте.
