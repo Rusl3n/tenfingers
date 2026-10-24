@@ -31,6 +31,22 @@ import TypingCore
 @MainActor private final class Events {
     var sounds: [SoundEvent] = []
     var completed = 0
+    /// Отложенные действия координатора (ручной таймер): задержка и само действие.
+    var delayed: [(Duration, @MainActor () -> Void)] = []
+    let defaults: UserDefaults
+    let defaultsName: String
+    var pending: FullDayPending { FullDayPending(defaults: defaults) }
+
+    init() { (defaults, defaultsName) = makeTestDefaults("DayCompletionTests-") }
+
+    deinit { removeTestDefaults(defaultsName) }
+
+    /// Выполняет все отложенные действия (прошло достаточно времени).
+    func fireDelayed() {
+        let actions = delayed
+        delayed = []
+        for (_, action) in actions { action() }
+    }
     /// Держит контейнер живым на время теста (координатор хранит только контекст).
     var container: ModelContainer?
 }
@@ -44,7 +60,8 @@ private func makeCoordinator(goalSeconds: Double, beforeSave: (() throws -> Void
     var recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
     recorder.beforeSave = beforeSave
     let coordinator = ExerciseCoordinator(recorder: recorder, playSound: { events.sounds.append($0) },
-                                          goalSeconds: { goalSeconds })
+                                          goalSeconds: { goalSeconds }, pending: events.pending,
+                                          afterDelay: { delay, action in events.delayed.append((delay, action)) })
     coordinator.onDayCompleted = { events.completed += 1 }
     return (coordinator, container, events)
 }
@@ -63,9 +80,11 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
 @MainActor @Test func firstFullDayExerciseSignalsOnceAndPlaysStreakSound() throws {
     let (coordinator, _, events) = try makeCoordinator(goalSeconds: 0)
     finishExercise(coordinator)
+    events.fireDelayed()
     #expect(events.completed == 1)
     #expect(events.sounds.filter { $0 == .streak }.count == 1)
     finishExercise(coordinator)
+    events.fireDelayed()
     #expect(events.completed == 1, "день уже полный: второй раз сигнала нет")
     #expect(events.sounds.filter { $0 == .streak }.count == 1)
 }
@@ -91,6 +110,7 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     #expect(events.completed == 0)
     #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 0)
     coordinator.retrySave()
+    events.fireDelayed()
     #expect(events.completed == 1)
     #expect(events.sounds.filter { $0 == .streak }.count == 1)
 }
@@ -106,4 +126,84 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     try container.mainContext.save()
     finishExercise(coordinator)
     #expect(events.completed == 0)
+}
+
+// MARK: - Звук серии не накладывается на звук результата
+
+@MainActor @Test func streakSoundWaitsSoItDoesNotOverlapResultSound() throws {
+    let (coordinator, _, events) = try makeCoordinator(goalSeconds: 0)
+    finishExercise(coordinator)
+    #expect(events.completed == 1, "тост сразу")
+    #expect(!events.sounds.contains(.streak), "звук серии не сразу")
+    #expect(events.delayed.map(\.0) == [.milliseconds(600)])
+    events.fireDelayed()
+    #expect(events.sounds.filter { $0 == .streak }.count == 1)
+}
+
+// MARK: - Выход без кнопки тоже проверяет, стал ли день полным
+
+/// Сегодняшний день: одно завершённое упражнение и почти вся цель; брошенное упражнение добавит остаток.
+@MainActor private func prepareAlmostFullDay(_ container: ModelContainer, goal: Double) throws -> String {
+    let key = LogicalDay.key(for: .now, dayStartHour: 4)
+    let day = DayRecord(logicalDay: key)
+    day.activeSeconds = goal - 1
+    day.completedExercises = 1
+    container.mainContext.insert(day)
+    try container.mainContext.save()
+    return key
+}
+
+/// Начатое, но не законченное упражнение: после `recordAbandonIfNeeded` запишется как брошенное (1,5 с работы).
+@MainActor private func startAbandonedExercise(_ coordinator: ExerciseCoordinator) {
+    let longSpec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: "аоаоаоао")
+    let session = coordinator.start(spec: longSpec, language: .ru, mode: .practice, lessonId: nil, hint: .full) { _, _ in }
+    session.layoutLanguage = .ru
+    _ = session.handleKey(characters: "а", keyCode: 3, modifiers: [], timestamp: 0)
+    _ = session.handleKey(characters: "о", keyCode: 38, modifiers: [], timestamp: 1.5)
+}
+
+@MainActor @Test func silentAbandonThatCompletesTheDayIsAnnouncedOnNextHome() throws {
+    let (coordinator, container, events) = try makeCoordinator(goalSeconds: 600)
+    let key = try prepareAlmostFullDay(container, goal: 600)
+    startAbandonedExercise(coordinator)
+    coordinator.recordAbandonIfNeeded()
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 1)
+    #expect(events.completed == 0 && events.delayed.isEmpty, "уход без кнопки: сразу не объявляем")
+    #expect(events.pending.take(today: key), "но запоминаем до следующего показа главной")
+    #expect(!events.pending.take(today: key), "объявляется один раз")
+}
+
+@MainActor @Test func restartAnnouncesDayCompletionRightAway() throws {
+    let (coordinator, container, events) = try makeCoordinator(goalSeconds: 600)
+    let key = try prepareAlmostFullDay(container, goal: 600)
+    startAbandonedExercise(coordinator)
+    coordinator.recordAbandonIfNeeded(announce: true)
+    events.fireDelayed()
+    #expect(events.completed == 1)
+    #expect(events.sounds.filter { $0 == .streak }.count == 1)
+    #expect(!events.pending.take(today: key), "уже объявлено: откладывать нечего")
+}
+
+@MainActor @Test func silentAbandonThatDoesNotCompleteTheDayLeavesNothingPending() throws {
+    let (coordinator, container, events) = try makeCoordinator(goalSeconds: 600)
+    let key = LogicalDay.key(for: .now, dayStartHour: 4)
+    let day = DayRecord(logicalDay: key)
+    day.activeSeconds = 10
+    day.completedExercises = 1
+    container.mainContext.insert(day)
+    try container.mainContext.save()
+    startAbandonedExercise(coordinator)
+    coordinator.recordAbandonIfNeeded()
+    #expect(!events.pending.take(today: key))
+    #expect(events.completed == 0)
+}
+
+@Test func pendingAnnouncementOfAnotherDayIsDropped() {
+    let (defaults, name) = makeTestDefaults("DayCompletionTests-")
+    defer { removeTestDefaults(name) }
+    let pending = FullDayPending(defaults: defaults)
+    pending.mark(day: "2026-09-21")
+    #expect(!pending.take(today: "2026-09-22"), "вчерашний день уже не объявляем")
+    #expect(!pending.take(today: "2026-09-21"), "и устаревшая запись удалена")
+    #expect(!pending.take(today: "2026-09-22"))
 }

@@ -131,7 +131,8 @@ private struct Boom: Error {}
 
 /// Час начала дня читается при каждой записи: смена настройки посреди запуска действует сразу.
 @MainActor @Test func dayStartHourIsReadAtCommitTime() throws {
-    let defaults = try #require(UserDefaults(suiteName: "ResultRecorderTests-\(UUID().uuidString)"))
+    let (defaults, name) = makeTestDefaults("ResultRecorderTests-")
+    defer { removeTestDefaults(name) }
     defaults.set(4, forKey: SettingsKey.dayStartHour)
     let container = try ModelStore.makeContainer(inMemory: true)
     let recorder = ResultRecorder(context: container.mainContext,
@@ -144,7 +145,8 @@ private struct Boom: Error {}
 }
 
 @Test func storedDayStartHourFallsBackToDefault() throws {
-    let defaults = try #require(UserDefaults(suiteName: "ResultRecorderTests-\(UUID().uuidString)"))
+    let (defaults, name) = makeTestDefaults("ResultRecorderTests-")
+    defer { removeTestDefaults(name) }
     #expect(StoredSettings.dayStartHour(defaults) == SettingsDefault.dayStartHour)
     defaults.set(2, forKey: SettingsKey.dayStartHour)
     #expect(StoredSettings.dayStartHour(defaults) == 2)

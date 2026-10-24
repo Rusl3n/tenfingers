@@ -15,7 +15,7 @@ import TypingCore
 }
 
 @Test func sidebarOrderPutsTrainingAndPracticeAfterCourse() {
-    #expect(SidebarItem.allCases == [.home, .course, .training, .practice, .analytics, .settings])
+    #expect(SidebarItem.allCases == [.home, .course, .training, .practice, .analytics, .achievements, .settings])
     #expect(SidebarItem.training.icon == "target")
     #expect(SidebarItem.practice.icon == "text.book.closed")
 }

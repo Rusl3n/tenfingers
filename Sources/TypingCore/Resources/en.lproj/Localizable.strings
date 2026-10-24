@@ -90,3 +90,191 @@
 "! @ #" = "! @ #";
 "$ % ^" = "$ % ^";
 "& * ( )" = "& * ( )";
+
+/* Ачивки: ключи achievement.<id>.title и achievement.<id>.detail; id стабильны */
+
+/* Ачивки: Серия */
+"achievement.streak.3.title" = "Off to a Start";
+"achievement.streak.3.detail" = "A 3-day practice streak";
+"achievement.streak.7.title" = "A Week Strong";
+"achievement.streak.7.detail" = "A 7-day practice streak";
+"achievement.streak.14.title" = "Two Weeks";
+"achievement.streak.14.detail" = "A 14-day practice streak";
+"achievement.streak.30.title" = "A Month on Fire";
+"achievement.streak.30.detail" = "A 30-day practice streak";
+"achievement.streak.50.title" = "Fifty";
+"achievement.streak.50.detail" = "A 50-day practice streak";
+"achievement.streak.100.title" = "Century";
+"achievement.streak.100.detail" = "A 100-day practice streak";
+"achievement.streak.200.title" = "Two Hundred Days";
+"achievement.streak.200.detail" = "A 200-day practice streak";
+"achievement.streak.365.title" = "A Year Without a Miss";
+"achievement.streak.365.detail" = "A 365-day practice streak";
+"achievement.streak.iron_will.title" = "Iron Will";
+"achievement.streak.iron_will.detail" = "30 full days in a row without a single freeze";
+
+/* Ачивки: Скорость */
+"achievement.speed.ru.100.title" = "Picking Up Speed (RU)";
+"achievement.speed.ru.100.detail" = "100 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.150.title" = "Confident (RU)";
+"achievement.speed.ru.150.detail" = "150 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.200.title" = "Pro (RU)";
+"achievement.speed.ru.200.detail" = "200 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.250.title" = "Faster Than Subway Wi-Fi (RU)";
+"achievement.speed.ru.250.detail" = "250 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.300.title" = "Pianist (RU)";
+"achievement.speed.ru.300.detail" = "300 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.en.100.title" = "Picking Up Speed (EN)";
+"achievement.speed.en.100.detail" = "100 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.150.title" = "Confident (EN)";
+"achievement.speed.en.150.detail" = "150 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.200.title" = "Pro (EN)";
+"achievement.speed.en.200.detail" = "200 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.250.title" = "Faster Than Subway Wi-Fi (EN)";
+"achievement.speed.en.250.detail" = "250 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.300.title" = "Pianist (EN)";
+"achievement.speed.en.300.detail" = "300 characters per minute in English on a text of at least 300 characters";
+
+/* Ачивки: Точность */
+"achievement.accuracy.sniper.title" = "Sniper";
+"achievement.accuracy.sniper.detail" = "100% accuracy on a text of at least 300 characters";
+"achievement.accuracy.surgeon.title" = "Surgeon";
+"achievement.accuracy.surgeon.detail" = "10 exercises in a row with at least 98% accuracy";
+"achievement.accuracy.clean_day.title" = "Neat Freak";
+"achievement.accuracy.clean_day.detail" = "A day with at least 5 exercises, all with at least 97% accuracy";
+
+/* Ачивки: Курс */
+"achievement.course.first_lesson.title" = "First Lesson";
+"achievement.course.first_lesson.detail" = "Pass your first course lesson";
+"achievement.course.first_stage.title" = "First Stage";
+"achievement.course.first_stage.detail" = "Pass every lesson of a course stage";
+"achievement.course.ru.title" = "RU Course Complete";
+"achievement.course.ru.detail" = "Pass the whole Russian course";
+"achievement.course.en.title" = "EN Course Complete";
+"achievement.course.en.detail" = "Pass the whole English course";
+"achievement.course.polyglot.title" = "Polyglot";
+"achievement.course.polyglot.detail" = "Pass both courses, Russian and English";
+"achievement.course.stars.ru.title" = "Three Stars Everywhere (RU)";
+"achievement.course.stars.ru.detail" = "Three stars on every lesson of the Russian course";
+"achievement.course.stars.en.title" = "Three Stars Everywhere (EN)";
+"achievement.course.stars.en.detail" = "Three stars on every lesson of the English course";
+
+/* Ачивки: Объём */
+"achievement.volume.chars.10k.title" = "First 10,000";
+"achievement.volume.chars.10k.detail" = "Type 10,000 characters";
+"achievement.volume.chars.100k.title" = "One Hundred Thousand";
+"achievement.volume.chars.100k.detail" = "Type 100,000 characters";
+"achievement.volume.chars.1m.title" = "Millionaire";
+"achievement.volume.chars.1m.detail" = "Type 1,000,000 characters";
+"achievement.volume.hours.1.title" = "First Hour";
+"achievement.volume.hours.1.detail" = "1 hour of pure practice";
+"achievement.volume.hours.10.title" = "Ten Hours";
+"achievement.volume.hours.10.detail" = "10 hours of pure practice";
+"achievement.volume.hours.50.title" = "Fifty Hours";
+"achievement.volume.hours.50.detail" = "50 hours of pure practice";
+"achievement.volume.hours.100.title" = "One Hundred Hours";
+"achievement.volume.hours.100.detail" = "100 hours of pure practice";
+
+/* Ачивки: Особые */
+"achievement.special.night_owl.title" = "Night Owl";
+"achievement.special.night_owl.detail" = "Finish an exercise between 0:00 and 4:00";
+"achievement.special.early_bird.title" = "Early Bird";
+"achievement.special.early_bird.detail" = "Finish an exercise between 6:00 and 8:00";
+"achievement.special.no_peeking.title" = "No Peeking";
+"achievement.special.no_peeking.detail" = "An exercise of at least 300 characters without the on-screen keyboard";
+"achievement.special.steel_pinkies.title" = "Steel Pinkies";
+"achievement.special.steel_pinkies.detail" = "An exercise with at least 30 pinky presses and not a single pinky mistake";
+
+/* Ачивки: Теперь вы можете… */
+"achievement.letters.ru.hello.title" = "First Word";
+"achievement.letters.ru.hello.detail" = "Now you can say hello in Russian. Politely.";
+"achievement.letters.ru.pizza.title" = "Pizzeria";
+"achievement.letters.ru.pizza.detail" = "Now you can order a pizza. In Russian.";
+"achievement.letters.ru.borscht.title" = "Borscht";
+"achievement.letters.ru.borscht.detail" = "Now you can order borscht. With garlic buns, of course.";
+"achievement.letters.ru.b_word.title" = "The Б Word";
+"achievement.letters.ru.b_word.detail" = "Now you can swear with the letter Б. Careful there.";
+"achievement.letters.ru.three_letters.title" = "The Three-Letter Word";
+"achievement.letters.ru.three_letters.detail" = "All three letters are in place. Fences all over Russia tremble.";
+"achievement.letters.ru.deadline.title" = "Describe the Deadline";
+"achievement.letters.ru.deadline.detail" = "Now you can describe the deadline situation. Accurately.";
+"achievement.letters.ru.yo.title" = "Yo! (Ё)";
+"achievement.letters.ru.yo.detail" = "Ё is the Russian letter almost everyone replaces with Е. You are now among the 3% who actually type it.";
+"achievement.letters.ru.hard_sign.title" = "Pre-Reform";
+"achievement.letters.ru.hard_sign.detail" = "Hard sign Ъ mastered. Before the 1918 spelling reform, Russian words ending in a consonant got a Ъ tacked on at the end. Now you can write like a pre-revolution gentleman.";
+"achievement.letters.ru.alphabet.title" = "Great and Mighty";
+"achievement.letters.ru.alphabet.detail" = "The whole arsenal of the Russian language is at your command";
+"achievement.letters.en.fluent_f.title" = "Fluent in F";
+"achievement.letters.en.fluent_f.detail" = "Now you can swear in English";
+"achievement.letters.en.shit_happens.title" = "Shit Happens";
+"achievement.letters.en.shit_happens.detail" = "And now you can type it";
+"achievement.letters.en.wtf.title" = "WTF";
+"achievement.letters.en.wtf.detail" = "Code review reaction unlocked";
+"achievement.letters.en.pizza.title" = "Pizza Time";
+"achievement.letters.en.pizza.detail" = "Now you can order a pizza. Internationally.";
+"achievement.letters.en.hello_world.title" = "Hello, World";
+"achievement.letters.en.hello_world.detail" = "Your programming career has begun";
+"achievement.letters.en.sudo.title" = "Sudo";
+"achievement.letters.en.sudo.detail" = "With great power comes great responsibility";
+"achievement.letters.en.vim.title" = "Exiting Vim";
+"achievement.letters.en.vim.detail" = "You can now exit Vim. Many never managed to.";
+
+/* Ачивки: Шуточные */
+"achievement.fun.ghbdtn.title" = "Ghbdtn";
+"achievement.fun.ghbdtn.detail" = "Start typing in the wrong layout 10 times. Ghbdtn is how a Russian hello comes out on an English layout.";
+"achievement.fun.sausage_fingers.title" = "Sausage Fingers";
+"achievement.fun.sausage_fingers.detail" = "10 mistakes in a row in one exercise";
+"achievement.fun.ctrl_z.title" = "Ctrl+Z Won't Help";
+"achievement.fun.ctrl_z.detail" = "50 mistakes in one exercise";
+"achievement.fun.oy_vsyo.title" = "UGH, I'M DONE";
+"achievement.fun.oy_vsyo.detail" = "Hit Caps Lock during an exercise";
+"achievement.fun.perfectionist.title" = "Perfectionist";
+"achievement.fun.perfectionist.detail" = "Take the same lesson 10 times";
+"achievement.fun.not_today.title" = "Not Today";
+"achievement.fun.not_today.detail" = "Abandon 3 exercises in one day";
+"achievement.fun.no_coffee.title" = "Who Needs Coffee";
+"achievement.fun.no_coffee.detail" = "Finish an exercise between 5:00 and 6:00";
+"achievement.fun.new_year.title" = "Day Off? Never Heard of It";
+"achievement.fun.new_year.detail" = "Practice on January 1";
+"achievement.fun.friday13.title" = "Friday the 13th";
+"achievement.fun.friday13.detail" = "Practice on Friday the 13th";
+"achievement.fun.bilingual.title" = "Bilingual";
+"achievement.fun.bilingual.detail" = "Exercises in both languages on the same day";
+"achievement.fun.marathon.title" = "Marathoner";
+"achievement.fun.marathon.detail" = "60 minutes of pure practice in one day";
+"achievement.fun.comeback.title" = "Welcome Back";
+"achievement.fun.comeback.detail" = "Come back to practice after a break of 7 days or more";
+
+/* Ачивки: условия получения (AchievementConditionText) */
+"achievement.condition.streak" = "Practice streak, days: %lld";
+"achievement.condition.fullStreak" = "Full days in a row without freezes: %lld";
+"achievement.condition.speed" = "Speed, %@: %lld cpm on a text of at least %lld characters";
+"achievement.condition.perfectAccuracy" = "100%% accuracy on a text of at least %lld characters";
+"achievement.condition.accuracyRun" = "Exercises in a row with accuracy of %@ or more: %lld";
+"achievement.condition.cleanDay" = "Exercises in a day: at least %lld, all with accuracy of %@ or more";
+"achievement.condition.firstLesson" = "Complete the first lesson of the course";
+"achievement.condition.firstStage" = "Complete every lesson of one course stage";
+"achievement.condition.course" = "Complete the whole course: %@";
+"achievement.condition.polyglot" = "Complete both courses: Russian and English";
+"achievement.condition.threeStars" = "Every lesson of the course on three stars: %@";
+"achievement.condition.volumeChars" = "Characters typed: %@";
+"achievement.condition.volumeHours" = "Hours of pure practice: %@";
+"achievement.condition.finishedBetween" = "Finish an exercise between %lld:00 and %lld:00";
+"achievement.condition.noKeyboard" = "An exercise of at least %lld characters without the on-screen keyboard";
+"achievement.condition.steelPinkies" = "An exercise with no pinky errors; pinky presses, at least: %lld";
+"achievement.condition.lettersOne" = "Open the letter: %@";
+"achievement.condition.lettersMany" = "Open the letters: %@";
+"achievement.condition.symbols" = "Open the characters: %@";
+"achievement.condition.alphabet" = "Open the whole alphabet: %@";
+"achievement.condition.wrongLayout" = "Times you started typing in the wrong layout: %lld";
+"achievement.condition.capsLock" = "Caps Lock presses during an exercise: %lld";
+"achievement.condition.counter" = "App events: %lld";
+"achievement.condition.errorStreak" = "Errors in a row in one exercise: %lld";
+"achievement.condition.errorsInExercise" = "Errors in one exercise: %lld";
+"achievement.condition.lessonReplays" = "Attempts at one lesson: %lld";
+"achievement.condition.abandonsInDay" = "Abandoned exercises in a day: %lld";
+"achievement.condition.dayOfYear" = "Practice on this day: %@";
+"achievement.condition.friday13" = "Practice on Friday the 13th";
+"achievement.condition.bilingual" = "Exercises in both languages in one day";
+"achievement.condition.marathon" = "Minutes of pure practice in a day: %lld";
+"achievement.condition.comeback" = "Come back to practice after a break, in days: %lld";

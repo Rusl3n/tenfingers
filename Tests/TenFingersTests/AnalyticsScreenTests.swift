@@ -16,7 +16,7 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
 // MARK: - Меню
 
 @Test func sidebarHasAnalyticsBeforeSettings() {
-    #expect(SidebarItem.allCases == [.home, .course, .training, .practice, .analytics, .settings])
+    #expect(SidebarItem.allCases == [.home, .course, .training, .practice, .analytics, .achievements, .settings])
     #expect(SidebarItem.analytics.icon == "chart.xyaxis.line")
 }
 
@@ -189,6 +189,16 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
     #expect(title(nil) == nil)
 }
 
+// MARK: - Подсказка в карточке рекордов
+
+@MainActor @Test func recordsHintShowsOnlyWhileThereAreNoRecords() {
+    let none = Records(bestCpm: [:], bestAccuracy: [:], longestStreak: 3)
+    #expect(RecordsView.showsEmptyHint(none))
+    let record = Record(value: 200, date: noon, language: .ru)
+    #expect(!RecordsView.showsEmptyHint(Records(bestCpm: [.ru: record], bestAccuracy: [:], longestStreak: 0)))
+    #expect(!RecordsView.showsEmptyHint(Records(bestCpm: [:], bestAccuracy: [.en: record], longestStreak: 0)))
+}
+
 // MARK: - Прогресс курса
 
 @Test func courseProgressCountsPassedLessonsAndHistoryStars() throws {
@@ -208,6 +218,17 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
     #expect(row.stars == 3)
     #expect(row.maxStars == lessons.count * 3)
     #expect(abs(row.fraction - 2 / Double(lessons.count)) < 0.0001)
+}
+
+@Test func courseProgressStarsOfPassedLessonWithoutHistoryAreAtLeastOneLikeOnTheMap() throws {
+    let course = try CourseCatalog.load(.ru)
+    let lesson = course.lessons[0]
+    let row = CourseProgressRow.make(course: course,
+                                     lessons: [StoredLesson(lessonId: lesson.id, passed: true, storedStars: 0)],
+                                     checks: [])
+    #expect(row.stars == 1)
+    #expect(row.stars == LessonOverview.make(lessonId: lesson.id, targetCpm: course.stages[0].targetCpm, sessions: [],
+                                              storedStars: 0, isPassed: true).stars)
 }
 
 // MARK: - Чтение из базы

@@ -7,6 +7,10 @@ struct StreakHeader: View {
     let todaySeconds: Double
     let goalMinutes: Int
     @Environment(\.palette) private var palette
+    @State private var share: ShareCard?
+
+    /// Поделиться серией можно от трёх дней.
+    nonisolated static func canShare(_ streak: StreakSummary) -> Bool { streak.current >= 3 }
 
     var body: some View {
         HStack(alignment: .center, spacing: 20) {
@@ -20,6 +24,13 @@ struct StreakHeader: View {
                     Text(line).font(.subheadline).foregroundStyle(.secondary)
                 }
                 freezes
+                if Self.canShare(streak) {
+                    ShareLinkButton {
+                        share = ShareCard(.streak(days: streak.current, full: streak.fullInCurrent))
+                    }
+                    .font(.callout)
+                    .padding(.top, 2)
+                }
             }
             Spacer(minLength: 16)
             TodayGoalCard(seconds: todaySeconds, goalMinutes: goalMinutes)
@@ -28,6 +39,7 @@ struct StreakHeader: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(palette.card, in: RoundedRectangle(cornerRadius: 12))
+        .shareSheet($share)
     }
 
     /// Полный день — яркий огонь, половинный — приглушённый, ещё не занимались — серый.

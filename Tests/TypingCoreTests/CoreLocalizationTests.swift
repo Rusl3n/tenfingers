@@ -13,6 +13,8 @@ private func strings(_ lang: String) throws -> [String: String] {
 
 private func hasCyrillic(_ s: String) -> Bool { s.unicodeScalars.contains { (0x400...0x4FF).contains($0.value) } }
 
+private func isAchievementKey(_ key: String) -> Bool { key.hasPrefix("achievement.") }
+
 private func lessonTitles() throws -> Set<String> {
     Set(try Language.allCases.flatMap { try CourseCatalog.load($0).lessons.map(\.title) })
 }
@@ -24,14 +26,18 @@ private func stageTitles() throws -> Set<String> {
 @Test func coreEnglishStringsAreTranslated() throws {
     let en = try strings("en"), ru = try strings("ru")
     #expect(Set(en.keys) == Set(ru.keys))
-    for (key, value) in ru { #expect(key == value, "ru: значение «\(value)» отличается от ключа") }
+    // Ключ — русский исходный текст, кроме ачивок: у них ключ `achievement.<id>.title|detail`.
+    for (key, value) in ru where !isAchievementKey(key) {
+        #expect(key == value, "ru: значение «\(value)» отличается от ключа")
+    }
     let lessons = try lessonTitles()
     for (key, value) in en {
         let words = value.components(separatedBy: CharacterSet.alphanumerics.inverted)
         #expect(!words.contains("и"), "en: «\(key)» → «\(value)» содержит «и»")
-        // Кириллица допустима только как названия русских букв в названиях уроков: «А and О».
+        // Кириллица допустима только как названия русских букв в названиях уроков и в ачивках:
+        // «А and О», «The Б Word».
         let cyrillicWords = words.filter(hasCyrillic)
-        if lessons.contains(key) {
+        if lessons.contains(key) || isAchievementKey(key) {
             #expect(cyrillicWords.allSatisfy { $0.count == 1 }, "en: «\(key)» → «\(value)»")
         } else {
             #expect(cyrillicWords.isEmpty, "en: «\(key)» → «\(value)» не переведено")
@@ -87,4 +93,19 @@ private func stageTitles() throws -> Set<String> {
     // Рабочий путь без явной локализации: язык определяется процессом.
     let value = ReachDescription.describe(keyCode: 21, shape: .ansi)
     #expect(["на 2 ряда вверх и влево", "2 rows up and left"].contains(value))
+}
+
+@Test func everyAchievementKeyBelongsToTheCatalog() throws {
+    // Ключи `achievement.<id>.title|detail` без осиротевших (переименованный или удалённый id) и
+    // `achievement.condition.*` — тексты условий.
+    let ids = Set(AchievementCatalog.all.map(\.id))
+    for language in ["ru", "en"] {
+        for key in try strings(language).keys where key.hasPrefix("achievement.") {
+            if key.hasPrefix("achievement.condition.") { continue }
+            let rest = key.dropFirst("achievement.".count)
+            let suffix = rest.hasSuffix(".title") ? ".title" : rest.hasSuffix(".detail") ? ".detail" : ""
+            #expect(!suffix.isEmpty, "\(language): «\(key)» не title, не detail и не condition")
+            #expect(ids.contains(String(rest.dropLast(suffix.count))), "\(language): «\(key)» — нет такой ачивки")
+        }
+    }
 }

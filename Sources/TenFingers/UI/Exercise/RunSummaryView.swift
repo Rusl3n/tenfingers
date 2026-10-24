@@ -1,4 +1,5 @@
 import SwiftUI
+import TypingCore
 
 /// Итог порции или сессии: заголовок, метрики, пояснения и кнопки. Общий для тренировки и практики.
 struct RunSummaryView: View {
@@ -13,6 +14,8 @@ struct RunSummaryView: View {
     let cpm: Double
     let accuracy: Double
     var lines: [String] = []
+    /// Ачивки, полученные в сохранении этой порции.
+    var newAchievements: [Achievement] = []
     let primaryTitle: LocalizedStringKey
     let onPrimary: () -> Void
     var secondaryTitle: LocalizedStringKey?
@@ -37,6 +40,7 @@ struct RunSummaryView: View {
                     ForEach(lines, id: \.self) { Text($0).font(.title3) }
                 }
             }
+            NewAchievementsLine(achievements: newAchievements)
             HStack(spacing: 12) {
                 if let secondaryTitle, let onSecondary {
                     Button(secondaryTitle, action: onSecondary)

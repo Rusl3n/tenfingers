@@ -6,8 +6,8 @@ import Foundation
 enum SchemaGeneration {
     /// Увеличивать на 1 при КАЖДОМ изменении моделей (новая модель или новое поле) — в том же коммите
     /// (спецификация §20). 1 — схема фазы 2 (до `AdaptiveUnlock` и `SessionRecord.source`),
-    /// 2 — схема начала фазы 3 (текущая `SchemaV1`).
-    static let current = 2
+    /// 2 — схема начала фазы 3, 3 — фаза 4: новая модель `AchievementRecord` (текущая `SchemaV1`).
+    static let current = 3
 
     /// Файл-маркер лежит в той же папке, что и база, и попадает в резервные копии вместе с ней.
     static func markerURL(forStore storeURL: URL) -> URL {

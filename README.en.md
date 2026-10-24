@@ -5,7 +5,7 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version 0.3.0-dev">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version 1.0.0">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -32,18 +32,21 @@
 - A daily streak: a full flame for reaching your daily goal (10 minutes of active typing by default), a half flame for any finished exercise. Freezes (up to two, a new one for every 7 full days in a row) cover a missed day. The home screen shows the streak, the last seven days, today's goal, and your weekly speed and accuracy.
 - Analytics: speed and accuracy charts with a trend line, a keyboard heat map of errors and slow keys, per-finger statistics, a year-long activity calendar, records, the last 100 exercises, and course progress.
 - Practice reminders at the time you choose; the text depends on your streak ("Your 12-day streak is at risk", "4 min left until a full flame").
+- 68 achievements in eight categories: streak, speed, accuracy, course, volume, special, letters and funny ones. Everything you earned in past sessions is awarded the first time you launch a version with achievements, dated from your history, in one summary instead of an avalanche of messages. The Achievements screen shows your progress and, for the ones you do not have yet, how to get them; the latest achievement is on the home screen. The "Adult humor" setting hides the achievements with strong language without stopping you from earning them.
+- "Share" cards: an achievement, a streak, a speed record, a finished stage or the whole course as an image with a signature of your choice, light or dark, colored or transparent, wide or square; copy it, save it as PNG or send it through the system menu.
 - A profile (nickname and name) and progress transfer: all your progress, profile and settings can be saved to a file and loaded from it, for example on another Mac. Before loading, your current progress is backed up automatically.
-- Sounds synthesized inside the app: key click, error, exercise finished, lesson passed. Each sound has its own volume and switch.
+- Sounds synthesized inside the app: key click, error, exercise finished, lesson passed, new achievement, streak. Each sound has its own volume and switch.
 - Light (white, beige, gray) and dark (graphite, night, coffee) palettes; theme follows the system, is set manually, or switches on a schedule. Interface scale from 80 to 150%.
 - English interface; the language follows your system settings.
 - All data stays local: no network, no accounts, no telemetry.
 
-### In development
-
-- Achievements, including funny ones.
-- "Share" cards with your results.
-
 ## Screenshots
+
+![Achievements screen (Russian interface): earned badges in color, the rest as gray silhouettes with the way to get them](docs/images/achievements.png)
+
+![Share card: a 30-day streak, square, light theme (Russian)](docs/images/share-streak-ru.jpg)
+
+![Share card: a speed record on the English layout, wide, dark theme](docs/images/share-speed-en.jpg)
 
 ![Home screen (Russian interface): a 20-day streak with 17 full days, the week with fires and a freeze, today's goal](docs/images/home.png)
 
@@ -77,10 +80,12 @@ The Swift package has two modules:
 - `TypingCore` — pure logic with no AppKit or SwiftUI: keyboard geometry, finger map, typing engine, course, text generation, sound synthesis. Covered by tests.
 - `TenFingers` — the app: SwiftUI interface, layout detection via TIS, SwiftData storage, sounds, themes.
 
-The README images are rendered by a test that is skipped by default:
+The README images are rendered by tests that are skipped by default:
 
 ```bash
 RENDER_DOCS=1 swift test --filter renderReadmeImages
+RENDER_DOCS=1 swift test --filter renderAchievementsImage
+RENDER_DOCS=1 swift test --filter renderShareCardImages
 ```
 
 Versions and history: [`CHANGELOG.md`](CHANGELOG.md), development rules: [`CONTRIBUTING.md`](CONTRIBUTING.md) (both in Russian). The app version is shown in About and at the bottom of Settings.

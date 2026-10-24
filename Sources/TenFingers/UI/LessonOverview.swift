@@ -8,13 +8,12 @@ struct LessonOverview: Equatable {
 
     var averageAccuracy: Double? { LessonStepStats.averageAccuracy(steps) }
 
-    /// `storedStars` (из базы) используется, только если в истории нет ни одной проверки урока.
-    /// У пройденного урока (`isPassed`) — не меньше одной звезды: урок мог быть пройден до того, как шаги
-    /// стали записываться, а неудачная проверка после этого не отменяет прохождения.
+    /// Звёзды — `LessonScoring.effectiveStars`: `storedStars` (из базы) нужны, только если в истории нет ни одной
+    /// проверки урока, а у пройденного урока (`isPassed`) их не меньше одной.
     static func make(lessonId: String, targetCpm: Int, sessions: [SessionSummary], storedStars: Int,
                      isPassed: Bool = false) -> LessonOverview {
-        let stars = LessonScoring.bestStars(sessions: sessions, lessonId: lessonId, targetCpm: targetCpm) ?? storedStars
-        return LessonOverview(stars: isPassed ? max(stars, 1) : stars,
-                              steps: LessonStepStats.summarize(sessions: sessions, lessonId: lessonId))
+        LessonOverview(stars: LessonScoring.effectiveStars(sessions: sessions, lessonId: lessonId, targetCpm: targetCpm,
+                                                           passed: isPassed, storedStars: storedStars),
+                       steps: LessonStepStats.summarize(sessions: sessions, lessonId: lessonId))
     }
 }

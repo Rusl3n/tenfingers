@@ -60,3 +60,22 @@ extension Formatting {
         return "\(count) \(word)"
     }
 }
+
+extension Formatting {
+    /// «Получена 21 ачивка за прошлые занятия», «Получено 5 ачивок…»: склонение задаёт Localizable.stringsdict
+    /// (ключ `achievements.backfill %lld`), правило — по языку интерфейса, как у `days`.
+    static func backfillSummary(_ count: Int, bundle: Bundle = .main, locale: Locale? = nil) -> String {
+        let locale = locale ?? interfaceLocale(bundle: bundle)
+        let text = String(localized: "achievements.backfill \(count)", bundle: bundle, locale: locale)
+        guard text.hasPrefix("achievements.backfill") else { return text }
+        // Переводов нет (запуск без ресурсов приложения): склоняем по-русски.
+        let tens = abs(count) % 100, ones = abs(count) % 10
+        if ones == 1 && tens != 11 {
+            return String(localized: "Получена \(count) ачивка за прошлые занятия", bundle: bundle)
+        }
+        if (2...4).contains(ones) && !(12...14).contains(tens) {
+            return String(localized: "Получено \(count) ачивки за прошлые занятия", bundle: bundle)
+        }
+        return String(localized: "Получено \(count) ачивок за прошлые занятия", bundle: bundle)
+    }
+}

@@ -331,7 +331,8 @@ struct CourseProgressRow: Identifiable, Equatable {
     var maxStars: Int { total * 3 }
     var fraction: Double { total > 0 ? Double(passed) / Double(total) : 0 }
 
-    /// Звёзды — по тому же правилу, что на карте курса (`LessonOverview`): из истории проверок, иначе из базы.
+    /// Звёзды — по тому же правилу, что на карте курса: `LessonScoring.effectiveStars` (история проверок, иначе база,
+    /// у пройденного урока не меньше одной).
     static func make(course: Course, lessons: [StoredLesson], checks: [SessionSummary]) -> CourseProgressRow {
         let stored = Dictionary(lessons.map { ($0.lessonId, $0) }, uniquingKeysWith: { first, _ in first })
         let byLesson = Dictionary(grouping: checks) { $0.lessonId ?? "" }
@@ -339,10 +340,11 @@ struct CourseProgressRow: Identifiable, Equatable {
         for stage in course.stages {
             for lesson in stage.lessons {
                 let record = stored[lesson.id]
-                if record?.passed == true { passed += 1 }
-                stars += LessonOverview.make(lessonId: lesson.id, targetCpm: stage.targetCpm,
-                                             sessions: byLesson[lesson.id] ?? [],
-                                             storedStars: record?.storedStars ?? 0).stars
+                let isPassed = record?.passed == true
+                if isPassed { passed += 1 }
+                stars += LessonScoring.effectiveStars(sessions: byLesson[lesson.id] ?? [], lessonId: lesson.id,
+                                                      targetCpm: stage.targetCpm, passed: isPassed,
+                                                      storedStars: record?.storedStars ?? 0)
             }
         }
         return CourseProgressRow(language: course.language, passed: passed, total: course.lessons.count, stars: stars)

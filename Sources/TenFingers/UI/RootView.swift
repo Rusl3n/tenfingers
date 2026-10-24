@@ -1,9 +1,10 @@
 import AppKit
+import SwiftData
 import SwiftUI
 import TypingCore
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case home, course, training, practice, analytics, settings
+    case home, course, training, practice, analytics, achievements, settings
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .training: String(localized: "Тренировка")
         case .practice: String(localized: "Практика")
         case .analytics: String(localized: "Аналитика")
+        case .achievements: String(localized: "Ачивки")
         case .settings: String(localized: "Настройки")
         }
     }
@@ -25,6 +27,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .training: "target"
         case .practice: "text.book.closed"
         case .analytics: "chart.xyaxis.line"
+        case .achievements: "trophy"
         case .settings: "gearshape"
         }
     }
@@ -81,9 +84,12 @@ private enum SidebarEntry: Hashable {
 
 struct RootView: View {
     @Environment(ContentLibrary.self) private var library
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.palette) private var palette
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
+    @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
+    @Query(filter: #Predicate<AchievementRecord> { !$0.seen }) private var unseenRecords: [AchievementRecord]
     @State private var selection: SidebarItem? = .home
     @State private var activeRun: RunKind?
     @State private var presence = RunPresence()
@@ -93,9 +99,16 @@ struct RootView: View {
     @State private var escapeMonitor: Any?
     /// Новый запуск, ждущий подтверждения (скрытый запуск при этом ещё жив).
     @State private var pendingRun: RunKind?
+    /// Карточка «Поделиться», открытая из тоста ачивки.
+    @State private var shareCard: ShareCard?
 
     /// Экран запуска показан вместо раздела.
     private var isRunVisible: Bool { activeRun != nil && presence.isVisible }
+    /// Новые ачивки (счётчик у пункта «Ачивки»); скрытые «взрослые» при выключенном юморе не считаются.
+    private var unseenAchievements: Int {
+        AchievementsListing.unseenIds(catalog: AchievementCatalog.all,
+                                      earned: unseenRecords.map(StoredAchievement.init), adultHumor: adultHumor).count
+    }
     /// Запуск есть, но пользователь ушёл в другой раздел.
     private var isRunHidden: Bool { activeRun != nil && !presence.isVisible }
 
@@ -110,7 +123,9 @@ struct RootView: View {
                 }
                 Section {
                     ForEach(SidebarItem.allCases) { item in
-                        Label(item.title, systemImage: item.icon).tag(SidebarEntry.section(item))
+                        Label(item.title, systemImage: item.icon)
+                            .badge(item == .achievements ? unseenAchievements : 0)
+                            .tag(SidebarEntry.section(item))
                     }
                 }
             }
@@ -161,6 +176,19 @@ struct RootView: View {
             if hidden { installEscapeMonitor() } else { removeEscapeMonitor() }
         }
         .onDisappear(perform: removeEscapeMonitor)
+        .shareSheet($shareCard)
+        // Первый запуск версии с ачивками выдаёт всё заработанное задним числом (одна сводка вместо лавины тостов).
+        // Кнопка «Поделиться» в тостах ачивок открывает карточку здесь.
+        .task {
+            toasts.shareAchievement = { shareCard = ShareCard(.achievement($0, .now)) }
+            AchievementAnnouncer.launchCheck(service: .live(context: modelContext), toasts: toasts,
+                                             adultHumor: StoredSettings.adultHumor(), open: openAchievements)
+        }
+        // Загрузка прогресса из файла (`ProgressImporter`): ачивки выдаются заново, сводкой.
+        .onReceive(NotificationCenter.default.publisher(for: .progressReplaced)) { _ in
+            AchievementAnnouncer.progressReplaced(service: .live(context: modelContext), toasts: toasts,
+                                                  adultHumor: StoredSettings.adultHumor(), open: openAchievements)
+        }
         .alert(activeRun?.replaceAlertTitle ?? "",
                isPresented: Binding(get: { pendingRun != nil }, set: { if !$0 { pendingRun = nil } }),
                presenting: pendingRun) { run in
@@ -214,6 +242,7 @@ struct RootView: View {
         case .training: TrainingView(start: { start($0) })
         case .practice: PracticeView(start: { start($0) })
         case .analytics: AnalyticsView()
+        case .achievements: AchievementsView()
         case .settings: SettingsView()
         }
     }
@@ -246,6 +275,12 @@ struct RootView: View {
         pendingRun = nil
         presence.reset()
         activeRun = run
+    }
+
+    /// Раздел «Ачивки»; идущий запуск при этом скрывается (как при выборе раздела в боковой панели).
+    private func openAchievements() {
+        selection = .achievements
+        if activeRun != nil { presence.isVisible = false }
     }
 
     /// «Выйти» или итог запуска закрыт.

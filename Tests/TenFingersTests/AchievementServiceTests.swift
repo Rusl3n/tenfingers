@@ -1,0 +1,665 @@
+import Foundation
+import SwiftData
+import SwiftUI
+import Testing
+import TypingCore
+@testable import TenFingers
+
+// MARK: - Помощники
+
+private let msk = TimeZone(identifier: "Europe/Moscow")!
+
+/// «2026-10-23 21:42:30» по Москве.
+private func at(_ text: String) -> Date {
+    let parts = text.split(whereSeparator: { $0 == "-" || $0 == " " || $0 == ":" }).compactMap { Int($0) }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = msk
+    return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: parts[3],
+                                              minute: parts[4], second: parts.count > 5 ? parts[5] : 0))!
+}
+
+@MainActor private func insertSession(_ context: ModelContext, ended: String, day: String, mode: String = "course",
+                                      language: String = "ru", lessonId: String? = nil, kind: String? = nil,
+                                      chars: Int = 80, seconds: Double = 30, accuracy: Double = 0.99,
+                                      cpm: Double = 160, completed: Bool = true, hint: String = "full",
+                                      maxErrorStreak: Int = 1, wrong: Int = 1, pinky: Int = 0, pinkyErrors: Int = 0) {
+    let end = at(ended)
+    context.insert(SessionRecord(
+        mode: mode, language: language, lessonId: lessonId, startedAt: end.addingTimeInterval(-seconds), endedAt: end,
+        logicalDay: day, activeSeconds: seconds, chars: chars, errorCount: wrong, cpm: cpm, accuracy: accuracy,
+        completed: completed, hintLevel: hint, maxErrorStreak: maxErrorStreak, wrongKeystrokes: wrong,
+        exerciseKind: kind, pinkyPresses: pinky, pinkyErrors: pinkyErrors))
+}
+
+@MainActor private func makeService(_ context: ModelContext, now: Date = at("2026-10-24 07:00"),
+                                    catalog: [Achievement] = AchievementCatalog.all,
+                                    beforeSave: (() throws -> Void)? = nil) -> AchievementService {
+    var recorder = ResultRecorder(context: context, dayStartHour: 4)
+    recorder.beforeSave = beforeSave
+    return AchievementService(recorder: recorder, goalSeconds: { 600 }, timeZone: msk, now: { now },
+                              catalog: catalog)
+}
+
+/// История, похожая на настоящую: урок «ru.1.1» пройден вечером, ночью тренировка и брошенные шаги,
+/// урок «ru.1.2» засчитан без истории проверок (до записи шагов), адаптивный режим открыл седьмую букву.
+@MainActor private func populateHistory(_ context: ModelContext) throws {
+    insertSession(context, ended: "2026-10-23 21:41:59", day: "2026-10-23", lessonId: "ru.1.1", kind: "words",
+                  chars: 120, seconds: 36)
+    insertSession(context, ended: "2026-10-23 21:42:30", day: "2026-10-23", lessonId: "ru.1.1", kind: "check",
+                  chars: 89, seconds: 27.1, accuracy: 0.978, cpm: 197, maxErrorStreak: 1, wrong: 2)
+    insertSession(context, ended: "2026-10-24 02:40:00", day: "2026-10-23", mode: "adaptive", chars: 4, seconds: 2,
+                  completed: false)
+    insertSession(context, ended: "2026-10-24 02:42:16", day: "2026-10-23", mode: "adaptive", chars: 241,
+                  seconds: 91.9, accuracy: 0.996, cpm: 157, hint: "onError", pinky: 31, pinkyErrors: 0)
+    insertSession(context, ended: "2026-10-24 02:43:00", day: "2026-10-23", mode: "future-mode", chars: 10)
+
+    let first = LessonProgress(lessonId: "ru.1.1", language: "ru")
+    first.attempts = 2
+    first.bestStars = 3   // в базе 3, но по истории проверок — 1 (точность 97,8%)
+    first.passedAt = at("2026-10-23 21:42:30")
+    context.insert(first)
+    let second = LessonProgress(lessonId: "ru.1.2", language: "ru")
+    second.attempts = 1
+    second.bestStars = 2
+    second.passedAt = at("2026-10-24 02:34:32")
+    context.insert(second)
+
+    let day = DayRecord(logicalDay: "2026-10-23")
+    day.activeSeconds = 700
+    day.completedExercises = 3
+    day.abandonedExercises = 1
+    day.languages = ["ru", "en", "xx"]
+    context.insert(day)
+
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 0
+    context.insert(caps)
+    context.insert(AdaptiveState(language: "ru", unlockedCount: 7))
+    let seventh = Language.ru.adaptiveOrder[6]
+    context.insert(AdaptiveUnlock(language: "ru", letter: String(seventh), unlockedAt: at("2026-10-24 02:42:16")))
+    try context.save()
+}
+
+@MainActor private func records(_ context: ModelContext) throws -> [AchievementRecord] {
+    try context.fetch(FetchDescriptor<AchievementRecord>(sortBy: [SortDescriptor(\.achievementId)]))
+}
+
+// MARK: - Каталог и счётчики
+
+/// Имена счётчиков в каталоге совпадают с тем, что пишет приложение (`CounterName`).
+@Test func catalogCountersAreAppCounterNames() {
+    var names: [String] = []
+    for achievement in AchievementCatalog.all {
+        if case let .counter(name, _) = achievement.condition { names.append(name) }
+    }
+    #expect(!names.isEmpty)
+    for name in names { #expect(CounterName.all.contains(name), "счётчик «\(name)» приложение не пишет") }
+}
+
+// MARK: - Факты из базы
+
+@MainActor @Test func factsAreCollectedFromStore() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    let facts = try makeService(context).facts()
+
+    // Сессия с неизвестным режимом пропущена; порядок — по времени конца.
+    let known = try context.fetch(FetchDescriptor<SessionRecord>()).filter { ExerciseMode(rawValue: $0.mode) != nil }
+    #expect(known.count < (try context.fetchCount(FetchDescriptor<SessionRecord>())))
+    #expect(facts.exercises.count == known.count)
+    #expect(facts.exercises.map(\.endedAt) == facts.exercises.map(\.endedAt).sorted())
+    let check = try #require(facts.exercises.first { $0.exerciseKind == .check })
+    #expect(check.lessonId == "ru.1.1" && check.mode == .course && check.language == .ru)
+    #expect(check.chars == 89 && check.activeSeconds == 27.1 && check.accuracy == 0.978 && check.cpm == 197)
+    #expect(check.maxErrorStreak == 1 && check.wrongKeystrokes == 2 && check.completed)
+    #expect(check.logicalDay == "2026-10-23" && check.hintLevel == .full)
+    let adaptive = try #require(facts.exercises.first { $0.chars == 241 })
+    #expect(adaptive.hintLevel == .onError && adaptive.pinkyPresses == 31 && adaptive.pinkyErrors == 0)
+
+    #expect(facts.days == ["2026-10-23": DayActivity(activeSeconds: 700, completedExercises: 3)])
+    #expect(facts.abandonedByDay == ["2026-10-23": 1])
+    #expect(facts.languagesByDay == ["2026-10-23": [.ru, .en]])
+    #expect(facts.streakStatuses["2026-10-23"] == .full)
+    #expect(facts.lessonPasses == ["ru.1.1": at("2026-10-23 21:42:30"), "ru.1.2": at("2026-10-24 02:34:32")])
+    #expect(facts.lessonAttempts == ["ru.1.1": 2, "ru.1.2": 1])
+    // Звёзды — только `LessonScoring.effectiveStars`: по истории проверок, а без неё — из базы.
+    #expect(facts.starsByLesson["ru.1.1"] == 1)
+    #expect(facts.starsByLesson["ru.1.2"] == 2)
+    #expect(facts.counters == [CounterName.capsLockPresses: 0])
+    #expect(facts.courses[.ru] != nil && facts.courses[.en] != nil)
+    #expect(facts.timeZone == msk)
+    #expect(facts.now == at("2026-10-24 07:00"))
+}
+
+/// Открытые буквы (§21): курс — до последнего засчитанного урока (дата — `passedAt`), адаптивный режим — только
+/// при строке `AdaptiveState`; стартовые буквы — с конца первой завершённой адаптивной тренировки,
+/// остальные — `AdaptiveUnlock.unlockedAt`.
+@MainActor @Test func openLetterDatesCombineCourseAndAdaptive() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    let facts = try makeService(context).facts()
+    let ru = try #require(facts.openLetterDates[.ru])
+    let course = try CourseCatalog.load(.ru)
+    let lesson1 = Set(course.lessons[0].newCharacters.map { Character(String($0).lowercased()) })
+    let lesson2 = Set(course.lessons[1].newCharacters.map { Character(String($0).lowercased()) })
+        .subtracting(lesson1)
+    let adaptiveStart = at("2026-10-24 02:42:16")
+    for letter in lesson1 {
+        #expect(ru[letter] == min(at("2026-10-23 21:42:30"), adaptiveStart), "\(letter)")
+    }
+    let startLetters = Set(Language.ru.adaptiveOrder.prefix(6))
+    for letter in lesson2 {
+        let expected = startLetters.contains(letter) ? min(at("2026-10-24 02:34:32"), adaptiveStart)
+            : at("2026-10-24 02:34:32")
+        #expect(ru[letter] == expected, "\(letter)")
+    }
+    for letter in startLetters where !lesson1.contains(letter) && !lesson2.contains(letter) {
+        // Не первая (брошенная) адаптивная сессия, а первая завершённая.
+        #expect(ru[letter] == adaptiveStart, "\(letter)")
+    }
+    let seventh = Language.ru.adaptiveOrder[6]
+    // Седьмая и восьмая буквы адаптивного режима не входят в уроки 1–2: их дата — только из адаптивного режима.
+    try #require(!lesson1.contains(seventh) && !lesson2.contains(seventh))
+    #expect(ru[seventh] == adaptiveStart)
+    #expect(ru[" "] == nil)
+    // Восьмая буква адаптивного режима не открыта.
+    let eighth = Language.ru.adaptiveOrder[7]
+    try #require(!lesson1.contains(eighth) && !lesson2.contains(eighth))
+    #expect(ru[eighth] == nil)
+    // Английский: ни уроков, ни строки `AdaptiveState` — открытых букв нет.
+    #expect(facts.openLetterDates[.en]?.isEmpty ?? true)
+}
+
+@Test func openLettersWithoutAdaptiveStateComeOnlyFromCourse() throws {
+    let course = try CourseCatalog.load(.en)
+    let passed = at("2026-10-20 10:00")
+    let dates = AchievementService.openLetterDates(
+        language: .en, course: course, passes: [course.lessons[1].id: passed], adaptiveCount: nil,
+        unlocks: [:], firstAdaptive: at("2026-10-01 10:00"), now: at("2026-10-24 07:00"))
+    let expected = Set((course.lessons[0].newCharacters + course.lessons[1].newCharacters)
+        .map { Character(String($0).lowercased()) }).subtracting([" "])
+    #expect(Set(dates.keys) == expected)
+    #expect(dates.values.allSatisfy { $0 == passed })
+}
+
+@Test func adaptiveLettersWithoutDatesFallBackToNow() {
+    let now = at("2026-10-24 07:00")
+    let order = Language.en.adaptiveOrder
+    // Строка `AdaptiveState` есть, адаптивных сессий в истории нет; восьмая буква открыта без `AdaptiveUnlock`.
+    let dates = AchievementService.openLetterDates(
+        language: .en, course: nil, passes: [:], adaptiveCount: 9, unlocks: [order[8]: at("2026-10-22 10:00")],
+        firstAdaptive: nil, now: now)
+    #expect(Set(dates.keys) == Set(order.prefix(9)))
+    for letter in order.prefix(8) { #expect(dates[letter] == now) }
+    #expect(dates[order[8]] == at("2026-10-22 10:00"))
+}
+
+// MARK: - Выдача
+
+/// Первый запуск версии с ачивками: всё заработанное выдаётся с датами из истории, помечается просмотренным,
+/// и это «задним числом» (один тост-сводка). Повторная проверка ничего не добавляет.
+@MainActor @Test func firstLaunchBackfillsHistoryAsSeen() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    let service = makeService(context)
+    let result = try service.check(reason: .launch)
+    #expect(result.isBackfill)
+    let ids = result.new.map(\.id)
+    #expect(ids.contains("course.first_lesson"))
+    #expect(ids.contains("special.night_owl"))
+    #expect(ids.contains("special.steel_pinkies"))
+    let stored = try records(context)
+    #expect(stored.map(\.achievementId) == ids.sorted())
+    #expect(stored.allSatisfy { $0.seen })
+    #expect(stored.first { $0.achievementId == "course.first_lesson" }?.unlockedAt == at("2026-10-23 21:42:30"))
+    #expect(stored.first { $0.achievementId == "special.night_owl" }?.unlockedAt == at("2026-10-24 02:42:16"))
+    #expect(!context.hasChanges)
+
+    let again = try service.check(reason: .launch)
+    #expect(again.new.isEmpty && !again.isBackfill)
+    #expect(try records(context).count == stored.count)
+}
+
+/// После сохранения новые ачивки не просмотрены; дата счётчика — момент проверки.
+@MainActor @Test func afterSaveAddsOnlyNewUnseenAchievements() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    _ = try makeService(context).check(reason: .launch)
+    let before = try records(context).count
+
+    let caps = try #require(try context.fetch(FetchDescriptor<CounterRecord>()).first)
+    caps.value = 1
+    try context.save()
+    let now = at("2026-10-24 08:15")
+    let result = try makeService(context, now: now).check(reason: .afterSave)
+    #expect(!result.isBackfill)
+    #expect(result.new.map(\.id) == ["fun.oy_vsyo"])
+    let record = try #require(try records(context).first { $0.achievementId == "fun.oy_vsyo" })
+    #expect(!record.seen && record.unlockedAt == now)
+    #expect(try records(context).count == before + 1)
+}
+
+/// Новый пользователь: первая ачивка после упражнения — обычная, не «задним числом».
+@MainActor @Test func afterSaveWithoutRecordsIsNotBackfill() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    insertSession(context, ended: "2026-10-24 02:10:00", day: "2026-10-23", mode: "practice")
+    try context.save()
+    let result = try makeService(context).check(reason: .afterSave)
+    #expect(!result.isBackfill)
+    #expect(result.new.map(\.id) == ["special.night_owl"])
+    #expect(try records(context).allSatisfy { !$0.seen })
+}
+
+/// Нечего выдавать при пустой истории: «задним числом» тоже ничего, базу не трогаем.
+@MainActor @Test func emptyHistoryEarnsNothing() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let result = try makeService(context).check(reason: .launch)
+    #expect(result.new.isEmpty)
+    #expect(try records(context).isEmpty)
+}
+
+/// Все новые записи — одна транзакция: ошибка сохранения не оставляет ни одной, проверку можно повторить.
+@MainActor @Test func failedCheckLeavesNothingAndCanBeRetried() throws {
+    struct Boom: Error {}
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    #expect(throws: Boom.self) { _ = try makeService(context, beforeSave: { throw Boom() }).check(reason: .launch) }
+    #expect(try records(context).isEmpty)
+    #expect(!context.hasChanges)
+    let retry = try makeService(context).check(reason: .launch)
+    #expect(retry.isBackfill && !retry.new.isEmpty)
+}
+
+/// Записи с id, которых нет в каталоге (из более новой версии), не мешают и не трогаются.
+@MainActor @Test func unknownStoredAchievementsAreKept() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    context.insert(AchievementRecord(achievementId: "future.thing", unlockedAt: at("2026-10-01 10:00"), seen: true))
+    try populateHistory(context)
+    let result = try makeService(context).check(reason: .launch)
+    #expect(!result.isBackfill)   // записи уже были: это не первый запуск
+    #expect(try records(context).contains { $0.achievementId == "future.thing" })
+}
+
+/// Архив поколения 2 (без раздела ачивок) загружается, ачивки затем выдаются проверкой заново.
+@MainActor @Test func generationTwoArchiveImportsAndAchievementsAreReissued() throws {
+    let data = Data(#"""
+        { "format": "tenfingers-progress", "version": 1, "schemaGeneration": 2,
+          "sessions": [{ "id": "6F9619FF-8B86-D011-B42D-00C04FC964FF", "mode": "course", "language": "ru",
+            "lessonId": "ru.1.1", "exerciseKind": "check", "startedAt": 783000000, "endedAt": 783000060,
+            "logicalDay": "2025-10-23", "activeSeconds": 60, "chars": 90, "errorCount": 1, "cpm": 90,
+            "accuracy": 0.99, "completed": true, "hintLevel": "full", "maxErrorStreak": 1, "wrongKeystrokes": 1 }],
+          "lessonProgress": [{ "lessonId": "ru.1.1", "language": "ru", "attempts": 1, "bestStars": 1,
+            "passedAt": 783000060 }] }
+        """#.utf8)
+    let archive = try ProgressArchive.decode(data)
+    #expect(archive.achievements.isEmpty)
+
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    context.insert(AchievementRecord(achievementId: "streak.3", unlockedAt: at("2026-10-01 10:00"), seen: true))
+    try context.save()
+    try ProgressArchive.replaceAll(with: archive, context: context)
+    #expect(try records(context).isEmpty)
+
+    let result = try makeService(context).check(reason: .launch)
+    #expect(result.isBackfill)
+    #expect(result.new.map(\.id).contains("course.first_lesson"))
+    let record = try #require(try records(context).first { $0.achievementId == "course.first_lesson" })
+    #expect(record.unlockedAt == Date(timeIntervalSinceReferenceDate: 783_000_060))
+}
+
+// MARK: - Тосты и «Взрослый юмор»
+
+@MainActor @Test func adultAchievementsAreHiddenWhenAdultHumorIsOff() throws {
+    let adult = try #require(AchievementCatalog.all.first { $0.adult })
+    let plain = try #require(AchievementCatalog.all.first { !$0.adult })
+    #expect(AchievementVisibility.visible([adult, plain], adultHumor: true).map(\.id) == [adult.id, plain.id])
+    #expect(AchievementVisibility.visible([adult, plain], adultHumor: false).map(\.id) == [plain.id])
+}
+
+@Test func adultHumorIsOnByDefault() {
+    let (defaults, name) = makeTestDefaults("AchievementServiceTests-")
+    defer { removeTestDefaults(name) }
+    #expect(StoredSettings.adultHumor(defaults))
+    defaults.set(false, forKey: SettingsKey.adultHumor)
+    #expect(!StoredSettings.adultHumor(defaults))
+    #expect(ArchivedSettings.entries.contains { $0.key == SettingsKey.adultHumor })
+}
+
+@Test func achievementSoundIsActive() {
+    #expect(SoundSettings.activeEvents.contains(.achievement))
+}
+
+@Test func achievementsHaveTheirSidebarItem() {
+    #expect(SidebarItem.achievements.icon == "trophy")
+    #expect(SidebarItem.allCases.firstIndex(of: .achievements) == SidebarItem.allCases.firstIndex(of: .analytics)! + 1)
+}
+
+/// Строка «Новые ачивки: …» на экранах итога: только видимые, `nil`, если показывать нечего.
+@Test func resultLineListsVisibleAchievements() throws {
+    let adult = try #require(AchievementCatalog.all.first { $0.adult })
+    let plain = try #require(AchievementCatalog.all.first { $0.id == "course.first_lesson" })
+    #expect(AchievementVisibility.resultLine([], adultHumor: true) == nil)
+    #expect(AchievementVisibility.resultLine([adult], adultHumor: false) == nil)
+    let line = try #require(AchievementVisibility.resultLine([plain, adult], adultHumor: true))
+    #expect(line.contains(plain.title) && line.contains(adult.title))
+}
+
+// MARK: - Координатор: проверка после сохранения
+
+@MainActor private final class Heard {
+    var sounds: [SoundEvent] = []
+    var announced: [[String]] = []
+    var delayed: [(Duration, @MainActor () -> Void)] = []
+}
+
+private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: "ао")
+
+@MainActor private func finishExercise(_ coordinator: ExerciseCoordinator) {
+    let session = coordinator.start(spec: spec, language: .ru, mode: .practice, lessonId: nil, hint: .full) { s, r in
+        coordinator.recordFinish(s, r)
+    }
+    session.layoutLanguage = .ru
+    _ = session.handleKey(characters: "а", keyCode: 3, modifiers: [], timestamp: 0)
+    _ = session.handleKey(characters: "о", keyCode: 38, modifiers: [], timestamp: 0.3)
+}
+
+@MainActor private func makeCoordinator(goalSeconds: Double) throws -> (ExerciseCoordinator, ModelContainer, Heard) {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let heard = Heard()
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    let coordinator = ExerciseCoordinator(recorder: recorder, playSound: { heard.sounds.append($0) },
+                                          goalSeconds: { goalSeconds },
+                                          afterDelay: { delay, action in heard.delayed.append((delay, action)) })
+    // Только «ОЙ ВСЁ»: остальные условия зависят от времени запуска теста.
+    let oops = AchievementCatalog.all.filter { $0.id == "fun.oy_vsyo" }
+    coordinator.achievements = AchievementService(recorder: recorder, goalSeconds: { goalSeconds }, timeZone: msk,
+                                                  now: { Date() }, catalog: oops)
+    coordinator.onAchievements = { heard.announced.append($0.map(\.id)) }
+    return (coordinator, container, heard)
+}
+
+@MainActor @Test func savedExerciseAnnouncesNewAchievementsWithSound() throws {
+    let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 1e9)
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 1
+    container.mainContext.insert(caps)
+    try container.mainContext.save()
+
+    finishExercise(coordinator)
+    #expect(coordinator.newAchievements.map(\.id) == ["fun.oy_vsyo"])
+    #expect(heard.announced == [["fun.oy_vsyo"]])
+    // Звук ачивки — после звука результата, с паузой.
+    #expect(heard.delayed.map(\.0) == [ExerciseCoordinator.streakDelay])
+    #expect(!heard.sounds.contains(.achievement))
+    heard.delayed.forEach { $0.1() }
+    #expect(heard.sounds.last == .achievement)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<AchievementRecord>()) == 1)
+
+    // Следующее сохранение: ничего нового, строка итога пустая.
+    finishExercise(coordinator)
+    #expect(coordinator.newAchievements.isEmpty)
+    #expect(heard.announced.count == 1)
+}
+
+/// День стал полным в том же сохранении: «Полный огонь» и звук серии первыми, звук ачивки — после них.
+@MainActor @Test func achievementSoundFollowsStreakSound() throws {
+    let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 0)
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 1
+    container.mainContext.insert(caps)
+    try container.mainContext.save()
+
+    finishExercise(coordinator)
+    #expect(heard.delayed.map(\.0) == [ExerciseCoordinator.streakDelay, ExerciseCoordinator.streakDelay * 2])
+    heard.delayed.forEach { $0.1() }
+    #expect(Array(heard.sounds.suffix(2)) == [.streak, .achievement])
+}
+
+/// Нет нового — нет ни тоста, ни звука.
+@MainActor @Test func nothingNewMeansNoAnnouncement() throws {
+    let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 1e9)
+    finishExercise(coordinator)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 1)
+    #expect(coordinator.newAchievements.isEmpty)
+    #expect(heard.announced.isEmpty && heard.delayed.isEmpty)
+}
+
+// MARK: - Проверка на копии настоящей базы
+
+/// `TENFINGERS_PROBE_ACHIEVEMENTS=<папка с TenFingers.store> swift test --filter probeAchievementsOnStoreCopy`:
+/// папка копируется во временную, проверка выдачи идёт на копии; печатает, что получит пользователь.
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["TENFINGERS_PROBE_ACHIEVEMENTS"] != nil))
+func probeAchievementsOnStoreCopy() throws {
+    let source = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["TENFINGERS_PROBE_ACHIEVEMENTS"]))
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TenFingersProbe-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    for name in try FileManager.default.contentsOfDirectory(atPath: source.path) {
+        try FileManager.default.copyItem(at: source.appendingPathComponent(name), to: directory.appendingPathComponent(name))
+    }
+    let container = try ModelStore.makeContainer(at: directory.appendingPathComponent("TenFingers.store"))
+    let context = container.mainContext
+    let service = AchievementService(recorder: ResultRecorder(context: context, dayStartHour: StoredSettings.dayStartHour()),
+                                     goalSeconds: { StoredSettings.dailyGoalSeconds() })
+    let sessions = try context.fetchCount(FetchDescriptor<SessionRecord>())
+    let result = try service.check(reason: .launch)
+    let dates = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<AchievementRecord>())
+        .map { ($0.achievementId, $0.unlockedAt) })
+    print("probe: sessions=\(sessions) backfill=\(result.isBackfill) earned=\(result.new.count)")
+    for achievement in result.new {
+        print("probe: \(achievement.id) \(dates[achievement.id].map { "\($0)" } ?? "?") adult=\(achievement.adult)")
+    }
+    #expect(sessions > 0)
+}
+
+// MARK: - Ревью: скрытые ачивки, кэш фактов, отдельные записи, замена прогресса
+
+/// Ачивка с `adult` при выключенном «Взрослом юморе»: запись создаётся, но ни тоста, ни звука.
+@MainActor @Test func hiddenAdultAchievementIsRecordedSilently() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let heard = Heard()
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    let coordinator = ExerciseCoordinator(recorder: recorder, playSound: { heard.sounds.append($0) },
+                                          goalSeconds: { 1e9 },
+                                          afterDelay: { delay, action in heard.delayed.append((delay, action)) })
+    let adult = try #require(AchievementCatalog.all.first { $0.id == "letters.ru.b_word" })
+    #expect(adult.adult)
+    coordinator.achievements = AchievementService(recorder: recorder, goalSeconds: { 1e9 }, timeZone: msk,
+                                                  now: { Date() }, catalog: [adult])
+    coordinator.adultHumor = { false }
+    coordinator.onAchievements = { heard.announced.append($0.map(\.id)) }
+    // Весь алфавит открыт в адаптивном режиме — «бля» открыто.
+    container.mainContext.insert(AdaptiveState(language: "ru", unlockedCount: Language.ru.adaptiveOrder.count))
+    try container.mainContext.save()
+
+    finishExercise(coordinator)
+    #expect(try container.mainContext.fetch(FetchDescriptor<AchievementRecord>()).map(\.achievementId) == [adult.id])
+    #expect(heard.announced.isEmpty)
+    #expect(heard.delayed.isEmpty)
+    #expect(!heard.sounds.contains(.achievement))
+}
+
+/// Запись вне упражнения без новой сессии (сброс позиции своего текста) ачивки не проверяет.
+@MainActor @Test func standaloneCommitWithoutSessionSkipsAchievementCheck() throws {
+    let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 1e9)
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 1
+    container.mainContext.insert(caps)
+    try container.mainContext.save()
+
+    #expect(coordinator.commitStandalone { recorder in try recorder.increment("unrelated") })
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<AchievementRecord>()) == 0)
+    #expect(heard.announced.isEmpty)
+    finishExercise(coordinator)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<AchievementRecord>()) == 1)
+}
+
+/// Кэш фактов строится один раз и дальше дополняется новыми сессиями; результат совпадает с полным проходом.
+@MainActor @Test func factsCacheAppendsNewSessions() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    let cache = AchievementFactsCache()
+    var recorder = ResultRecorder(context: context, dayStartHour: 4)
+    recorder.beforeSave = nil
+    let service = AchievementService(recorder: recorder, goalSeconds: { 600 }, timeZone: msk,
+                                     now: { at("2026-10-24 07:00") }, cache: cache)
+    _ = try service.check(reason: .launch)
+    #expect(cache.rebuilds == 1)
+
+    insertSession(context, ended: "2026-10-24 05:10:00", day: "2026-10-24", mode: "practice", chars: 400, cpm: 90)
+    try context.save()
+    let cached = try service.facts()
+    #expect(cache.rebuilds == 1)
+    let fresh = try makeService(context).facts()
+    #expect(cached.exercises == fresh.exercises)
+    #expect(cached.exercises.last?.chars == 400)
+    // Новое упражнение даёт новую ачивку («Без кофе» — с 5 до 6 утра).
+    let result = try service.check(reason: .afterSave)
+    #expect(result.new.map(\.id) == ["fun.no_coffee"])
+    #expect(cache.rebuilds == 1)
+
+    // Замена прогресса: кэш сбрасывается и строится заново.
+    let archive = try ProgressArchive.decode(Data(#"{ "format": "tenfingers-progress", "version": 1, "schemaGeneration": 2 }"#.utf8))
+    try ProgressArchive.replaceAll(with: archive, context: context)
+    cache.invalidate()
+    #expect(try service.facts().exercises.isEmpty)
+    #expect(cache.rebuilds == 2)
+}
+
+/// Если сессий в базе стало не столько, сколько известно кэшу (другая база, загрузка без сброса), он строится заново.
+@MainActor @Test func factsCacheRebuildsWhenStoreChangesUnderIt() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    let cache = AchievementFactsCache()
+    let service = AchievementService(recorder: ResultRecorder(context: context, dayStartHour: 4), goalSeconds: { 600 },
+                                     timeZone: msk, now: { at("2026-10-24 07:00") }, cache: cache)
+    let before = try service.facts().exercises.count
+    for record in try context.fetch(FetchDescriptor<SessionRecord>()) where record.mode == "adaptive" {
+        context.delete(record)
+    }
+    try context.save()
+    let after = try service.facts().exercises
+    #expect(after.count < before)
+    #expect(after.allSatisfy { $0.mode != .adaptive })
+    #expect(cache.rebuilds == 2)
+}
+
+/// Большая история (20 000 сессий): факты строятся без квадратичного роста; длительность — в журнал теста.
+@MainActor @Test func factsForLargeHistory() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let start = at("2024-01-01 10:00")
+    let total = 20_000
+    for index in 0..<total {
+        let end = start.addingTimeInterval(Double(index) * 3_600)
+        context.insert(SessionRecord(
+            mode: index % 3 == 0 ? "adaptive" : "course", language: index % 2 == 0 ? "ru" : "en",
+            lessonId: index % 3 == 0 ? nil : "ru.1.1", startedAt: end.addingTimeInterval(-60), endedAt: end,
+            logicalDay: LogicalDay.key(for: end, dayStartHour: 4), activeSeconds: 60, chars: 300, errorCount: 2,
+            cpm: 200, accuracy: 0.99, completed: index % 7 != 0, hintLevel: "full", maxErrorStreak: 1,
+            wrongKeystrokes: 2, exerciseKind: index % 3 == 0 ? nil : "check"))
+    }
+    try context.save()
+    let cache = AchievementFactsCache()
+    let service = AchievementService(recorder: ResultRecorder(context: context, dayStartHour: 4), goalSeconds: { 600 },
+                                     timeZone: msk, now: { start.addingTimeInterval(Double(total) * 3_600) },
+                                     cache: cache)
+    let clock = ContinuousClock()
+    var facts: AchievementFacts?
+    let cold = try clock.measure { facts = try service.facts() }
+    #expect(facts?.exercises.count == total)
+    var outcome: AchievementService.Outcome?
+    let launch = try clock.measure { outcome = try service.check(reason: .launch) }
+    #expect(outcome?.isBackfill == true)
+    insertSession(context, ended: "2026-10-24 05:10:00", day: "2026-10-24", mode: "practice")
+    try context.save()
+    let warm = try clock.measure { _ = try service.check(reason: .afterSave) }
+    #expect(cache.rebuilds == 1)
+    print("benchmark: \(total) sessions — facts cold \(cold), launch check \(launch), check after save \(warm)")
+}
+
+/// Загрузка прогресса сообщает о замене (`.progressReplaced`); по ней кэш сбрасывается и ачивки выдаются заново —
+/// одной сводкой с кнопкой.
+@MainActor @Test func progressReplacementReissuesAchievementsWithSummary() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    let (defaults, name) = makeTestDefaults("AchievementServiceTests-")
+    defer { removeTestDefaults(name) }
+    let backups = FileManager.default.temporaryDirectory.appendingPathComponent("TenFingersBackups-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: backups) }
+    let notifications = NotificationCenter()
+    let replaced = PostCount()
+    let token = notifications.addObserver(forName: .progressReplaced, object: nil, queue: nil) { _ in replaced.add() }
+    defer { notifications.removeObserver(token) }
+
+    let cache = AchievementFactsCache()
+    let service = AchievementService(recorder: ResultRecorder(context: context, dayStartHour: 4), goalSeconds: { 600 },
+                                     timeZone: msk, now: { at("2026-10-24 07:00") }, cache: cache)
+    _ = try service.check(reason: .launch)
+    let archive = try ProgressArchive.decode(ProgressArchive.export(context: context, defaults: defaults))
+    var stripped = archive
+    stripped.achievements = []   // как архив поколения 2
+    var importer = ProgressImporter(context: context, defaults: defaults, backupDirectory: backups)
+    importer.notifications = notifications
+    _ = try importer.importArchive(stripped)
+    #expect(replaced.value == 1)
+    #expect(try records(context).isEmpty)
+
+    let clock = ManualClock()
+    let toasts = ToastCenter(timer: clock.timer)
+    var opened = 0
+    let outcome = AchievementAnnouncer.progressReplaced(service: service, toasts: toasts, adultHumor: true) {
+        opened += 1
+    }
+    #expect(cache.rebuilds == 2)
+    #expect(outcome.isBackfill && !outcome.new.isEmpty)
+    let toast = try #require(toasts.current)
+    #expect(toast.action != nil)
+    #expect(toast.message.contains("\(outcome.new.count)"))
+    toasts.perform(toast)
+    #expect(opened == 1)
+}
+
+/// Счётчик уведомлений (наблюдатель вызывается синхронно в том же потоке, что и `post`).
+private final class PostCount: @unchecked Sendable {
+    private(set) var value = 0
+    func add() { value += 1 }
+}
+
+/// Таймер тостов, который ничего не ждёт.
+@MainActor private final class ManualClock {
+    var timer: ToastTimer { { _, _ in {} } }
+}
+
+// MARK: - Сводка: склонение
+
+private func localization(_ language: String) -> Bundle {
+    Bundle(url: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Localization/\(language).lproj"))!
+}
+
+@Test func backfillSummaryIsInflected() {
+    let ru = Locale(identifier: "ru")
+    let expected = [1: "Получена 1 ачивка за прошлые занятия", 2: "Получено 2 ачивки за прошлые занятия",
+                    5: "Получено 5 ачивок за прошлые занятия", 21: "Получена 21 ачивка за прошлые занятия"]
+    for (count, text) in expected.sorted(by: { $0.key < $1.key }) {
+        #expect(Formatting.backfillSummary(count, bundle: localization("ru"), locale: ru) == text, "ru \(count)")
+        // Без переводов (рендер в тестах) — те же русские формы.
+        #expect(Formatting.backfillSummary(count, bundle: .main, locale: ru) == text, "fallback \(count)")
+    }
+    let en = Locale(identifier: "en")
+    #expect(Formatting.backfillSummary(1, bundle: localization("en"), locale: en) == "1 achievement earned for past practice")
+    #expect(Formatting.backfillSummary(4, bundle: localization("en"), locale: en) == "4 achievements earned for past practice")
+}

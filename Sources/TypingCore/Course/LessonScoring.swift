@@ -30,12 +30,24 @@ public enum LessonScoring {
         return (cpm >= needCpm ? nil : needCpm, accuracy >= needAccuracy ? nil : needAccuracy)
     }
 
-    /// Звёзды урока из истории: лучшая завершённая проверка урока (`exerciseKind == .check`) по её скорости
-    /// и точности. `nil`, если проверок в истории нет.
-    public static func bestStars(sessions: [SessionSummary], lessonId: String, targetCpm: Int) -> Int? {
-        sessions
+    /// «Действующая» оценка урока — единственное правило, по которому звёзды показывают карта курса и аналитика
+    /// и считают ачивки (`LessonProgress.bestStars` напрямую не читать).
+    /// По истории проверок (скорость и точность каждой завершённой проверки урока) — по текущему правилу;
+    /// истории нет — `storedStars` из базы. У засчитанного урока (`passed`) — не меньше одной звезды:
+    /// урок мог быть пройден до того, как шаги стали записываться, а неудачная проверка после этого
+    /// не отменяет зачёта.
+    public static func effectiveStars(history: [(cpm: Double, accuracy: Double)], targetCpm: Int, passed: Bool,
+                                      storedStars: Int) -> Int {
+        let base = history.map { stars(cpm: $0.cpm, accuracy: $0.accuracy, targetCpm: targetCpm) }.max() ?? storedStars
+        return passed ? max(base, 1) : base
+    }
+
+    /// То же по сессиям: в историю идут завершённые проверки (`exerciseKind == .check`) этого урока.
+    public static func effectiveStars(sessions: [SessionSummary], lessonId: String, targetCpm: Int, passed: Bool,
+                                      storedStars: Int) -> Int {
+        let history = sessions
             .filter { $0.completed && $0.lessonId == lessonId && $0.exerciseKind == .check }
-            .map { stars(cpm: $0.speed, accuracy: $0.accuracy, targetCpm: targetCpm) }
-            .max()
+            .map { (cpm: $0.speed, accuracy: $0.accuracy) }
+        return effectiveStars(history: history, targetCpm: targetCpm, passed: passed, storedStars: storedStars)
     }
 }

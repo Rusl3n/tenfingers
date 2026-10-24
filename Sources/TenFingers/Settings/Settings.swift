@@ -28,6 +28,13 @@ enum SettingsKey {
     /// Профиль: никнейм и имя (для карточек «Поделиться» фазы 4).
     static let profileNickname = "profileNickname"
     static let profileFullName = "profileFullName"
+    /// «Взрослый юмор»: выключенный скрывает ачивки с `adult` из списка, тостов и карточек (выдаются они всё равно).
+    static let adultHumor = "adultHumor"
+    /// Опции карточки «Поделиться» (`ShareOptions`): подпись, тема, фон, формат.
+    static let shareSignature = "shareSignature"
+    static let shareTheme = "shareTheme"
+    static let shareBackground = "shareBackground"
+    static let shareFormat = "shareFormat"
     /// Прежний ключ темы (system/light/dark), читается один раз как начальное значение `themeMode`.
     static let legacyTheme = "theme"
 }
@@ -44,6 +51,7 @@ enum SettingsDefault {
     static let remindersEnabled = false
     static let reminderHour = 20
     static let reminderMinute = 0
+    static let adultHumor = true
 }
 
 /// Настройки, которые читаются вне SwiftUI (`@AppStorage` здесь не подходит: значение нужно в момент вызова).
@@ -55,6 +63,10 @@ enum StoredSettings {
     /// Дневная цель в секундах.
     static func dailyGoalSeconds(_ defaults: UserDefaults = .standard) -> Double {
         Double(defaults.object(forKey: SettingsKey.dailyGoalMinutes) as? Int ?? SettingsDefault.dailyGoalMinutes) * 60
+    }
+
+    static func adultHumor(_ defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: SettingsKey.adultHumor) as? Bool ?? SettingsDefault.adultHumor
     }
 
     /// Напоминания; значения вне допустимого диапазона приводятся к нему.
@@ -102,19 +114,27 @@ enum SpeedUnit: String, CaseIterable, Identifiable {
         }
     }
 
-    /// `rounding` — направление округления: вверх для порога («нужно от»), вниз для результата («у вас»),
-    /// чтобы недостающая скорость не выглядела достигнутой.
-    func format(_ cpm: Double, rounding: FloatingPointRoundingRule = .toNearestOrAwayFromZero) -> String {
+    /// Скорость в этих единицах, целым числом (дробное для графиков — `value`). `rounding` — направление округления: вверх для порога
+    /// («нужно от»), вниз для результата («у вас»), чтобы недостающая скорость не выглядела достигнутой.
+    func wholeValue(_ cpm: Double, rounding: FloatingPointRoundingRule = .toNearestOrAwayFromZero) -> Int {
         // Поправка: 60 × 1,3 в двоичной арифметике чуть больше 78 и без неё округлилось бы вверх до 79.
         let nudge: Double = switch rounding {
         case .up, .awayFromZero: -1e-9
         case .down, .towardZero: 1e-9
         default: 0
         }
-        let cpmValue = Int((cpm + nudge).rounded(rounding))
         switch self {
-        case .cpm: return String(localized: "\(cpmValue) зн/мин")
-        case .wpm: return "\(Int((cpm / 5 + nudge).rounded(rounding))) WPM"
+        case .cpm: return Int((cpm + nudge).rounded(rounding))
+        case .wpm: return Int((cpm / 5 + nudge).rounded(rounding))
+        }
+    }
+
+    /// «312 зн/мин», «62 WPM» (округление — как у `wholeValue`).
+    func format(_ cpm: Double, rounding: FloatingPointRoundingRule = .toNearestOrAwayFromZero) -> String {
+        let speed = wholeValue(cpm, rounding: rounding)
+        switch self {
+        case .cpm: return String(localized: "\(speed) зн/мин")
+        case .wpm: return "\(speed) WPM"
         }
     }
 }

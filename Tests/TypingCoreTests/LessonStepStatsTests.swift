@@ -16,6 +16,11 @@ private func step(_ kind: ExerciseKind?, lessonId: String? = "ru.1.1", accuracy:
     #expect(old.speed == 300) // без сохранённой скорости — знаки за минуту
 }
 
+private func effective(_ history: [SessionSummary], passed: Bool = false, stored: Int = 0) -> Int {
+    LessonScoring.effectiveStars(sessions: history, lessonId: "ru.1.1", targetCpm: 60, passed: passed,
+                                 storedStars: stored)
+}
+
 @Test func starsFromHistoryTakeBestCheck() {
     // 100% при 1,5×цели — ★★★; 97% при 2×цели — ★.
     let history = [
@@ -24,14 +29,14 @@ private func step(_ kind: ExerciseKind?, lessonId: String? = "ru.1.1", accuracy:
         step(.words, accuracy: 1.0, cpm: 500),                 // не проверочный шаг
         step(.check, lessonId: "ru.1.2", accuracy: 1, cpm: 500), // другой урок
     ]
-    #expect(LessonScoring.bestStars(sessions: history, lessonId: "ru.1.1", targetCpm: 60) == 3)
+    #expect(effective(history) == 3)
 }
 
 @Test func starsFromHistoryIgnoreAbandonedAndNeedCheck() {
-    #expect(LessonScoring.bestStars(sessions: [step(.check, accuracy: 1, cpm: 500, completed: false)],
-                                    lessonId: "ru.1.1", targetCpm: 60) == nil)
-    #expect(LessonScoring.bestStars(sessions: [step(.drill, accuracy: 1)], lessonId: "ru.1.1", targetCpm: 60) == nil)
-    #expect(LessonScoring.bestStars(sessions: [step(.check, accuracy: 0.9)], lessonId: "ru.1.1", targetCpm: 60) == 0)
+    // Без подходящей проверки истории нет — берутся сохранённые звёзды.
+    #expect(effective([step(.check, accuracy: 1, cpm: 500, completed: false)], stored: 2) == 2)
+    #expect(effective([step(.drill, accuracy: 1)], stored: 2) == 2)
+    #expect(effective([step(.check, accuracy: 0.9)], stored: 2) == 0)
 }
 
 @Test func stepStatsTakeBestAttemptPerStepInLessonOrder() {

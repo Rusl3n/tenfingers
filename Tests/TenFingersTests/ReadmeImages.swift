@@ -110,6 +110,80 @@ func renderReadmeImages() throws {
     )
 }
 
+/// Экран «Ачивки» (русский интерфейс): часть полученных, остальные — силуэтами с условием; видны первые строки
+/// сетки. Названия и условия берутся из ресурсов ядра на русском (в тестах строки ядра идут на языке процесса).
+/// Запуск: RENDER_DOCS=1 swift test --filter renderAchievementsImage
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderAchievementsImage() throws {
+    let base = Date(timeIntervalSince1970: 1_790_000_000)
+    let ids = ["streak.3", "streak.7", "streak.14", "speed.ru.100", "speed.ru.150", "speed.en.100", "accuracy.sniper",
+               "course.first_lesson", "course.first_stage", "volume.chars.10k", "volume.hours.1", "special.night_owl",
+               "letters.ru.hello", "fun.not_today"]
+    let earned = ids.enumerated().map { index, id in
+        StoredAchievement(id: id, unlockedAt: base.addingTimeInterval(Double(index) * 86_400), seen: true)
+    }
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let ruStrings = try #require(try PropertyListSerialization.propertyList(
+        from: Data(contentsOf: root.appendingPathComponent("Sources/TypingCore/Resources/ru.lproj/Localizable.strings")),
+        format: nil) as? [String: String])
+    let entries = AchievementsListing.entries(catalog: AchievementCatalog.all, earned: earned, adultHumor: true)
+        .map { entry in
+            AchievementEntry(
+                achievement: entry.achievement, unlockedAt: entry.unlockedAt, seen: entry.seen,
+                lockedText: AchievementConditionText.describe(entry.achievement.condition,
+                                                              display: entry.achievement.lettersDisplay,
+                                                              localization: "ru"),
+                title: ruStrings[entry.achievement.titleKey])
+        }
+    let light = LightPalette.beige.palette
+    try render(
+        AchievementsContent(entries: entries, category: .constant(nil), freshIds: [], select: { _ in })
+            .frame(width: 900, height: 800, alignment: .top)
+            .clipped()
+            .background(light.background)
+            .environment(\.palette, light)
+            .environment(\.colorScheme, .light),
+        to: "achievements.png"
+    )
+}
+
+/// Карточки «Поделиться»: серия по-русски (светлый «огонь», квадрат) и рекорд скорости по-английски
+/// (тёмная палитра, широкая). Тексты — из Localization/<язык>.lproj (в тестах `Bundle.main` без переводов
+/// приложения), иконка — scripts/AppIcon.icns (в тестах её нет в бандле). Рисует `ShareCardRenderer`, как
+/// в приложении, но в масштабе 1 и в JPEG (качество 0,85): градиенты в PNG весят больше мегабайта.
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderShareCardImages() throws {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let icon = try #require(NSImage(contentsOf: root.appendingPathComponent("scripts/AppIcon.icns")))
+    func bundle(_ language: String) throws -> Bundle {
+        try #require(Bundle(url: root.appendingPathComponent("Localization/\(language).lproj")))
+    }
+    let (defaults, name) = makeTestDefaults("readme-share-")
+    defer { removeTestDefaults(name) }
+    defaults.set(DarkPalette.night.rawValue, forKey: SettingsKey.darkPalette)
+    let date = Date(timeIntervalSince1970: 1_792_843_200)
+    let dir = root.appendingPathComponent("docs/images")
+    func jpeg(_ view: ShareCardView, to name: String) throws {
+        let rep = try #require(NSBitmapImageRep(data: try ShareCardRenderer.png(view, scale: 1)))
+        let data = try #require(rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85]))
+        try data.write(to: dir.appendingPathComponent(name))
+    }
+
+    let streak = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .square)
+    try jpeg(ShareCardView.make(card: ShareCard(.streak(days: 30, full: 28), now: date), options: streak,
+                                profile: ShareProfile(nickname: "rusl3n", fullName: ""), defaults: defaults,
+                                bundle: bundle("ru"), locale: Locale(identifier: "ru"), appIcon: icon),
+             to: "share-streak-ru.jpg")
+
+    let speed = ShareOptions(signature: .nickname, theme: .dark, background: .colored, format: .wide)
+    try jpeg(ShareCardView.make(card: ShareCard(.speedRecord(.en, cpm: 268, date: date)), options: speed,
+                                profile: ShareProfile(nickname: "rusl3n", fullName: ""), defaults: defaults,
+                                bundle: bundle("en"), locale: Locale(identifier: "en"), appIcon: icon),
+             to: "share-speed-en.jpg")
+}
+
 /// Три недели занятий: полные дни, половинный, пропуск под заморозкой и начатый сегодняшний день.
 private func homeFixture() -> HomeData {
     let today = "2026-10-24"

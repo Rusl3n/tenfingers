@@ -66,6 +66,7 @@ struct AdaptiveRunnerView: View {
         case .summary(let summary):
             RunSummaryView(title: String(localized: "Порция \(summary.portion) готова"),
                            cpm: summary.cpm, accuracy: summary.accuracy, lines: lines(for: summary),
+                           newAchievements: coordinator?.newAchievements ?? [],
                            primaryTitle: "Дальше", onPrimary: { begin(summary.portion + 1) },
                            secondaryTitle: "Закончить", onSecondary: exit)
         }

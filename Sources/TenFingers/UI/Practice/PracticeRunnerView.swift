@@ -82,6 +82,7 @@ struct PracticeRunnerView: View {
         case .summary(let summary):
             RunSummaryView(title: summaryTitle(summary),
                            cpm: summary.cpm, accuracy: summary.accuracy, lines: summary.lines,
+                           newAchievements: coordinator?.newAchievements ?? [],
                            primaryTitle: primaryTitle(summary),
                            onPrimary: { summary.textFinished ? restart(after: summary.portion) : begin(summary.portion + 1) },
                            secondaryTitle: "Закончить", onSecondary: exit)

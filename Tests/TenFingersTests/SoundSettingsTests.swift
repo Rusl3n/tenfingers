@@ -4,7 +4,8 @@ import TypingCore
 @testable import TenFingers
 
 @Test func soundDefaultsMatchSpec() {
-    let defaults = UserDefaults(suiteName: "test.sound.\(UUID().uuidString)")!
+    let (defaults, name) = makeTestDefaults("test.sound.")
+    defer { removeTestDefaults(name) }
     for event in SoundEvent.allCases { #expect(SoundSettings.isEnabled(event, defaults: defaults)) }
     #expect(SoundSettings.volume(.keyClick, defaults: defaults) == 0.3)
     #expect(SoundSettings.volume(.error, defaults: defaults) == 0.6)

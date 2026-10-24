@@ -10,12 +10,16 @@ struct HomeView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(ContentLibrary.self) private var library
+    @Environment(SoundPlayer.self) private var sound
+    @Environment(ToastCenter.self) private var toasts
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var targetCpm = SettingsDefault.adaptiveTargetCpm
+    @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
     @Query private var progress: [LessonProgress]
+    @Query(sort: \AchievementRecord.unlockedAt, order: .reverse) private var achievementRecords: [AchievementRecord]
     @State private var data: HomeData?
     /// Последнее чтение из базы не удалось.
     @State private var loadFailed = false
@@ -29,19 +33,43 @@ struct HomeView: View {
                             startLesson: { start(.lesson($0)) },
                             openTraining: { navigate(.training) },
                             startWeakSpots: { start(.weakSpots(TrainingRun(language: language))) },
-                            openPractice: { navigate(.practice) })
+                            openPractice: { navigate(.practice) },
+                            latestAchievement: latestAchievement,
+                            openAchievements: { navigate(.achievements) })
             } else if loadFailed {
                 LoadErrorView(retry: reload)
             } else {
                 Color.clear
             }
         }
-        .onAppear(perform: reload)
+        .onAppear {
+            reload()
+            announcePendingFullDay()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .fullDayPending)) { _ in
+            reload()
+            announcePendingFullDay()
+        }
         .onChange(of: activeLanguage) { reload() }
         .onChange(of: dayStartHour) { reload() }
         .onChange(of: dailyGoal) { reload() }
         .onChange(of: targetCpm) { reload() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in reload() }
+    }
+
+    /// День стал полным при выходе без кнопки (меню, закрытие окна): тост и звук серии при показе главной
+    /// (`FullDayPending`).
+    private func announcePendingFullDay() {
+        guard FullDayPending().take(today: LogicalDay.key(for: .now, dayStartHour: dayStartHour)) else { return }
+        toasts.showFullFlame()
+        sound.play(.streak)
+    }
+
+    /// Последняя полученная видимая ачивка (скрытые «взрослые» при выключенном юморе не в счёт).
+    private var latestAchievement: AchievementEntry? {
+        AchievementsListing.latest(AchievementsListing.entries(
+            catalog: AchievementCatalog.all, earned: achievementRecords.map(StoredAchievement.init),
+            adultHumor: adultHumor))
     }
 
     private var continueInfo: ContinueInfo? {
@@ -90,7 +118,7 @@ struct HomeView: View {
     }
 }
 
-/// Раскладка главной сверху вниз: серия, неделя, метрики, продолжение курса, быстрые ссылки.
+/// Раскладка главной сверху вниз: серия, неделя, метрики, продолжение курса, быстрые ссылки, последняя ачивка.
 struct HomeContent: View {
     let data: HomeData
     let continueInfo: ContinueInfo?
@@ -99,6 +127,8 @@ struct HomeContent: View {
     let openTraining: () -> Void
     let startWeakSpots: () -> Void
     let openPractice: () -> Void
+    var latestAchievement: AchievementEntry?
+    var openAchievements: () -> Void = {}
 
     var body: some View {
         ScrollView { column }
@@ -114,6 +144,7 @@ struct HomeContent: View {
             if let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }
             QuickLinks(data: data, openTraining: openTraining, startWeakSpots: startWeakSpots,
                        openPractice: openPractice)
+            if let latestAchievement { LatestAchievementCard(entry: latestAchievement, open: openAchievements) }
         }
         .padding(24)
         .frame(maxWidth: 820, alignment: .leading)

@@ -16,15 +16,16 @@ import SwiftData
 ///
 /// Версия 1.0.0 совпадает с той, что SwiftData записывал в базу и без `VersionedSchema`,
 /// а хеши сущностей от версии не зависят, поэтому существующая база открывается как есть.
-/// `AdaptiveUnlock` и `SessionRecord.source` добавлены внутри той же версии: изменение аддитивное,
-/// SwiftData переносит базу облегчённой миграцией (проверено тестом на базе прежней схемы).
+/// `AdaptiveUnlock` и `SessionRecord.source` (поколение 2), `AchievementRecord` (поколение 3) добавлены внутри
+/// той же версии: изменение аддитивное, SwiftData переносит базу облегчённой миграцией (проверено тестами на базах
+/// прежних схем: `LegacySchemaPhase2`, `LegacySchemaGeneration2`).
 enum SchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
 
     static var models: [any PersistentModel.Type] {
         [
             SessionRecord.self, LessonProgress.self, KeyStat.self, BigramStat.self, DayRecord.self,
-            CounterRecord.self, AdaptiveState.self, CustomText.self, AdaptiveUnlock.self,
+            CounterRecord.self, AdaptiveState.self, CustomText.self, AdaptiveUnlock.self, AchievementRecord.self,
         ]
     }
 }

@@ -165,7 +165,26 @@ import SwiftData
     }
 }
 
+/// Полученная ачивка (фаза 4, поколение схемы 3). `achievementId` — стабильный id из `AchievementCatalog`;
+/// `unlockedAt` — дата события из истории (или момент проверки, если её не установить); `seen` — показана ли
+/// пользователю (ачивки, выданные задним числом при первом запуске, сразу просмотрены).
+@Model final class AchievementRecord {
+    #Unique<AchievementRecord>([\.achievementId])
+    var achievementId: String
+    var unlockedAt: Date
+    var seen: Bool = false
+
+    init(achievementId: String, unlockedAt: Date, seen: Bool = false) {
+        self.achievementId = achievementId
+        self.unlockedAt = unlockedAt
+        self.seen = seen
+    }
+}
+
 enum CounterName {
     static let wrongLayoutStarts = "wrongLayoutStarts"
     static let capsLockPresses = "capsLockPresses"
+
+    /// Все счётчики, которые пишет приложение (на них ссылаются ачивки `counter(name:threshold:)`).
+    static let all = [wrongLayoutStarts, capsLockPresses]
 }

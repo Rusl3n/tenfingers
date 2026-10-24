@@ -47,7 +47,8 @@ codesign --force --deep --sign - "$APP"
 # База копируется через `sqlite3 .backup` (согласованная копия, даже если приложение запущено);
 # источник открывается только для чтения, поэтому sqlite3 ничего в нём не меняет (не сливает -wal).
 # Хранятся последние 10 копий и, кроме них, самая новая копия каждого дня за последние 30 дней.
-# Старая ручная копия TenFingers.backup-before-phase2 лежит отдельно и не трогается.
+# Закреплённые копии (TenFingers.backup-before-phase2, TenFingers.backup-<метка>-<дата> от scripts/pin-backup.sh)
+# лежат отдельно, рядом с TenFingers.backups, и ротация их не трогает: она чистит только папки <дата>_<время> внутри.
 STORE_DIR="$HOME/Library/Application Support/TenFingers"
 BACKUPS="$HOME/Library/Application Support/TenFingers.backups"
 if [ -d "$STORE_DIR" ]; then

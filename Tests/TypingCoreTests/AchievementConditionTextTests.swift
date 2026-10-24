@@ -1,0 +1,181 @@
+import Foundation
+import Testing
+@testable import TypingCore
+
+private func ru(_ condition: AchievementCondition) -> String {
+    AchievementConditionText.describe(condition, localization: "ru")
+}
+
+private func en(_ condition: AchievementCondition) -> String {
+    AchievementConditionText.describe(condition, localization: "en")
+}
+
+/// Условие каждого вида: по одному примеру (порядок — как в `AchievementCondition`).
+private let samples: [AchievementCondition] = [
+    .streak(days: 7), .fullStreakNoFreeze(days: 30), .speed(.ru, cpm: 150), .speed(.en, cpm: 250),
+    .perfectAccuracy, .accuracyRun(count: 10, minimum: 0.98), .cleanDay(exercises: 5, minimum: 0.97),
+    .firstLesson, .firstStage, .courseCompleted(.ru), .courseCompleted(.en), .polyglot,
+    .allThreeStars(.ru), .volumeChars(100_000), .volumeHours(1), .volumeHours(0.5),
+    .finishedBetween(startHour: 0, endHour: 4), .noKeyboard, .steelPinkies(presses: 30),
+    .lettersUnlocked(.ru, Set("пица")), .lettersUnlocked(.ru, Set("ё")), .lettersUnlocked(.en, Set(":q!")),
+    .wholeAlphabet(.en),
+    .counter(name: "wrongLayoutStarts", threshold: 10), .counter(name: "capsLockPresses", threshold: 1),
+    .counter(name: "unknownCounter", threshold: 3),
+    .errorStreak(10), .errorsInExercise(50), .lessonReplays(10), .abandonsInDay(3),
+    .dayOfYear(month: 1, day: 1), .fridayThe13th, .bilingualDay, .marathonDay(minutes: 60),
+    .comeback(gapDays: 7),
+]
+
+@Test func everyConditionKindHasATextInBothLanguages() {
+    for condition in samples {
+        for localization in ["ru", "en"] {
+            let text = AchievementConditionText.describe(condition, localization: localization)
+            #expect(!text.isEmpty, "\(condition)")
+            #expect(!text.contains("achievement."), "ключ не переведён: «\(text)» (\(condition), \(localization))")
+            #expect(!text.contains("%@") && !text.contains("%lld"), "формат не подставлен: «\(text)» (\(condition), \(localization))")
+        }
+    }
+}
+
+@Test func englishConditionTextsHaveNoRussianWordsExceptLetters() {
+    for condition in samples {
+        let words = en(condition).components(separatedBy: CharacterSet.alphanumerics.inverted)
+        let cyrillic = words.filter { $0.unicodeScalars.contains { (0x400...0x4FF).contains($0.value) } }
+        #expect(cyrillic.allSatisfy { $0.count == 1 }, "\(condition): «\(en(condition))»")
+    }
+}
+
+@Test func streakAndFullStreak() {
+    #expect(ru(.streak(days: 7)) == "Дней занятий подряд: 7")
+    #expect(en(.streak(days: 7)) == "Practice streak, days: 7")
+    #expect(ru(.fullStreakNoFreeze(days: 30)) == "Полных дней подряд без заморозок: 30")
+    #expect(en(.fullStreakNoFreeze(days: 30)) == "Full days in a row without freezes: 30")
+}
+
+@Test func speedNamesLanguageAndMinimumLength() {
+    #expect(ru(.speed(.ru, cpm: 150)) == "Скорость, Русский: 150 зн/мин на тексте от 300 знаков")
+    #expect(en(.speed(.en, cpm: 250)) == "Speed, English: 250 cpm on a text of at least 300 characters")
+}
+
+@Test func accuracyConditions() {
+    #expect(ru(.perfectAccuracy) == "100% точности на тексте от 300 знаков")
+    #expect(en(.perfectAccuracy) == "100% accuracy on a text of at least 300 characters")
+    #expect(ru(.accuracyRun(count: 10, minimum: 0.98)) == "Упражнений подряд с точностью от 98%: 10")
+    #expect(en(.accuracyRun(count: 10, minimum: 0.98)) == "Exercises in a row with accuracy of 98% or more: 10")
+    #expect(ru(.cleanDay(exercises: 5, minimum: 0.97)) == "Упражнений за день: не меньше 5, все с точностью от 97%")
+    #expect(en(.cleanDay(exercises: 5, minimum: 0.97)) == "Exercises in a day: at least 5, all with accuracy of 97% or more")
+}
+
+@Test func fractionalAccuracyKeepsOneDecimal() {
+    #expect(ru(.accuracyRun(count: 3, minimum: 0.985)).contains("98,5%"))
+    #expect(en(.accuracyRun(count: 3, minimum: 0.985)).contains("98.5%"))
+}
+
+@Test func courseConditions() {
+    #expect(ru(.firstLesson) == "Пройдите первый урок курса")
+    #expect(en(.firstLesson) == "Complete the first lesson of the course")
+    #expect(ru(.firstStage) == "Пройдите все уроки одного этапа курса")
+    #expect(en(.firstStage) == "Complete every lesson of one course stage")
+    #expect(ru(.courseCompleted(.en)) == "Пройдите весь курс: English")
+    #expect(en(.courseCompleted(.ru)) == "Complete the whole course: Russian")
+    #expect(ru(.polyglot) == "Пройдите оба курса: русский и английский")
+    #expect(en(.polyglot) == "Complete both courses: Russian and English")
+    #expect(ru(.allThreeStars(.ru)) == "Все уроки курса на три звезды: Русский")
+    #expect(en(.allThreeStars(.en)) == "Every lesson of the course on three stars: English")
+}
+
+@Test func volumeConditions() {
+    #expect(ru(.volumeChars(100_000)).hasPrefix("Напечатано знаков: 100"))
+    #expect(en(.volumeChars(100_000)).hasPrefix("Characters typed: 100"))
+    #expect(ru(.volumeHours(1)) == "Часов чистой практики: 1")
+    #expect(en(.volumeHours(50)) == "Hours of pure practice: 50")
+    #expect(ru(.volumeHours(0.5)) == "Часов чистой практики: 0,5")
+}
+
+@Test func specialConditions() {
+    #expect(ru(.finishedBetween(startHour: 0, endHour: 4)) == "Завершите упражнение между 0:00 и 4:00")
+    #expect(en(.finishedBetween(startHour: 6, endHour: 8)) == "Finish an exercise between 6:00 and 8:00")
+    #expect(ru(.noKeyboard) == "Упражнение от 300 знаков без экранной клавиатуры")
+    #expect(en(.noKeyboard) == "An exercise of at least 300 characters without the on-screen keyboard")
+    #expect(ru(.steelPinkies(presses: 30)) == "Упражнение без единой ошибки мизинцами; нажатий мизинцами не меньше: 30")
+    #expect(en(.steelPinkies(presses: 30)) == "An exercise with no pinky errors; pinky presses, at least: 30")
+}
+
+@Test func lettersAreListedInAdaptiveOrderUppercased() {
+    // Порядок задан языком (множество его не хранит): адаптивный порядок «оеаинтсрвлкмдпуяыьгзбчйхжшюцщэфъё».
+    #expect(ru(.lettersUnlocked(.ru, Set("пица"))) == "Откройте буквы: А И П Ц")
+    #expect(en(.lettersUnlocked(.ru, Set("пица"))) == "Open the letters: А И П Ц")
+    #expect(ru(.lettersUnlocked(.ru, Set("привет"))) == "Откройте буквы: Е И Т Р В П")
+}
+
+@Test func displayOrderOverridesTheAdaptiveOrder() {
+    func ru(_ letters: String, display: String?) -> String {
+        AchievementConditionText.describe(.lettersUnlocked(.ru, Set(letters)), display: display, localization: "ru")
+    }
+    #expect(ru("пица", display: "пицца") == "Откройте буквы: П И Ц А")
+    // Чего нет в display — после, в адаптивном порядке; лишнее из display (не в условии) игнорируется.
+    #expect(ru("пица", display: "пц") == "Откройте буквы: П Ц А И")
+    #expect(ru("пица", display: "пицаяя") == "Откройте буквы: П И Ц А")
+    #expect(ru("пица", display: nil) == "Откройте буквы: А И П Ц")
+    #expect(AchievementConditionText.describe(.lettersUnlocked(.en, Set(":q!")), display: ":q!", localization: "en")
+            == "Open the characters: : Q !")
+}
+
+@Test func singleLetterUsesTheSingularForm() {
+    #expect(ru(.lettersUnlocked(.ru, Set("ё"))) == "Откройте букву: Ё")
+    #expect(en(.lettersUnlocked(.ru, Set("ё"))) == "Open the letter: Ё")
+}
+
+@Test func symbolsAreListedAfterLettersInsteadOfClaimingToBeLetters() {
+    #expect(ru(.lettersUnlocked(.en, Set(":q!"))) == "Откройте символы: Q ! :")
+    #expect(en(.lettersUnlocked(.en, Set(":q!"))) == "Open the characters: Q ! :")
+}
+
+@Test func lettersTextIsStableAcrossCalls() {
+    let condition = AchievementCondition.lettersUnlocked(.en, Set("helowrd"))
+    #expect(en(condition) == en(condition))
+    #expect(en(condition) == "Open the letters: E O R H L D W")
+}
+
+@Test func wholeAlphabetNamesTheLanguage() {
+    #expect(ru(.wholeAlphabet(.ru)) == "Откройте весь алфавит: Русский")
+    #expect(en(.wholeAlphabet(.en)) == "Open the whole alphabet: English")
+}
+
+@Test func counterConditions() {
+    #expect(ru(.counter(name: "wrongLayoutStarts", threshold: 10)) == "Попыток начать печатать не в той раскладке: 10")
+    #expect(en(.counter(name: "wrongLayoutStarts", threshold: 10)) == "Times you started typing in the wrong layout: 10")
+    #expect(ru(.counter(name: "capsLockPresses", threshold: 1)) == "Нажатий Caps Lock во время упражнения: 1")
+    #expect(en(.counter(name: "capsLockPresses", threshold: 1)) == "Caps Lock presses during an exercise: 1")
+    // Неизвестный счётчик (из более новой версии) — общий текст, а не ключ.
+    #expect(ru(.counter(name: "unknownCounter", threshold: 3)) == "Событий в приложении: 3")
+    #expect(en(.counter(name: "unknownCounter", threshold: 3)) == "App events: 3")
+}
+
+@Test func funConditions() {
+    #expect(ru(.errorStreak(10)) == "Ошибок подряд в одном упражнении: 10")
+    #expect(en(.errorStreak(10)) == "Errors in a row in one exercise: 10")
+    #expect(ru(.errorsInExercise(50)) == "Ошибок в одном упражнении: 50")
+    #expect(en(.errorsInExercise(50)) == "Errors in one exercise: 50")
+    #expect(ru(.lessonReplays(10)) == "Попыток одного урока: 10")
+    #expect(en(.lessonReplays(10)) == "Attempts at one lesson: 10")
+    #expect(ru(.abandonsInDay(3)) == "Брошенных упражнений за день: 3")
+    #expect(en(.abandonsInDay(3)) == "Abandoned exercises in a day: 3")
+    #expect(ru(.dayOfYear(month: 1, day: 1)) == "Позанимайтесь в этот день: 1 января")
+    #expect(en(.dayOfYear(month: 1, day: 1)) == "Practice on this day: January 1")
+    #expect(ru(.fridayThe13th) == "Позанимайтесь в пятницу, 13-го числа")
+    #expect(en(.fridayThe13th) == "Practice on Friday the 13th")
+    #expect(ru(.bilingualDay) == "Упражнения на обоих языках за один день")
+    #expect(en(.bilingualDay) == "Exercises in both languages in one day")
+    #expect(ru(.marathonDay(minutes: 60)) == "Минут чистой практики за день: 60")
+    #expect(en(.marathonDay(minutes: 60)) == "Minutes of pure practice in a day: 60")
+    #expect(ru(.comeback(gapDays: 7)) == "Вернитесь к занятиям после перерыва в днях: 7")
+    #expect(en(.comeback(gapDays: 7)) == "Come back to practice after a break, in days: 7")
+}
+
+@Test func everyCatalogConditionIsDescribed() {
+    for achievement in AchievementCatalog.all {
+        let text = achievement.conditionText
+        #expect(!text.isEmpty && !text.contains("achievement."), "«\(achievement.id)»: «\(text)»")
+    }
+}

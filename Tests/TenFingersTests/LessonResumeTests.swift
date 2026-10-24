@@ -2,12 +2,9 @@ import Foundation
 import Testing
 @testable import TenFingers
 
-/// Изолированное хранилище на тест: стандартные настройки пользователя не трогаем.
-private func isolatedDefaults() -> UserDefaults {
-    let name = "TenFingersTests.LessonResume.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: name)!
-    defaults.removePersistentDomain(forName: name)
-    return defaults
+/// Изолированное хранилище на тест: стандартные настройки пользователя не трогаем; удаляется в `defer`.
+private func isolatedDefaults() -> (UserDefaults, String) {
+    makeTestDefaults("TenFingersTests.LessonResume.")
 }
 
 private let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -33,7 +30,9 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 }
 
 @Test func resumeIsStoredPerLessonAndCleared() {
-    let resume = LessonResume(defaults: isolatedDefaults())
+    let (defaults, name) = isolatedDefaults()
+    defer { removeTestDefaults(name) }
+    let resume = LessonResume(defaults: defaults)
     resume.stepFinished(lessonId: "ru.1.1", index: 0, totalSteps: 4, now: now)
     resume.stepFinished(lessonId: "ru.1.1", index: 1, totalSteps: 4, now: now)
     #expect(resume.load(lessonId: "ru.1.1") == LessonResumeState(completedSteps: 2, totalSteps: 4, updatedAt: now))
@@ -45,7 +44,8 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 }
 
 @Test func mismatchedResumeIsDroppedOnStart() {
-    let defaults = isolatedDefaults()
+    let (defaults, name) = isolatedDefaults()
+    defer { removeTestDefaults(name) }
     let resume = LessonResume(defaults: defaults)
     resume.stepFinished(lessonId: "ru.1.1", index: 1, totalSteps: 4, now: now)
     #expect(resume.start(lessonId: "ru.1.1", totalSteps: 3) == 0)
@@ -54,14 +54,17 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 }
 
 @Test func clearRemovesResume() {
-    let resume = LessonResume(defaults: isolatedDefaults())
+    let (defaults, name) = isolatedDefaults()
+    defer { removeTestDefaults(name) }
+    let resume = LessonResume(defaults: defaults)
     resume.stepFinished(lessonId: "en.1.1", index: 0, totalSteps: 4, now: now)
     resume.clear(lessonId: "en.1.1")
     #expect(resume.load(lessonId: "en.1.1") == nil)
 }
 
 @Test func unreadableResumeIsIgnored() {
-    let defaults = isolatedDefaults()
+    let (defaults, name) = isolatedDefaults()
+    defer { removeTestDefaults(name) }
     defaults.set(Data("мусор".utf8), forKey: "lessonResume.ru.1.1")
     #expect(LessonResume(defaults: defaults).start(lessonId: "ru.1.1", totalSteps: 4) == 0)
 }

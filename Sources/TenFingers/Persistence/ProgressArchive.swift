@@ -73,6 +73,7 @@ enum ArchiveError: Error, Equatable, LocalizedError {
         case "AdaptiveUnlock": String(localized: "Открытые буквы")
         case "CounterRecord": String(localized: "Счётчики")
         case "CustomText": String(localized: "Свои тексты")
+        case "AchievementRecord": String(localized: "Ачивки")
         default: model
         }
     }
@@ -115,13 +116,17 @@ enum ProgressArchive {
         var adaptiveUnlocks: [AdaptiveUnlockDTO]
         var counters: [CounterDTO]
         var customTexts: [CustomTextDTO]
+        /// Полученные ачивки (поколение 3). В архиве более старого поколения раздела нет: ачивки выдаст
+        /// проверка после загрузки (`AchievementService`).
+        var achievements: [AchievementDTO]
 
         init(format: String = ProgressArchive.format, version: Int = ProgressArchive.version, exportedAt: Date?,
              appVersion: String, schemaGeneration: Int = SchemaGeneration.current, profile: ProfileDTO,
              settings: [String: SettingValue], lessonResume: [String: LessonResumeState],
              sessions: [SessionDTO], days: [DayDTO], keyStats: [KeyStatDTO], bigramStats: [BigramStatDTO],
              lessonProgress: [LessonProgressDTO], adaptiveStates: [AdaptiveStateDTO],
-             adaptiveUnlocks: [AdaptiveUnlockDTO], counters: [CounterDTO], customTexts: [CustomTextDTO]) {
+             adaptiveUnlocks: [AdaptiveUnlockDTO], counters: [CounterDTO], customTexts: [CustomTextDTO],
+             achievements: [AchievementDTO]) {
             self.format = format
             self.version = version
             self.exportedAt = exportedAt
@@ -139,6 +144,7 @@ enum ProgressArchive {
             self.adaptiveUnlocks = adaptiveUnlocks
             self.counters = counters
             self.customTexts = customTexts
+            self.achievements = achievements
         }
 
         init(from decoder: any Decoder) throws {
@@ -160,12 +166,24 @@ enum ProgressArchive {
             adaptiveUnlocks = try c.value(.adaptiveUnlocks, default: [])
             counters = try c.value(.counters, default: [])
             customTexts = try c.value(.customTexts, default: [])
+            achievements = try c.value(.achievements, default: [])
         }
 
         /// Количество записей в каждом разделе (для проверки записанной резервной копии).
         var recordCounts: [Int] {
             [sessions.count, days.count, keyStats.count, bigramStats.count, lessonProgress.count,
-             adaptiveStates.count, adaptiveUnlocks.count, counters.count, customTexts.count, lessonResume.count]
+             adaptiveStates.count, adaptiveUnlocks.count, counters.count, customTexts.count, lessonResume.count,
+             achievements.count]
+        }
+
+        /// Число записей по моделям (имя совпадает с сущностью `ModelStore.schema`): по нему тест проверяет,
+        /// что архив поддерживает каждую сущность схемы.
+        var recordCountsByModel: [String: Int] {
+            [SessionDTO.modelName: sessions.count, DayDTO.modelName: days.count,
+             KeyStatDTO.modelName: keyStats.count, BigramStatDTO.modelName: bigramStats.count,
+             LessonProgressDTO.modelName: lessonProgress.count, AdaptiveStateDTO.modelName: adaptiveStates.count,
+             AdaptiveUnlockDTO.modelName: adaptiveUnlocks.count, CounterDTO.modelName: counters.count,
+             CustomTextDTO.modelName: customTexts.count, AchievementDTO.modelName: achievements.count]
         }
     }
 
@@ -181,6 +199,7 @@ enum ProgressArchive {
         case "adaptiveUnlocks": AdaptiveUnlockDTO.modelName
         case "counters": CounterDTO.modelName
         case "customTexts": CustomTextDTO.modelName
+        case "achievements": AchievementDTO.modelName
         default: nil
         }
     }
@@ -218,7 +237,8 @@ enum ProgressArchive {
                 .sorted { ($0.unlockedAt, $0.language, $0.letter) < ($1.unlockedAt, $1.language, $1.letter) },
             counters: try all(CounterRecord.self).map(CounterDTO.init).sorted { $0.name < $1.name },
             customTexts: try all(CustomText.self).map(CustomTextDTO.init)
-                .sorted { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) })
+                .sorted { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) },
+            achievements: try all(AchievementRecord.self).map(AchievementDTO.init).sorted { $0.achievementId < $1.achievementId })
     }
 
     /// Весь прогресс (с несохранёнными изменениями контекста) в JSON.
@@ -330,8 +350,9 @@ enum ProgressArchive {
 
     // MARK: Замена
 
-    /// Заменяет всё содержимое базы данными архива одной транзакцией: удаляет все объекты всех моделей,
-    /// вставляет записи архива и сохраняет один раз. Любая ошибка (битая или повторяющаяся запись,
+    /// Заменяет всё содержимое базы данными архива одной транзакцией: удаляет все объекты всех моделей схемы
+    /// (`SchemaV1.models`, а не ручной список: новая модель очищается сама, а тест `replaceAllHandlesEverySchemaEntity`
+    /// напоминает добавить для неё раздел архива), вставляет записи архива и сохраняет один раз. Любая ошибка (битая или повторяющаяся запись,
     /// отказ сохранения) откатывает контекст: база остаётся как была.
     /// Удаление и вставка с теми же уникальными ключами в одном сохранении проверены тестами
     /// (в памяти и на диске). `beforeSave` — шов для тестов: бросает ошибку перед сохранением.
@@ -340,15 +361,7 @@ enum ProgressArchive {
                                       beforeSave: (() throws -> Void)? = nil) throws {
         if context.hasChanges { try context.save() }
         do {
-            try deleteAll(SessionRecord.self, in: context)
-            try deleteAll(DayRecord.self, in: context)
-            try deleteAll(KeyStat.self, in: context)
-            try deleteAll(BigramStat.self, in: context)
-            try deleteAll(LessonProgress.self, in: context)
-            try deleteAll(AdaptiveState.self, in: context)
-            try deleteAll(AdaptiveUnlock.self, in: context)
-            try deleteAll(CounterRecord.self, in: context)
-            try deleteAll(CustomText.self, in: context)
+            for type in SchemaV1.models { try deleteAll(type, in: context) }
             var keys = UniqueKeys()
             try forEachRecord(of: archive, keys: &keys) { context.insert($0) }
             try beforeSave?()
@@ -393,6 +406,7 @@ enum ProgressArchive {
         try each(archive.adaptiveUnlocks, body)
         try each(archive.counters, body)
         try each(archive.customTexts, body)
+        try each(archive.achievements, body)
     }
 
     /// Настройки, профиль и продолжения уроков из архива (после успешной замены базы).
@@ -448,6 +462,8 @@ struct ProgressImporter {
     let backupDirectory: URL
     /// Шов для тестов (см. `ProgressArchive.replaceAll`).
     var beforeSave: (() throws -> Void)?
+    /// Куда сообщить о замене прогресса (`.progressReplaced`).
+    var notifications: NotificationCenter = .default
 
     init(context: ModelContext, defaults: UserDefaults = .standard,
          backupDirectory: URL = ProgressArchive.backupsDirectory) {
@@ -466,6 +482,8 @@ struct ProgressImporter {
         }
         try ProgressArchive.replaceAll(with: archive, context: context, beforeSave: beforeSave)
         ProgressArchive.applyPreferences(of: archive, to: defaults)
+        // Ачивки проверяются заново (в файле старого поколения их нет), кэш фактов устарел.
+        notifications.post(name: .progressReplaced, object: nil)
         return backup
     }
 
@@ -833,6 +851,33 @@ extension ProgressArchive {
     }
 }
 
+extension ProgressArchive {
+    struct AchievementDTO: Codable, Equatable, ArchiveRecord {
+        var achievementId: String
+        var unlockedAt: Date
+        var seen: Bool
+
+        init(_ m: AchievementRecord) {
+            achievementId = m.achievementId; unlockedAt = m.unlockedAt; seen = m.seen
+        }
+
+        init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            achievementId = try c.decode(String.self, forKey: .achievementId)
+            unlockedAt = try c.decode(Date.self, forKey: .unlockedAt)
+            seen = try c.value(.seen, default: false)
+        }
+
+        static let modelName = "AchievementRecord"
+        var isValid: Bool { !achievementId.isEmpty }
+        var uniqueKey: String? { achievementId }
+
+        func makeModel() -> any PersistentModel {
+            AchievementRecord(achievementId: achievementId, unlockedAt: unlockedAt, seen: seen)
+        }
+    }
+}
+
 // MARK: - Настройки
 
 /// Значение настройки в архиве: JSON-скаляр. Тип при загрузке определяется ключом (`ArchivedSettings`).
@@ -880,9 +925,11 @@ enum ArchivedSettings {
             (SettingsKey.activeLanguage, .string), (SettingsKey.hintMode, .string), (SettingsKey.speedUnit, .string),
             (SettingsKey.dayStartHour, .int), (SettingsKey.dailyGoalMinutes, .int),
             (SettingsKey.adaptiveTargetCpm, .int), (SettingsKey.spaceThumbHint, .bool),
-            (SettingsKey.quitOnWindowClose, .bool),
+            (SettingsKey.quitOnWindowClose, .bool), (SettingsKey.adultHumor, .bool),
             (SettingsKey.keyboardUnit, .double), (SettingsKey.keyboardOffset, .double),
             (SettingsKey.remindersEnabled, .bool), (SettingsKey.reminderHour, .int), (SettingsKey.reminderMinute, .int),
+            (SettingsKey.shareSignature, .string), (SettingsKey.shareTheme, .string),
+            (SettingsKey.shareBackground, .string), (SettingsKey.shareFormat, .string),
         ] + SoundEvent.allCases.flatMap { event -> [(key: String, kind: Kind)] in
             [(SoundSettings.enabledKey(event), .bool), (SoundSettings.volumeKey(event), .double)]
         }
@@ -925,6 +972,8 @@ enum ArchivedSettings {
     }
 
     /// Ключа нет в архиве — настройка возвращается к значению по умолчанию; значение не того типа пропускается.
+    /// Числа приводятся к допустимым пределам (`bounded`): файл можно править руками, а значение вне диапазона
+    /// ломало бы экраны (клавиатура за пределами окна, час 99, цель вне списка).
     static func apply(_ values: [String: SettingValue], to defaults: UserDefaults) {
         for (key, kind) in entries {
             guard let value = values[key] else {
@@ -933,12 +982,48 @@ enum ArchivedSettings {
             }
             switch (kind, value) {
             case (.bool, .bool(let v)): defaults.set(v, forKey: key)
-            case (.int, .int(let v)): defaults.set(v, forKey: key)
-            case (.double, .double(let v)): defaults.set(v, forKey: key)
-            case (.double, .int(let v)): defaults.set(Double(v), forKey: key)
+            case (.int, .int(let v)): defaults.set(boundedInt(v, key: key), forKey: key)
+            case (.double, .double(let v)): setDouble(v, key: key, defaults: defaults)
+            case (.double, .int(let v)): setDouble(Double(v), key: key, defaults: defaults)
             case (.string, .string(let v)): defaults.set(v, forKey: key)
             default: archiveLog.notice("Progress file: setting \(key, privacy: .public) has another type, current value kept")
             }
+        }
+    }
+
+    private static func setDouble(_ value: Double, key: String, defaults: UserDefaults) {
+        guard value.isFinite else {
+            archiveLog.notice("Progress file: setting \(key, privacy: .public) is not finite, current value kept")
+            return
+        }
+        defaults.set(boundedDouble(value, key: key), forKey: key)
+    }
+
+    private static func nearest<T: BinaryInteger>(_ value: T, in options: [T]) -> T {
+        options.min { abs(Int($0) - Int(value)) < abs(Int($1) - Int(value)) } ?? value
+    }
+
+    /// Целые настройки: часы 0…23, минуты 0…59, начало дня 0…6, цели — ближайшее значение из списка выбора.
+    static func boundedInt(_ value: Int, key: String) -> Int {
+        switch key {
+        case SettingsKey.dayStartHour: min(max(value, 0), 6)
+        case SettingsKey.darkFromHour, SettingsKey.darkToHour, SettingsKey.reminderHour: min(max(value, 0), 23)
+        case SettingsKey.reminderMinute: min(max(value, 0), 59)
+        case SettingsKey.dailyGoalMinutes: nearest(value, in: SettingsDefault.dailyGoalOptions)
+        case SettingsKey.adaptiveTargetCpm: nearest(value, in: SettingsDefault.adaptiveTargetOptions)
+        default: value
+        }
+    }
+
+    /// Дробные настройки: клавиатура — пределы `KeyboardSizing`, масштаб — ближайший из `UIScale.options`,
+    /// громкость 0…1.
+    static func boundedDouble(_ value: Double, key: String) -> Double {
+        switch key {
+        case SettingsKey.keyboardUnit: KeyboardSizing.clampedUnit(value)
+        case SettingsKey.keyboardOffset: KeyboardSizing.clampedOffset(value)
+        case SettingsKey.uiScale: UIScale.clamped(value)
+        case _ where key.hasPrefix("sound.") && key.hasSuffix(".volume"): min(max(value, 0), 1)
+        default: value
         }
     }
 

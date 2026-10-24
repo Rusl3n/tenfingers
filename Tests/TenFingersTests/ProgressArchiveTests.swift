@@ -9,10 +9,9 @@ import UniformTypeIdentifiers
 
 private let base = Date(timeIntervalSince1970: 1_790_000_000.25)
 
-/// Отдельный домен настроек на тест; удаляется в `defer`.
+/// Отдельный домен настроек на тест; удаляется в `defer` через `removeTestDefaults`.
 private func makeDefaults() -> (UserDefaults, String) {
-    let name = "ProgressArchiveTests-\(UUID().uuidString)"
-    return (UserDefaults(suiteName: name)!, name)
+    makeTestDefaults("ProgressArchiveTests-")
 }
 
 private func temporaryDirectory(_ prefix: String) throws -> URL {
@@ -80,6 +79,8 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
     let text = CustomText(title: "Заметка \(tag)", body: "Привет, мир", language: "ru", createdAt: base)
     text.offset = 7
     context.insert(text)
+    context.insert(AchievementRecord(achievementId: "course.first_lesson", unlockedAt: base.addingTimeInterval(62),
+                                     seen: true))
     try context.save()
 }
 
@@ -91,7 +92,8 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
 @MainActor private func counts(_ context: ModelContext) throws -> [Int] {
     [try count(SessionRecord.self, context), try count(LessonProgress.self, context), try count(KeyStat.self, context),
      try count(BigramStat.self, context), try count(DayRecord.self, context), try count(CounterRecord.self, context),
-     try count(AdaptiveState.self, context), try count(CustomText.self, context), try count(AdaptiveUnlock.self, context)]
+     try count(AdaptiveState.self, context), try count(CustomText.self, context), try count(AdaptiveUnlock.self, context),
+     try count(AchievementRecord.self, context)]
 }
 
 private func archiveJSON(_ fields: String) -> Data {
@@ -104,7 +106,7 @@ private func archiveJSON(_ fields: String) -> Data {
     let sourceContainer = try ModelStore.makeContainer(inMemory: true)
     let source = sourceContainer.mainContext
     let (sourceDefaults, sourceName) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: sourceName) }
+    defer { removeTestDefaults(sourceName) }
     try populate(source)
     let originalSessionIds = Set(try source.fetch(FetchDescriptor<SessionRecord>()).map(\.id))
     let originalTextId = try #require(try source.fetch(FetchDescriptor<CustomText>()).first?.id)
@@ -119,7 +121,7 @@ private func archiveJSON(_ fields: String) -> Data {
     let target = targetContainer.mainContext
     try ProgressArchive.replaceAll(with: archive, context: target)
     #expect(try counts(target) == counts(source))
-    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1])
+    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1])
 
     let sessions = try target.fetch(FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.startedAt)]))
     #expect(Set(sessions.map(\.id)) == originalSessionIds)
@@ -172,6 +174,10 @@ private func archiveJSON(_ fields: String) -> Data {
     #expect(text.title == "Заметка a" && text.body == "Привет, мир" && text.language == "ru")
     #expect(text.offset == 7)
     #expect(abs(text.createdAt.timeIntervalSince(base)) < 0.001)
+
+    let achievement = try #require(try target.fetch(FetchDescriptor<AchievementRecord>()).first)
+    #expect(achievement.achievementId == "course.first_lesson" && achievement.seen)
+    #expect(abs(achievement.unlockedAt.timeIntervalSince(base.addingTimeInterval(62))) < 0.001)
 }
 
 /// Набор моделей и полей архива совпадает со схемой: новая модель или поле без поддержки в архиве ломает тест.
@@ -189,7 +195,7 @@ private func archiveJSON(_ fields: String) -> Data {
     for lesson in try context.fetch(FetchDescriptor<LessonProgress>()) { lesson.passedAt = lesson.passedAt ?? base }
     try context.save()
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
 
     let data = try ProgressArchive.export(context: context, defaults: defaults, now: base)
     let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -197,6 +203,7 @@ private func archiveJSON(_ fields: String) -> Data {
         "SessionRecord": "sessions", "LessonProgress": "lessonProgress", "KeyStat": "keyStats",
         "BigramStat": "bigramStats", "DayRecord": "days", "CounterRecord": "counters",
         "AdaptiveState": "adaptiveStates", "AdaptiveUnlock": "adaptiveUnlocks", "CustomText": "customTexts",
+        "AchievementRecord": "achievements",
     ]
     #expect(Set(ModelStore.schema.entities.map(\.name)) == Set(sections.keys))
     for entity in ModelStore.schema.entities {
@@ -273,11 +280,53 @@ private func archiveJSON(_ fields: String) -> Data {
 
 // MARK: - Замена прогресса
 
+/// Число объектов сущности по имени из `ModelStore.schema` (тип берётся из `SchemaV1.models`).
+@MainActor private func objectCount(entity name: String, _ context: ModelContext) throws -> Int? {
+    guard let type = SchemaV1.models.first(where: { String(describing: $0) == name }) else { return nil }
+    return try count(type, context)
+}
+
+/// Защитный тест: каждая сущность схемы должна поддерживаться архивом и заменой. Новая модель без поддержки
+/// в архиве (нет раздела, не удаляется при замене) или без заполнения в `populate` роняет этот тест.
+@MainActor @Test func replaceAllHandlesEverySchemaEntity() throws {
+    let entities = ModelStore.schema.entities.map(\.name)
+    #expect(Set(entities) == Set(SchemaV1.models.map { String(describing: $0) }))
+
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    try populate(source, tag: "new")
+    let archive = try ProgressArchive.decode(ProgressArchive.export(context: source, defaults: defaults, now: base))
+    let archived = archive.recordCountsByModel
+
+    // В базе до замены есть объекты каждой сущности, и они не совпадают с архивом ни числом, ни ключами.
+    let targetContainer = try ModelStore.makeContainer(inMemory: true)
+    let target = targetContainer.mainContext
+    try populate(target, tag: "old")
+    target.insert(SessionRecord(mode: "words", language: "ru", lessonId: nil, startedAt: base, endedAt: base,
+                                logicalDay: "2026-01-01", activeSeconds: 1, chars: 1, errorCount: 0, cpm: 1,
+                                accuracy: 1, completed: true, hintLevel: "full", maxErrorStreak: 0,
+                                wrongKeystrokes: 0))
+    try target.save()
+
+    for entity in entities {
+        #expect(try (objectCount(entity: entity, source) ?? 0) > 0, "populate не заполняет \(entity)")
+        #expect(try (objectCount(entity: entity, target) ?? 0) > 0, "populate не заполняет \(entity)")
+        #expect(archived[entity] != nil, "в архиве нет раздела для \(entity)")
+    }
+    try ProgressArchive.replaceAll(with: archive, context: target)
+    for entity in entities {
+        #expect(try objectCount(entity: entity, target) == archived[entity], "после замены число \(entity) не как в архиве")
+    }
+    #expect(Set(archived.keys) == Set(entities))
+}
+
 @MainActor @Test func replaceAllOverExistingDataReplacesEverything() throws {
     let sourceContainer = try ModelStore.makeContainer(inMemory: true)
     let source = sourceContainer.mainContext
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
     try populate(source, tag: "new")
     // В архиве меняем значения при тех же уникальных ключах (урок, день, клавиша, счётчик, язык).
     for lesson in try source.fetch(FetchDescriptor<LessonProgress>()) { lesson.attempts = 42 }
@@ -298,7 +347,7 @@ private func archiveJSON(_ fields: String) -> Data {
 
     try ProgressArchive.replaceAll(with: archive, context: target)
     #expect(!target.hasChanges)
-    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1])
+    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1])
     let sources = Set(try target.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source))
     #expect(sources == ["library:new"])
     #expect(try target.fetch(FetchDescriptor<LessonProgress>()).allSatisfy { $0.attempts == 42 })
@@ -313,7 +362,7 @@ private func archiveJSON(_ fields: String) -> Data {
     let sourceContainer = try ModelStore.makeContainer(inMemory: true)
     let source = sourceContainer.mainContext
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
     try populate(source, tag: "new")
     var archive = try ProgressArchive.decode(ProgressArchive.export(context: source, defaults: defaults, now: base))
     // Битая запись — в середине: перед ней уже удалены старые данные и вставлены новые сессии.
@@ -339,7 +388,7 @@ private func archiveJSON(_ fields: String) -> Data {
     let sourceContainer = try ModelStore.makeContainer(inMemory: true)
     let source = sourceContainer.mainContext
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
     try populate(source)
     var archive = try ProgressArchive.decode(ProgressArchive.export(context: source, defaults: defaults, now: base))
     archive.lessonProgress.append(archive.lessonProgress[0])
@@ -363,7 +412,7 @@ private func archiveJSON(_ fields: String) -> Data {
     let contextContainer = try ModelStore.makeContainer(inMemory: true)
     let context = contextContainer.mainContext
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
     try populate(context)
     defaults.set("rusl3n", forKey: SettingsKey.profileNickname)
     defaults.set("Руслан", forKey: SettingsKey.profileFullName)
@@ -390,8 +439,8 @@ private func archiveJSON(_ fields: String) -> Data {
     let (source, sourceName) = makeDefaults()
     let (target, targetName) = makeDefaults()
     defer {
-        UserDefaults().removePersistentDomain(forName: sourceName)
-        UserDefaults().removePersistentDomain(forName: targetName)
+        removeTestDefaults(sourceName)
+        removeTestDefaults(targetName)
     }
     source.set("dark", forKey: SettingsKey.themeMode)
     source.set(15, forKey: SettingsKey.dailyGoalMinutes)
@@ -438,7 +487,7 @@ private func archiveJSON(_ fields: String) -> Data {
 
 @Test func settingValuesOfWrongTypeOrUnknownKeysAreIgnored() throws {
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
     defaults.set(5, forKey: SettingsKey.dailyGoalMinutes)
     let archive = try ProgressArchive.decode(archiveJSON(#"""
         "format": "tenfingers-progress", "version": 1, "schemaGeneration": 2,
@@ -449,6 +498,57 @@ private func archiveJSON(_ fields: String) -> Data {
     #expect(defaults.object(forKey: SettingsKey.uiScale) as? Double == 1)
     #expect(defaults.object(forKey: "unknownKey") == nil)
     #expect(defaults.object(forKey: SettingsKey.dayStartHour) == nil)
+}
+
+@Test func settingNumbersOutsideValidRangesAreClampedOnApply() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    let archive = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 2,
+        "settings": {
+            "dayStartHour": 99, "dailyGoalMinutes": 12, "adaptiveTargetCpm": 9999,
+            "keyboardUnit": 500, "keyboardOffset": -9000, "uiScale": 7,
+            "darkFromHour": -3, "darkToHour": 40, "reminderHour": 24, "reminderMinute": 75,
+            "sound.keyClick.volume": 5
+        }
+        """#))
+    ProgressArchive.applyPreferences(of: archive, to: defaults)
+    #expect(defaults.object(forKey: SettingsKey.dayStartHour) as? Int == 6)
+    #expect(defaults.object(forKey: SettingsKey.dailyGoalMinutes) as? Int == 10) // ближайшее из списка
+    #expect(defaults.object(forKey: SettingsKey.adaptiveTargetCpm) as? Int == 250)
+    #expect(defaults.object(forKey: SettingsKey.keyboardUnit) as? Double == KeyboardSizing.unitRange.upperBound)
+    #expect(defaults.object(forKey: SettingsKey.keyboardOffset) as? Double == KeyboardSizing.offsetRange.lowerBound)
+    #expect(defaults.object(forKey: SettingsKey.uiScale) as? Double == 1.5)
+    #expect(defaults.object(forKey: SettingsKey.darkFromHour) as? Int == 0)
+    #expect(defaults.object(forKey: SettingsKey.darkToHour) as? Int == 23)
+    #expect(defaults.object(forKey: SettingsKey.reminderHour) as? Int == 23)
+    #expect(defaults.object(forKey: SettingsKey.reminderMinute) as? Int == 59)
+    #expect(defaults.object(forKey: SoundSettings.volumeKey(.keyClick)) as? Double == 1)
+}
+
+@Test func settingNumbersInsideValidRangesAreAppliedAsIs() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    let archive = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 2,
+        "settings": {
+            "dayStartHour": 0, "dailyGoalMinutes": 30, "adaptiveTargetCpm": 150, "keyboardUnit": 44,
+            "keyboardOffset": 20.5, "uiScale": 1.1, "darkFromHour": 21, "darkToHour": 6,
+            "reminderHour": 7, "reminderMinute": 30, "sound.error.volume": 0.25
+        }
+        """#))
+    ProgressArchive.applyPreferences(of: archive, to: defaults)
+    #expect(defaults.object(forKey: SettingsKey.dayStartHour) as? Int == 0)
+    #expect(defaults.object(forKey: SettingsKey.dailyGoalMinutes) as? Int == 30)
+    #expect(defaults.object(forKey: SettingsKey.adaptiveTargetCpm) as? Int == 150)
+    #expect(defaults.object(forKey: SettingsKey.keyboardUnit) as? Double == 44)
+    #expect(defaults.object(forKey: SettingsKey.keyboardOffset) as? Double == 20.5)
+    #expect(defaults.object(forKey: SettingsKey.uiScale) as? Double == 1.1)
+    #expect(defaults.object(forKey: SettingsKey.darkFromHour) as? Int == 21)
+    #expect(defaults.object(forKey: SettingsKey.darkToHour) as? Int == 6)
+    #expect(defaults.object(forKey: SettingsKey.reminderHour) as? Int == 7)
+    #expect(defaults.object(forKey: SettingsKey.reminderMinute) as? Int == 30)
+    #expect(defaults.object(forKey: SoundSettings.volumeKey(.error)) as? Double == 0.25)
 }
 
 // MARK: - Импорт целиком: резервная копия, база на диске, отказ посреди импорта
@@ -463,14 +563,14 @@ private struct SimulatedDiskFailure: Error {}
     let storeURL = storeDirectory.appendingPathComponent("TenFingers.store")
     let backups = directory.appendingPathComponent("TenFingers.backups", isDirectory: true)
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
     defaults.set("старый", forKey: SettingsKey.profileNickname)
 
     // Архив для загрузки — из другого (в памяти) прогресса.
     let otherContainer = try ModelStore.makeContainer(inMemory: true)
     let other = otherContainer.mainContext
     let (otherDefaults, otherName) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: otherName) }
+    defer { removeTestDefaults(otherName) }
     try populate(other, tag: "new")
     // Те же уникальные ключи (урок, день), что и в базе на диске, но другие значения.
     for lesson in try other.fetch(FetchDescriptor<LessonProgress>()) { lesson.attempts = 42 }
@@ -517,7 +617,7 @@ private struct SimulatedDiskFailure: Error {}
     do {
         let container = try ModelStore.makeContainer(at: storeURL)
         let context = container.mainContext
-        #expect(try counts(context) == [2, 2, 2, 1, 2, 1, 1, 1, 1])
+        #expect(try counts(context) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1])
         #expect(try context.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source) == ["library:new"])
         #expect(try context.fetch(FetchDescriptor<CustomText>()).map(\.title) == ["Заметка new"])
         #expect(try context.fetch(FetchDescriptor<CustomText>()).first?.offset == 7)
@@ -535,7 +635,7 @@ private struct SimulatedDiskFailure: Error {}
     let backups = directory.appendingPathComponent("TenFingers.backups")
     try Data("файл".utf8).write(to: backups)
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
 
     let otherContainer = try ModelStore.makeContainer(inMemory: true)
     let other = otherContainer.mainContext
@@ -590,8 +690,11 @@ private func fillPreferences(_ defaults: UserDefaults) {
     for (key, kind) in ArchivedSettings.entries {
         switch kind {
         case .bool: defaults.set(true, forKey: key)
-        case .int: defaults.set(7, forKey: key)
-        case .double: defaults.set(0.625, forKey: key)
+        // Значения в допустимых пределах: при загрузке числа приводятся к ним (`ArchivedSettings.apply`)
+        case .int: defaults.set(key == SettingsKey.adaptiveTargetCpm ? 150 : key == SettingsKey.dailyGoalMinutes ? 15 : 5,
+                                forKey: key)
+        case .double: defaults.set(key == SettingsKey.keyboardUnit ? 44.0 : key == SettingsKey.uiScale ? 1.25 : 0.625,
+                                   forKey: key)
         case .string: defaults.set("value-\(key)", forKey: key)
         }
     }
@@ -608,8 +711,8 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let (sourceDefaults, sourceName) = makeDefaults()
     let (targetDefaults, targetName) = makeDefaults()
     defer {
-        UserDefaults().removePersistentDomain(forName: sourceName)
-        UserDefaults().removePersistentDomain(forName: targetName)
+        removeTestDefaults(sourceName)
+        removeTestDefaults(targetName)
     }
     try populateFully(source)
     fillPreferences(sourceDefaults)
@@ -684,7 +787,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let sourceContainer = try ModelStore.makeContainer(inMemory: true)
     let source = sourceContainer.mainContext
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
     try populate(source, tag: "new")
     let archive = try ProgressArchive.decode(ProgressArchive.export(context: source, defaults: defaults, now: base))
 
@@ -727,7 +830,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let directory = try temporaryDirectory("TenFingersOddBackup")
     defer { try? FileManager.default.removeItem(at: directory) }
     let (defaults, name) = makeDefaults()
-    defer { UserDefaults().removePersistentDomain(forName: name) }
+    defer { removeTestDefaults(name) }
     let container = try ModelStore.makeContainer(inMemory: true)
     let context = container.mainContext
     try populate(context)

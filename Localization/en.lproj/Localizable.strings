@@ -285,6 +285,7 @@
 "Лучшая точность" = "Best accuracy";
 "Самая длинная серия" = "Longest streak";
 "Скорость и точность считаются по завершённым упражнениям от %lld знаков" = "Speed and accuracy records count only completed exercises of at least %lld characters";
+"Рекорды появятся после упражнения от %lld знаков (практика или тренировка)" = "Records appear after an exercise of at least %lld characters (practice or training)";
 "История занятий" = "Session history";
 "Занятий пока нет" = "No sessions yet";
 "Дата" = "Date";
@@ -389,3 +390,70 @@
 "день" = "day";
 "дня" = "days";
 "дней" = "days";
+
+/* Ачивки (фаза 4) */
+"Ачивки" = "Achievements";
+"Взрослый юмор" = "Adult humor";
+"Выключите, чтобы скрыть ачивки с крепким словцом. Получать их это не мешает." = "Turn off to hide achievements with strong language. You still earn them.";
+"Получено %lld из %lld" = "Earned %lld of %lld";
+"Пока ни одной: они появятся после занятий" = "None yet: they will appear as you practice";
+"Новые ачивки: %@" = "New achievements: %@";
+"Новая ачивка: %@" = "New achievement: %@";
+"Получена %lld ачивка за прошлые занятия" = "%lld achievement earned for past practice";
+"Получено %lld ачивки за прошлые занятия" = "%lld achievements earned for past practice";
+"Получено %lld ачивок за прошлые занятия" = "%lld achievements earned for past practice";
+"Посмотреть" = "View";
+
+/* Экран «Ачивки» */
+"Все" = "All";
+"Серия" = "Streak";
+"Объём" = "Volume";
+"Особые" = "Special";
+"Буквы" = "Letters";
+"Шуточные" = "Just for fun";
+"%@, получена %@" = "%@, earned %@";
+"новая" = "new";
+"%@, не получена: %@" = "%@, not earned: %@";
+"Как получить" = "How to earn";
+"Получена %@" = "Earned %@";
+"Ещё не получена" = "Not earned yet";
+"Закрыть" = "Close";
+"Последняя ачивка" = "Latest achievement";
+"Открыть ачивки" = "Open achievements";
+
+/* Карточки «Поделиться» */
+"Новая ачивка" = "New achievement";
+"Серия занятий" = "Practice streak";
+"%@ подряд" = "%@ in a row";
+"Полных дней: %lld" = "Full days: %lld";
+"Рекорд скорости" = "Speed record";
+"Этап пройден" = "Stage completed";
+"Все уроки курса пройдены" = "All course lessons completed";
+"Русская раскладка" = "Russian layout";
+"Английская раскладка" = "English layout";
+"знаков в минуту, русская раскладка" = "characters per minute, Russian layout";
+"знаков в минуту, английская раскладка" = "characters per minute, English layout";
+"слов в минуту, русская раскладка" = "words per minute, Russian layout";
+"слов в минуту, английская раскладка" = "words per minute, English layout";
+"Десять пальцев · github.com/Rusl3n/tenfingers" = "Ten Fingers · github.com/Rusl3n/tenfingers";
+"Учусь слепой печати в «Десять пальцев»" = "Learning touch typing with Ten Fingers";
+"Никнейм и имя" = "Nickname and name";
+"Без подписи" = "No signature";
+"Цветной" = "Colored";
+"Прозрачный" = "Transparent";
+"Широкая 1200×630" = "Wide 1200×630";
+"Квадрат 1080×1080" = "Square 1080×1080";
+"Поделиться" = "Share";
+"Предпросмотр карточки" = "Card preview";
+"Подпись" = "Signature";
+"Заполните профиль в настройках" = "Fill in your profile in Settings";
+"Фон" = "Background";
+"Формат" = "Format";
+"Поделиться…" = "Share…";
+"Сохранить PNG…" = "Save PNG…";
+"Скопировать" = "Copy";
+"Скопировано" = "Copied";
+"Сохранено" = "Saved";
+"Не удалось создать картинку" = "Couldn’t create the image";
+"Этап «%@» пройден" = "Stage “%@” completed";
+"Курс пройден!" = "Course completed!";

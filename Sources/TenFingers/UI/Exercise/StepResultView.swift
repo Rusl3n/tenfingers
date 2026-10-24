@@ -11,6 +11,10 @@ struct StepResultView: View {
     let stars: Int?
     /// Цель этапа урока: для объяснения звёзд и подсказки до следующей звезды.
     let targetCpm: Int
+    /// Ачивки, полученные в сохранении этого шага.
+    var newAchievements: [Achievement] = []
+    /// Проверка засчитала последний урок этапа или курса (`ShareEvent.stepCompletion`).
+    var completion: ShareEvent?
     let onRetry: () -> Void
     let onExit: () -> Void
 
@@ -40,6 +44,8 @@ struct StepResultView: View {
             if stars != nil {
                 NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, targetCpm: targetCpm, unit: unit)
             }
+            NewAchievementsLine(achievements: newAchievements)
+            if let completion { CompletionShareLine(event: completion) }
             if !summary.topErrors.isEmpty {
                 HStack(spacing: 12) {
                     ForEach(summary.topErrors, id: \.self) { error in

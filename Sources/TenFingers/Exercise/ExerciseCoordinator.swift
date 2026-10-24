@@ -3,6 +3,9 @@ import Observation
 import SwiftData
 import TypingCore
 
+/// Откладывает действие на заданное время (в тестах заменяется ручным таймером).
+typealias DayDelay = @MainActor (Duration, @escaping @MainActor () -> Void) -> Void
+
 /// Общий жизненный цикл упражнения: создание сессии, звук, запись результата
 /// одной транзакцией, запись брошенного упражнения и алерт об ошибке сохранения.
 @MainActor @Observable
@@ -19,37 +22,69 @@ final class ExerciseCoordinator {
     @ObservationIgnored var onSaveCancelled: (() -> Void)?
 
     /// Вызывается после успешного сохранения, которое впервые за логический день сделало день «полным огнём»
-    /// (звук `.streak` к этому моменту уже сыгран).
+    /// (звук `.streak` играет с задержкой `streakDelay`, чтобы не накладываться на звук результата).
     @ObservationIgnored var onDayCompleted: (() -> Void)?
 
     /// Вызывается после каждого успешного сохранения (в том числе брошенного упражнения):
     /// прогресс изменился, напоминания нужно пересчитать.
     @ObservationIgnored var onSaved: (() -> Void)?
 
+    /// Проверка ачивок после каждого успешного сохранения (отдельной транзакцией: упражнение уже записано,
+    /// а невыданное выдаст следующая проверка). `nil` — ачивки не проверяются (тесты).
+    @ObservationIgnored var achievements: AchievementService?
+    /// Ачивки, полученные в последнем сохранении (для строки «Новые ачивки: …» на экране итога).
+    private(set) var newAchievements: [Achievement] = []
+    /// Вызывается с новыми видимыми ачивками последнего сохранения (тосты; ачивки с `adult` при выключенном
+    /// «Взрослом юморе» уже отброшены); звук `.achievement` играет координатор.
+    @ObservationIgnored var onAchievements: (([Achievement]) -> Void)?
+    /// «Взрослый юмор» (читается при каждой проверке).
+    @ObservationIgnored var adultHumor: () -> Bool = { StoredSettings.adultHumor() }
+
     @ObservationIgnored private let recorder: ResultRecorder
     @ObservationIgnored private let playSound: (SoundEvent) -> Void
     @ObservationIgnored private let goalSeconds: () -> Double
-    /// Транзакция в `save` перевела день в «полный огонь» (выставляется внутри тела, сбрасывается перед каждой попыткой).
-    @ObservationIgnored private var dayCompletedInSave = false
+    @ObservationIgnored private let pending: FullDayPending
+    @ObservationIgnored private let afterDelay: DayDelay
+    /// Пауза между звуком результата (`.lessonDone` / `.exerciseDone`) и звуком серии `.streak`.
+    static let streakDelay = Duration.milliseconds(600)
+    /// Логический день, который транзакция в `save` перевела в «полный огонь» (выставляется внутри тела,
+    /// сбрасывается перед каждой попыткой).
+    @ObservationIgnored private var dayCompletedKey: String?
     @ObservationIgnored private var pendingSave: (() throws -> Void)?
     @ObservationIgnored private var exitAfterSave = false
     /// Источник текста текущей сессии (`SessionRecord.source`).
     @ObservationIgnored private var source: String?
+    /// Записало ли последнее сохранение сессию: запись вне упражнения без сессии ачивки не проверяет.
+    @ObservationIgnored private var bodyRecordedSession = true
 
     /// `goalSeconds` читается при каждой записи: смена цели в настройках действует сразу.
     init(recorder: ResultRecorder, playSound: @escaping (SoundEvent) -> Void,
-         goalSeconds: @escaping () -> Double = { StoredSettings.dailyGoalSeconds() }) {
+         goalSeconds: @escaping () -> Double = { StoredSettings.dailyGoalSeconds() },
+         pending: FullDayPending = FullDayPending(),
+         afterDelay: @escaping DayDelay = ExerciseCoordinator.sleepingDelay) {
         self.recorder = recorder
         self.playSound = playSound
         self.goalSeconds = goalSeconds
+        self.pending = pending
+        self.afterDelay = afterDelay
     }
 
-    /// Координатор приложения: запись в базу, звук и тост «Полный огонь».
+    /// Задержка приложения: `Task.sleep`.
+    static let sleepingDelay: DayDelay = { duration, action in
+        Task { @MainActor in
+            try? await Task.sleep(for: duration)
+            action()
+        }
+    }
+
+    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» и тосты ачивок.
     static func live(context: ModelContext, sound: SoundPlayer, toasts: ToastCenter,
                      reminders: ReminderScheduler? = nil) -> ExerciseCoordinator {
         let coordinator = ExerciseCoordinator(recorder: .live(context: context), playSound: { sound.play($0) })
         coordinator.onDayCompleted = { [toasts] in toasts.showFullFlame() }
         coordinator.onSaved = { [weak reminders] in reminders?.rescheduleSoon() }
+        coordinator.achievements = .live(context: context)
+        coordinator.onAchievements = { [toasts] in toasts.showAchievements($0, adultHumor: true) }
         return coordinator
     }
 
@@ -90,7 +125,10 @@ final class ExerciseCoordinator {
     func commitStandalone(_ body: @escaping (ResultRecorder) throws -> Void) -> Bool {
         let recorder = self.recorder
         exitAfterSave = false
-        return save { try body(recorder) }
+        return save { [weak self] in
+            try body(recorder)
+            self?.bodyRecordedSession = recorder.context.insertedModelsArray.contains { $0 is SessionRecord }
+        }
     }
 
     /// Кнопка «Выйти»: записывает брошенное упражнение. `true` — можно уходить сразу,
@@ -108,15 +146,55 @@ final class ExerciseCoordinator {
                                 Self.abandonment(abandoned, of: session, source: source, recorder)))
     }
 
-    /// Уход без кнопки (меню, закрытие окна, выход из приложения): показать ошибку уже негде,
-    /// поэтому записываем молча.
-    func recordAbandonIfNeeded() {
+    /// Уход без кнопки (меню, закрытие окна, выход из приложения, «Начать урок заново»): показать ошибку уже негде,
+    /// поэтому записываем молча. Брошенное упражнение тоже может сделать день полным: при `announce` (экран остаётся,
+    /// например «Начать урок заново») тост и звук сразу, иначе объявление откладывается до следующего показа главной
+    /// (`FullDayPending`).
+    func recordAbandonIfNeeded(announce: Bool = false) {
         guard let session, !session.isRecorded else { return }
         session.stop()
         session.onFinish = nil
         session.markRecorded()
         let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
-        if (try? recorder.commit(Self.abandonment(abandoned, of: session, source: source, recorder))) != nil { onSaved?() }
+        dayCompletedKey = nil
+        let body = trackingDay(endedAt: abandoned?.endedAt,
+                               Self.abandonment(abandoned, of: session, source: source, recorder))
+        guard (try? recorder.commit(body)) != nil else {
+            dayCompletedKey = nil
+            return
+        }
+        let dayCompleted = dayCompletedKey
+        dayCompletedKey = nil
+        if let key = dayCompleted {
+            if announce {
+                announceFullDay()
+            } else {
+                pending.mark(day: key)
+                NotificationCenter.default.post(name: .fullDayPending, object: nil)
+            }
+        }
+        // Ачивки выдаются всегда; тост и звук — только если экран остаётся (иначе их увидят непросмотренными).
+        checkAchievements(announce: announce, afterStreak: announce && dayCompleted != nil)
+        onSaved?()
+    }
+
+    /// Проверка ачивок после сохранения. Звук `.achievement` — через `streakDelay` после звука результата,
+    /// а если в этом сохранении день стал полным — ещё через `streakDelay` после звука серии.
+    private func checkAchievements(announce: Bool, afterStreak: Bool) {
+        guard let achievements else { return }
+        let earned = achievements.checkLogging(reason: .afterSave).new
+        newAchievements = earned
+        // Скрытые («Взрослый юмор» выключен) выдаются молча: ни тоста, ни звука.
+        let visible = AchievementVisibility.visible(earned, adultHumor: adultHumor())
+        guard announce, !visible.isEmpty else { return }
+        afterDelay(afterStreak ? Self.streakDelay * 2 : Self.streakDelay) { [playSound] in playSound(.achievement) }
+        onAchievements?(visible)
+    }
+
+    /// Тост сразу, звук серии — через `streakDelay`.
+    private func announceFullDay() {
+        afterDelay(Self.streakDelay) { [playSound] in playSound(.streak) }
+        onDayCompleted?()
     }
 
     func retrySave() {
@@ -150,7 +228,7 @@ final class ExerciseCoordinator {
             try body()
             if let after = try recorder.dayActivity(forKey: key),
                DayCompletion.didComplete(before: before, after: after, goalSeconds: goalSeconds()) {
-                self?.dayCompletedInSave = true
+                self?.dayCompletedKey = key
             }
         }
     }
@@ -164,15 +242,18 @@ final class ExerciseCoordinator {
     @discardableResult
     private func save(_ body: (() throws -> Void)?) -> Bool {
         guard let body else { return true }
-        dayCompletedInSave = false
+        dayCompletedKey = nil
+        newAchievements = []
+        bodyRecordedSession = true
         do {
             try recorder.commit(body)
             pendingSave = nil
-            if dayCompletedInSave {
-                dayCompletedInSave = false
-                playSound(.streak)
-                onDayCompleted?()
+            let dayCompleted = dayCompletedKey != nil
+            if dayCompleted {
+                dayCompletedKey = nil
+                announceFullDay()
             }
+            if bodyRecordedSession { checkAchievements(announce: true, afterStreak: dayCompleted) }
             onSaved?()
             return true
         } catch {

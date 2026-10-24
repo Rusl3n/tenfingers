@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Раздел «Общие»: тема, палитры, расписание и поведение окна.
+/// Раздел «Общие»: тема, палитры, расписание, поведение окна и «Взрослый юмор» ачивок.
 struct GeneralSettingsView: View {
     @AppStorage(SettingsKey.themeMode) private var themeMode = ThemeMode.system.rawValue
     @AppStorage(SettingsKey.lightPalette) private var lightPalette = LightPalette.white.rawValue
@@ -9,6 +9,7 @@ struct GeneralSettingsView: View {
     @AppStorage(SettingsKey.darkToHour) private var darkTo = SettingsDefault.darkToHour
     @AppStorage(SettingsKey.quitOnWindowClose) private var quitOnWindowClose = false
     @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
+    @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
 
     /// Значение не из списка (например, записанное вручную) показывается ближайшим допустимым.
     private var uiScaleSelection: Binding<Double> {
@@ -45,6 +46,15 @@ struct GeneralSettingsView: View {
             }
             Section("Окно") {
                 Toggle("Закрывать приложение вместе с окном", isOn: $quitOnWindowClose)
+            }
+            Section {
+                Toggle("Взрослый юмор", isOn: $adultHumor)
+            } header: {
+                Text("Ачивки")
+            } footer: {
+                Text("Выключите, чтобы скрыть ачивки с крепким словцом. Получать их это не мешает.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

@@ -117,7 +117,8 @@ private let generic = "Пора позаниматься — не теряйте
 }
 
 @Test func settingsAreReadFromDefaultsWithOffDefault() {
-    let defaults = UserDefaults(suiteName: "test.reminders.\(UUID().uuidString)")!
+    let (defaults, name) = makeTestDefaults("test.reminders.")
+    defer { removeTestDefaults(name) }
     #expect(StoredSettings.reminders(defaults) == ReminderSettings(enabled: false, hour: 20, minute: 0))
     defaults.set(true, forKey: SettingsKey.remindersEnabled)
     defaults.set(7, forKey: SettingsKey.reminderHour)
@@ -126,7 +127,8 @@ private let generic = "Пора позаниматься — не теряйте
 }
 
 @Test func outOfRangeStoredTimeIsClamped() {
-    let defaults = UserDefaults(suiteName: "test.reminders.\(UUID().uuidString)")!
+    let (defaults, name) = makeTestDefaults("test.reminders.")
+    defer { removeTestDefaults(name) }
     defaults.set(99, forKey: SettingsKey.reminderHour)
     defaults.set(-5, forKey: SettingsKey.reminderMinute)
     let stored = StoredSettings.reminders(defaults)
@@ -194,17 +196,19 @@ private let generic = "Пора позаниматься — не теряйте
 
 @MainActor private func makeScheduler(center: FakeCenter, enabled: Bool = true,
                                       inputs: ReminderInputs = ReminderInputs(streak: 5, todayStatus: .none, minutesLeft: 6))
-    -> ReminderScheduler {
-    let defaults = UserDefaults(suiteName: "test.reminders.\(UUID().uuidString)")!
+    -> (scheduler: ReminderScheduler, defaultsName: String) {
+    let (defaults, name) = makeTestDefaults("test.reminders.")
     defaults.set(enabled, forKey: SettingsKey.remindersEnabled)
-    return ReminderScheduler(center: center, defaults: defaults, calendar: utc(),
-                             inputs: { _ in inputs }, title: "Десять пальцев",
-                             text: { key, args in "\(key)|\(args.map(String.init).joined(separator: ","))" })
+    return (ReminderScheduler(center: center, defaults: defaults, calendar: utc(),
+                              inputs: { _ in inputs }, title: "Десять пальцев",
+                              text: { key, args in "\(key)|\(args.map(String.init).joined(separator: ","))" }),
+            name)
 }
 
 @MainActor @Test func rescheduleReplacesPendingAndAddsBoth() async {
     let center = FakeCenter()
-    let scheduler = makeScheduler(center: center)
+    let (scheduler, defaultsName) = makeScheduler(center: center)
+    defer { removeTestDefaults(defaultsName) }
     await scheduler.reschedule(now: noon)
     #expect(center.removed == [ReminderID.all])
     #expect(Set(center.pending.keys) == Set((0..<7).map(ReminderID.day)))
@@ -219,7 +223,8 @@ private let generic = "Пора позаниматься — не теряйте
 
 @MainActor @Test func disabledSchedulerOnlyClearsPending() async {
     let center = FakeCenter()
-    let scheduler = makeScheduler(center: center, enabled: false)
+    let (scheduler, defaultsName) = makeScheduler(center: center, enabled: false)
+    defer { removeTestDefaults(defaultsName) }
     await scheduler.reschedule(now: noon)
     #expect(center.removed == [ReminderID.all])
     #expect(center.pending.isEmpty)
@@ -228,8 +233,9 @@ private let generic = "Пора позаниматься — не теряйте
 
 @MainActor @Test func fullDayStartsTomorrow() async {
     let center = FakeCenter()
-    let scheduler = makeScheduler(center: center,
-                                  inputs: ReminderInputs(streak: 5, todayStatus: .full, minutesLeft: 1))
+    let (scheduler, defaultsName) = makeScheduler(center: center,
+                                                  inputs: ReminderInputs(streak: 5, todayStatus: .full, minutesLeft: 1))
+    defer { removeTestDefaults(defaultsName) }
     await scheduler.reschedule(now: noon)
     #expect(Set(center.pending.keys) == Set((0..<7).map(ReminderID.day)))
     #expect(center.pending[ReminderID.day(0)]?.date == date(11, 20))
@@ -237,7 +243,8 @@ private let generic = "Пора позаниматься — не теряйте
 
 @MainActor @Test func deniedAuthorizationSchedulesNothing() async {
     let center = FakeCenter(status: .denied)
-    let scheduler = makeScheduler(center: center)
+    let (scheduler, defaultsName) = makeScheduler(center: center)
+    defer { removeTestDefaults(defaultsName) }
     await scheduler.reschedule(now: noon)
     #expect(center.pending.isEmpty)
     #expect(scheduler.authorization == .denied)
@@ -246,7 +253,8 @@ private let generic = "Пора позаниматься — не теряйте
 
 @MainActor @Test func rescheduleNeverRequestsAuthorization() async {
     let center = FakeCenter(status: .notDetermined)
-    let scheduler = makeScheduler(center: center)
+    let (scheduler, defaultsName) = makeScheduler(center: center)
+    defer { removeTestDefaults(defaultsName) }
     await scheduler.reschedule(now: noon)
     #expect(center.requestCount == 0)
     #expect(center.pending.isEmpty)
@@ -254,7 +262,8 @@ private let generic = "Пора позаниматься — не теряйте
 
 @MainActor @Test func enablingRequestsAuthorizationAndSchedules() async {
     let center = FakeCenter(status: .notDetermined)
-    let scheduler = makeScheduler(center: center)
+    let (scheduler, defaultsName) = makeScheduler(center: center)
+    defer { removeTestDefaults(defaultsName) }
     await scheduler.enable(now: noon)
     #expect(center.requestCount == 1)
     #expect(scheduler.authorization == .authorized)
@@ -263,7 +272,8 @@ private let generic = "Пора позаниматься — не теряйте
 
 @MainActor @Test func refusedAuthorizationIsReportedAndNothingScheduled() async {
     let center = FakeCenter(status: .notDetermined, grantsOnRequest: false)
-    let scheduler = makeScheduler(center: center)
+    let (scheduler, defaultsName) = makeScheduler(center: center)
+    defer { removeTestDefaults(defaultsName) }
     await scheduler.enable(now: noon)
     #expect(scheduler.authorization == .denied)
     #expect(center.pending.isEmpty)
@@ -272,7 +282,8 @@ private let generic = "Пора позаниматься — не теряйте
 @MainActor @Test func unreadableProgressKeepsExistingReminders() async {
     struct Boom: Error {}
     let center = FakeCenter()
-    let defaults = UserDefaults(suiteName: "test.reminders.\(UUID().uuidString)")!
+    let (defaults, name) = makeTestDefaults("test.reminders.")
+    defer { removeTestDefaults(name) }
     defaults.set(true, forKey: SettingsKey.remindersEnabled)
     let scheduler = ReminderScheduler(center: center, defaults: defaults, calendar: utc(),
                                       inputs: { _ in throw Boom() }, title: "T", text: { key, _ in key })

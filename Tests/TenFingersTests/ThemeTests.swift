@@ -39,7 +39,8 @@ import Testing
 }
 
 @Test func storedAppearanceFollowsSettingsAndHour() {
-    let defaults = UserDefaults(suiteName: "test.theme.\(UUID().uuidString)")!
+    let (defaults, name) = makeTestDefaults("test.theme.")
+    defer { removeTestDefaults(name) }
     // По умолчанию «Как в системе»: внешний вид не задаётся.
     #expect(ThemeResolver.storedAppearanceName(defaults: defaults, hour: 22) == nil)
     defaults.set(ThemeMode.light.rawValue, forKey: SettingsKey.themeMode)

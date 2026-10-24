@@ -24,6 +24,8 @@ struct LessonRunnerView: View {
         let errors: Int
         let improved: Bool
         let stars: Int?
+        /// Проверка засчитала последний урок этапа или курса.
+        let completion: ShareEvent?
     }
 
     @Environment(ContentLibrary.self) private var library
@@ -93,11 +95,14 @@ struct LessonRunnerView: View {
             }
         case .result(let summary, let stars):
             LessonResultView(summary: summary, stars: stars, targetCpm: context?.targetCpm ?? 0,
-                             hasNext: nextRun != nil, onRetry: prepare,
+                             hasNext: nextRun != nil, newAchievements: coordinator?.newAchievements ?? [],
+                             completion: course.flatMap { ShareEvent.completion(course: $0, lessonId: run.lessonId, stars: stars) },
+                             onRetry: prepare,
                              onNext: { if let nextRun { onStart(nextRun) } }, onExit: onExit)
         case .stepResult(let outcome):
             StepResultView(kind: outcome.kind, summary: outcome.summary, errors: outcome.errors,
                            improved: outcome.improved, stars: outcome.stars, targetCpm: context?.targetCpm ?? 0,
+                           newAchievements: coordinator?.newAchievements ?? [], completion: outcome.completion,
                            onRetry: prepare, onExit: onExit)
         }
     }
@@ -205,12 +210,15 @@ struct LessonRunnerView: View {
         phase = .stepResult(StepOutcome(
             kind: kind, summary: ExerciseSummary(result), errors: result.errorCount,
             improved: LessonStepStats.isImprovement(accuracy: result.accuracy, cpm: result.cpm, over: previous),
-            stars: stars))
+            stars: stars,
+            completion: course.flatMap {
+                ShareEvent.stepCompletion(course: $0, lessonId: run.lessonId, kind: kind, stars: stars)
+            }))
     }
 
     /// «Начать урок заново» на плашке продолжения: начатый шаг записывается как брошенный.
     private func restart() {
-        coordinator?.recordAbandonIfNeeded()
+        coordinator?.recordAbandonIfNeeded(announce: true)
         prepare(fresh: true)
     }
 
