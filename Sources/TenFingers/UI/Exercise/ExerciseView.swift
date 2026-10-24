@@ -55,9 +55,9 @@ struct ExerciseView: View {
             } else {
                 VStack(spacing: 22) {
                     let highlight = highlight
-                    KeyboardView(snapshot: layout.snapshot, marks: KeyboardView.marks(for: highlight),
-                                 shiftDown: session.shiftDown, unit: CGFloat(keyboardUnitValue),
-                                 spaceHalf: KeyboardView.spaceHalf(for: highlight))
+                    ScaledKeyboardView(snapshot: layout.snapshot, marks: KeyboardView.marks(for: highlight),
+                                       shiftDown: session.shiftDown, unit: keyboardUnitValue,
+                                       spaceHalf: KeyboardView.spaceHalf(for: highlight))
                     FingerLegend()
                 }
                 .keyboardPlacement(offset: keyboardOffset, unit: keyboardUnitValue)

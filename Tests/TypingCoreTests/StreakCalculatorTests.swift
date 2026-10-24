@@ -152,3 +152,45 @@ private func oct(_ day: Int) -> String { day < 10 ? "2026-10-0\(day)" : "2026-10
     #expect(s.fullInCurrent == 1)
     #expect(s.longest == 1)
 }
+
+// MARK: - Цель дня за каждым днём (Task 15 фазы 5)
+
+/// Вчера 10 минут при цели 10 — полный огонь; цель подняли до 20 — вчера остаётся полным,
+/// а сегодня 15 минут — половинный (сегодня всегда по текущей цели).
+@Test func pastDayKeepsItsOwnGoal() {
+    let yesterday = DayActivity(activeSeconds: 600, completedExercises: 2, goalSeconds: 600)
+    let today = DayActivity(activeSeconds: 900, completedExercises: 3, goalSeconds: 600)
+    let before = StreakCalculator.summarize(days: days([(oct(23), yesterday)]), today: oct(24), goalSeconds: 600)
+    #expect(before.statuses[oct(23)] == .full)
+
+    let after = StreakCalculator.summarize(days: days([(oct(23), yesterday), (oct(24), today)]),
+                                           today: oct(24), goalSeconds: 1200)
+    #expect(after.statuses[oct(23)] == .full)
+    #expect(after.statuses[oct(24)] == .half && after.today == .half)
+    #expect(after.current == 2 && after.fullInCurrent == 1)
+}
+
+/// Сегодня записанная цель не действует: снизили цель — сегодня сразу по новой.
+@Test func todayAlwaysFollowsCurrentGoal() {
+    let today = DayActivity(activeSeconds: 400, completedExercises: 1, goalSeconds: 1200)
+    let s = StreakCalculator.summarize(days: days([(oct(24), today)]), today: oct(24), goalSeconds: 300)
+    #expect(s.today == .full)
+}
+
+/// День без записанной цели (до поколения 5) считается по текущей цели.
+@Test func dayWithoutStoredGoalUsesCurrentGoal() {
+    let unknown = DayActivity(activeSeconds: 600, completedExercises: 1)
+    #expect(unknown.goalSeconds == nil)
+    let low = StreakCalculator.summarize(days: days([(oct(23), unknown)]), today: oct(24), goalSeconds: 600)
+    #expect(low.statuses[oct(23)] == .full)
+    let high = StreakCalculator.summarize(days: days([(oct(23), unknown)]), today: oct(24), goalSeconds: 1200)
+    #expect(high.statuses[oct(23)] == .half)
+}
+
+/// Свои цели дней влияют и на заморозки: 7 полных дней по их целям дают заморозку при любой текущей цели.
+@Test func freezesFollowPerDayGoals() {
+    let list = (1...7).map { (oct($0), DayActivity(activeSeconds: 300, completedExercises: 1, goalSeconds: 300)) }
+    let s = StreakCalculator.summarize(days: days(list), today: oct(9), goalSeconds: 1800)
+    #expect(s.statuses[oct(8)] == .frozen)
+    #expect(s.current == 8)
+}

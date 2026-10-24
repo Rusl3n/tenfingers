@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// PNG карточки: `ImageRenderer` с масштабом 2 (2400×1260 или 2160×2160); у прозрачного фона — альфа-канал.
+/// PNG карточки: `ImageRenderer` с масштабом 2 (2400×1260, 2160×2160 или 2160×3840); у прозрачного фона — альфа-канал.
 @MainActor
 enum ShareCardRenderer {
     enum Failure: Error {

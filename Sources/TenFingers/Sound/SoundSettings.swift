@@ -36,3 +36,24 @@ enum SoundSettings {
         }
     }
 }
+
+/// «Звуки по умолчанию»: проверка и сброс над `UserDefaults`. Записываются значения новой установки (а не
+/// удаляются ключи), чтобы `@AppStorage` во вьюхах обновился сразу.
+enum SoundSettingsDefaults {
+    /// Допуск сравнения громкости: ползунок непрерывный.
+    private static let volumeTolerance = 0.001
+
+    static func isDefault(in defaults: UserDefaults) -> Bool {
+        SoundSettings.activeEvents.allSatisfy { event in
+            SoundSettings.isEnabled(event, defaults: defaults)
+                && abs(SoundSettings.volume(event, defaults: defaults) - SoundSettings.defaultVolume(event)) < volumeTolerance
+        }
+    }
+
+    static func reset(in defaults: UserDefaults) {
+        for event in SoundSettings.activeEvents {
+            defaults.set(true, forKey: SoundSettings.enabledKey(event))
+            defaults.set(SoundSettings.defaultVolume(event), forKey: SoundSettings.volumeKey(event))
+        }
+    }
+}

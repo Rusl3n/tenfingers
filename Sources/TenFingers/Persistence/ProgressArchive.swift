@@ -482,6 +482,8 @@ struct ProgressImporter {
         }
         try ProgressArchive.replaceAll(with: archive, context: context, beforeSave: beforeSave)
         ProgressArchive.applyPreferences(of: archive, to: defaults)
+        // Дни из файла без цели (поколение 4 и старше) получают дневную цель из загруженных настроек.
+        DayGoals.backfillLogging(context: context, defaults: defaults, now: now)
         // Ачивки проверяются заново (в файле старого поколения их нет), кэш фактов устарел.
         notifications.post(name: .progressReplaced, object: nil)
         return backup
@@ -572,6 +574,10 @@ extension ProgressArchive {
         var pinkyPresses: Int
         var pinkyErrors: Int
         var source: String?
+        /// Поколение 4: «палец → число» как в базе (`FingerCounts`); у прежних записей и файлов — нет.
+        var fingerPresses: [String: Int]?
+        var fingerErrors: [String: Int]?
+        var yoPresses: Int?
 
         init(_ m: SessionRecord) {
             id = m.id; mode = m.mode; language = m.language; lessonId = m.lessonId
@@ -580,6 +586,8 @@ extension ProgressArchive {
             accuracy = m.accuracy; completed = m.completed; hintLevel = m.hintLevel
             maxErrorStreak = m.maxErrorStreak; wrongKeystrokes = m.wrongKeystrokes; exerciseKind = m.exerciseKind
             pinkyPresses = m.pinkyPresses; pinkyErrors = m.pinkyErrors; source = m.source
+            fingerPresses = FingerCounts.raw(m.fingerPresses); fingerErrors = FingerCounts.raw(m.fingerErrors)
+            yoPresses = m.yoPresses
         }
 
         init(from decoder: any Decoder) throws {
@@ -604,6 +612,9 @@ extension ProgressArchive {
             pinkyPresses = try c.value(.pinkyPresses, default: 0)
             pinkyErrors = try c.value(.pinkyErrors, default: 0)
             source = try c.decodeIfPresent(String.self, forKey: .source)
+            fingerPresses = try c.decodeIfPresent([String: Int].self, forKey: .fingerPresses)
+            fingerErrors = try c.decodeIfPresent([String: Int].self, forKey: .fingerErrors)
+            yoPresses = try c.decodeIfPresent(Int.self, forKey: .yoPresses)
         }
 
         static let modelName = "SessionRecord"
@@ -616,7 +627,9 @@ extension ProgressArchive {
                 logicalDay: logicalDay, activeSeconds: activeSeconds, chars: chars, errorCount: errorCount, cpm: cpm,
                 accuracy: accuracy, completed: completed, hintLevel: hintLevel, maxErrorStreak: maxErrorStreak,
                 wrongKeystrokes: wrongKeystrokes, exerciseKind: exerciseKind, pinkyPresses: pinkyPresses,
-                pinkyErrors: pinkyErrors, source: source)
+                pinkyErrors: pinkyErrors, source: source,
+                fingerPresses: fingerPresses.map { FingerCounts.data(raw: $0) },
+                fingerErrors: fingerErrors.map { FingerCounts.data(raw: $0) }, yoPresses: yoPresses)
             m.id = id
             return m
         }
@@ -628,10 +641,12 @@ extension ProgressArchive {
         var completedExercises: Int
         var abandonedExercises: Int
         var languages: [String]
+        /// Поколение 5: цель дня в секундах; у прежних записей и файлов — нет (после загрузки заполняется, `DayGoals`).
+        var goalSeconds: Double?
 
         init(_ m: DayRecord) {
             logicalDay = m.logicalDay; activeSeconds = m.activeSeconds; completedExercises = m.completedExercises
-            abandonedExercises = m.abandonedExercises; languages = m.languages
+            abandonedExercises = m.abandonedExercises; languages = m.languages; goalSeconds = m.goalSeconds
         }
 
         init(from decoder: any Decoder) throws {
@@ -641,6 +656,7 @@ extension ProgressArchive {
             completedExercises = try c.value(.completedExercises, default: 0)
             abandonedExercises = try c.value(.abandonedExercises, default: 0)
             languages = try c.value(.languages, default: [])
+            goalSeconds = try c.decodeIfPresent(Double.self, forKey: .goalSeconds)
         }
 
         static let modelName = "DayRecord"
@@ -650,7 +666,7 @@ extension ProgressArchive {
         func makeModel() -> any PersistentModel {
             let m = DayRecord(logicalDay: logicalDay)
             m.activeSeconds = activeSeconds; m.completedExercises = completedExercises
-            m.abandonedExercises = abandonedExercises; m.languages = languages
+            m.abandonedExercises = abandonedExercises; m.languages = languages; m.goalSeconds = goalSeconds
             return m
         }
     }
@@ -928,8 +944,18 @@ enum ArchivedSettings {
             (SettingsKey.quitOnWindowClose, .bool), (SettingsKey.adultHumor, .bool),
             (SettingsKey.keyboardUnit, .double), (SettingsKey.keyboardOffset, .double),
             (SettingsKey.remindersEnabled, .bool), (SettingsKey.reminderHour, .int), (SettingsKey.reminderMinute, .int),
+            (SettingsKey.reminderSchedule, .string), (SettingsKey.reminderTime1, .int),
+            (SettingsKey.reminderTime2, .int), (SettingsKey.reminderTime3, .int),
+            (SettingsKey.reminderFromHour, .int), (SettingsKey.reminderToHour, .int),
+            (SettingsKey.reminderIntervalHours, .int), (SettingsKey.reminderTone, .string),
+            (SettingsKey.reminderEscalating, .bool),
             (SettingsKey.shareSignature, .string), (SettingsKey.shareTheme, .string),
             (SettingsKey.shareBackground, .string), (SettingsKey.shareFormat, .string),
+            (SettingsKey.shareQR, .bool), (SettingsKey.shareProgressPeriod, .string),
+            (SettingsKey.shareProgressShowStreak, .bool), (SettingsKey.shareProgressShowFullDays, .bool),
+            (SettingsKey.shareProgressShowTime, .bool), (SettingsKey.shareProgressShowSpeed, .bool),
+            (SettingsKey.shareProgressShowAccuracy, .bool),
+            (SettingsKey.shareAchievementShowJoke, .bool), (SettingsKey.shareAchievementShowReason, .bool),
         ] + SoundEvent.allCases.flatMap { event -> [(key: String, kind: Kind)] in
             [(SoundSettings.enabledKey(event), .bool), (SoundSettings.volumeKey(event), .double)]
         }
@@ -978,6 +1004,15 @@ enum ArchivedSettings {
         SettingsKey.adultHumor: 3,
         SettingsKey.shareSignature: 3, SettingsKey.shareTheme: 3,
         SettingsKey.shareBackground: 3, SettingsKey.shareFormat: 3,
+        SettingsKey.shareQR: 4, SettingsKey.shareProgressPeriod: 4,
+        // Переключатели содержимого карточек добавлены после того, как поколение 4 было определено.
+        SettingsKey.shareProgressShowStreak: 5, SettingsKey.shareProgressShowFullDays: 5,
+        SettingsKey.shareProgressShowTime: 5, SettingsKey.shareProgressShowSpeed: 5,
+        SettingsKey.shareProgressShowAccuracy: 5,
+        SettingsKey.shareAchievementShowJoke: 5, SettingsKey.shareAchievementShowReason: 5,
+        SettingsKey.reminderSchedule: 4, SettingsKey.reminderTime1: 4, SettingsKey.reminderTime2: 4,
+        SettingsKey.reminderTime3: 4, SettingsKey.reminderFromHour: 4, SettingsKey.reminderToHour: 4,
+        SettingsKey.reminderIntervalHours: 4, SettingsKey.reminderTone: 4, SettingsKey.reminderEscalating: 4,
     ]
 
     /// Ключа нет в архиве — настройка возвращается к значению по умолчанию (кроме ключей новее поколения файла,
@@ -1014,12 +1049,15 @@ enum ArchivedSettings {
         options.min { abs(Int($0) - Int(value)) < abs(Int($1) - Int(value)) } ?? value
     }
 
-    /// Целые настройки: часы 0…23, минуты 0…59, начало дня 0…6, цели — ближайшее значение из списка выбора.
+    /// Целые настройки: часы 0…23, минуты 0…59, время суток 0…1439, шаг напоминаний 1…4, начало дня 0…6, цели — ближайшее значение из списка выбора.
     static func boundedInt(_ value: Int, key: String) -> Int {
         switch key {
         case SettingsKey.dayStartHour: min(max(value, 0), 6)
-        case SettingsKey.darkFromHour, SettingsKey.darkToHour, SettingsKey.reminderHour: min(max(value, 0), 23)
+        case SettingsKey.darkFromHour, SettingsKey.darkToHour, SettingsKey.reminderHour,
+             SettingsKey.reminderFromHour, SettingsKey.reminderToHour: min(max(value, 0), 23)
         case SettingsKey.reminderMinute: min(max(value, 0), 59)
+        case SettingsKey.reminderTime1, SettingsKey.reminderTime2, SettingsKey.reminderTime3: min(max(value, 0), 1439)
+        case SettingsKey.reminderIntervalHours: min(max(value, 1), 4)
         case SettingsKey.dailyGoalMinutes: nearest(value, in: SettingsDefault.dailyGoalOptions)
         case SettingsKey.adaptiveTargetCpm: nearest(value, in: SettingsDefault.adaptiveTargetOptions)
         default: value

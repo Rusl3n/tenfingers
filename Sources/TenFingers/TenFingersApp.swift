@@ -14,6 +14,8 @@ struct TenFingersApp: App {
     private let storeError: String?
 
     init() {
+        // Язык интерфейса фиксируется до всего остального: дальше настройка может меняться, а язык сессии — нет.
+        _ = InterfaceLanguage.atLaunch
         let defaults = UserDefaults.standard
         if defaults.string(forKey: SettingsKey.themeMode) == nil,
            let old = defaults.string(forKey: SettingsKey.legacyTheme),
@@ -33,6 +35,8 @@ struct TenFingersApp: App {
             container = nil
             storeError = String(localized: "Не удалось открыть сохранённый прогресс: \(error.localizedDescription)")
         }
+        // Дни до поколения схемы 5 получают текущую цель (один раз: дни с целью не трогаются).
+        if let container { DayGoals.backfillLogging(context: container.mainContext) }
         let scheduler = ReminderScheduler.live(context: container?.mainContext)
         _reminders = State(initialValue: scheduler)
         // Запуск: пересчёт напоминаний. Разрешение здесь не запрашивается, только читается.

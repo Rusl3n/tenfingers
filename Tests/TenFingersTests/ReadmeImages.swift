@@ -138,7 +138,8 @@ func renderAchievementsImage() throws {
         }
     let light = LightPalette.beige.palette
     try render(
-        AchievementsContent(entries: entries, category: .constant(nil), freshIds: [], select: { _ in })
+        AchievementsContent(entries: entries, category: .constant(nil), filter: .constant(.all), freshIds: [],
+                            select: { _ in })
             .frame(width: 900, height: 800, alignment: .top)
             .clipped()
             .background(light.background)

@@ -23,6 +23,8 @@ struct HomeView: View {
     @State private var data: HomeData?
     /// Последнее чтение из базы не удалось.
     @State private var loadFailed = false
+    /// Открытая карточка «Мой прогресс».
+    @State private var share: ShareCard?
 
     private var language: Language { Language(rawValue: activeLanguage) ?? .ru }
 
@@ -35,13 +37,15 @@ struct HomeView: View {
                             startWeakSpots: { start(.weakSpots(TrainingRun(language: language))) },
                             openPractice: { navigate(.practice) },
                             latestAchievement: latestAchievement,
-                            openAchievements: { navigate(.achievements) })
+                            openAchievements: { navigate(.achievements) },
+                            shareProgress: openProgressCard)
             } else if loadFailed {
                 LoadErrorView(retry: reload)
             } else {
                 Color.clear
             }
         }
+        .shareSheet($share)
         .onAppear {
             reload()
             announcePendingFullDay()
@@ -55,6 +59,12 @@ struct HomeView: View {
         .onChange(of: dailyGoal) { reload() }
         .onChange(of: targetCpm) { reload() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in reload() }
+    }
+
+    /// «Поделиться» у серии: карточка «Мой прогресс» из свежих данных базы; ошибка чтения — тост.
+    private func openProgressCard() {
+        share = ShareCard.openProgress(context: modelContext, goalSeconds: Double(dailyGoal) * 60,
+                                       dayStartHour: dayStartHour, toasts: toasts)
     }
 
     /// День стал полным при выходе без кнопки (меню, закрытие окна): тост и звук серии при показе главной
@@ -128,6 +138,7 @@ struct HomeContent: View {
     let openPractice: () -> Void
     var latestAchievement: AchievementEntry?
     var openAchievements: () -> Void = {}
+    var shareProgress: (() -> Void)?
 
     var body: some View {
         ScrollView { column }
@@ -137,7 +148,8 @@ struct HomeContent: View {
     /// Содержимое без прокрутки (его же рисует проверка через `ImageRenderer`: прокрутку тот не отрисовывает).
     var column: some View {
         VStack(alignment: .leading, spacing: 16) {
-            StreakHeader(streak: data.streak, todaySeconds: data.todaySeconds, goalMinutes: data.goalMinutes)
+            StreakHeader(streak: data.streak, todaySeconds: data.todaySeconds, goalMinutes: data.goalMinutes,
+                         shareProgress: shareProgress)
             WeekStrip(days: data.week)
             MetricsCard(data: data, unit: unit)
             if let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }

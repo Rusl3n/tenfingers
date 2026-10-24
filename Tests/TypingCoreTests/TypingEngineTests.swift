@@ -35,7 +35,34 @@ private func stroke(_ c: Character, _ t: Double, _ code: UInt16 = 0) -> Keystrok
     _ = engine.handle(stroke("в", 10))   // пауза 9 с не считается
     _ = engine.handle(stroke("г", 11))
     #expect(engine.activeTime == 2)
-    #expect(engine.cpm == 120)            // 4 символа за 2 секунды
+    #expect(engine.cpm == 90)             // 3 знака после первого за 2 секунды
+}
+
+@Test func speedIgnoresTheFirstCharacterWithoutOwnTime() {
+    var engine = TypingEngine(text: "аб")
+    _ = engine.handle(stroke("а", 0))
+    #expect(engine.cpm == 0)              // один знак: у него нет своего времени
+    _ = engine.handle(stroke("б", 1))
+    #expect(engine.cpm == 60)             // 2 знака за 1 с: считается 1 знак (раньше было 120)
+}
+
+@Test func speedOverElevenCharactersAtHalfSecondIntervals() {
+    var engine = TypingEngine(text: "абвгдеёжзик")
+    for (i, ch) in "абвгдеёжзик".enumerated() { _ = engine.handle(stroke(ch, Double(i) * 0.5)) }
+    #expect(engine.activeTime == 5)
+    #expect(engine.cpm == 120)            // 10 знаков после первого за 5 с
+}
+
+@Test func speedAfterErrorOnFirstPosition() {
+    var engine = TypingEngine(text: "аб")
+    _ = engine.handle(stroke("я", 0))     // ошибка на первой позиции запускает отсчёт
+    #expect(engine.cpm == 0)
+    _ = engine.handle(stroke("а", 1))
+    #expect(engine.position == 1)
+    #expect(engine.cpm == 0)              // верный первый знак ещё не даёт скорости
+    _ = engine.handle(stroke("б", 2))
+    #expect(engine.activeTime == 2)       // время ошибочного нажатия учтено
+    #expect(engine.cpm == 30)             // 1 знак после первого за 2 с
 }
 
 @Test func explicitPauseDropsNextInterval() {

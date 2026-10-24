@@ -21,7 +21,7 @@ struct AchievementService {
     }
 
     let recorder: ResultRecorder
-    /// Дневная цель (для статусов дней серии); читается при каждой проверке.
+    /// Текущая дневная цель (для сегодняшнего дня и прошлых дней без записанной цели); читается при каждой проверке.
     let goalSeconds: () -> Double
     let timeZone: TimeZone
     let now: () -> Date
@@ -108,7 +108,8 @@ struct AchievementService {
         var languages: [String: Set<Language>] = [:]
         for record in try context.fetch(FetchDescriptor<DayRecord>()) {
             days[record.logicalDay] = DayActivity(activeSeconds: record.activeSeconds,
-                                                  completedExercises: record.completedExercises)
+                                                  completedExercises: record.completedExercises,
+                                                  goalSeconds: record.goalSeconds)
             if record.abandonedExercises > 0 { abandoned[record.logicalDay] = record.abandonedExercises }
             let known = Set(record.languages.compactMap(Language.init(rawValue:)))
             if !known.isEmpty { languages[record.logicalDay] = known }
@@ -127,12 +128,18 @@ struct AchievementService {
         var counters: [String: Int] = [:]
         for record in try context.fetch(FetchDescriptor<CounterRecord>()) { counters[record.name] = record.value }
 
+        // Все прежние верные «ё» и «Ё» (до 1.1.0 по сессиям не считались, решение 6 фазы 5).
+        let ruKeyStats = try context.fetch(FetchDescriptor<KeyStat>(predicate: #Predicate { $0.language == "ru" }))
+        let yoKeyStatCorrect = ruKeyStats
+            .filter { $0.character.count == 1 && KeyStats.yoLetters.contains(Character($0.character)) }
+            .reduce(0) { $0 + max(0, $1.presses - $1.errors) }
+
         return AchievementFacts(
             exercises: exercises, days: days, abandonedByDay: abandoned, languagesByDay: languages,
             streakStatuses: streak.statuses, lessonPasses: passes, lessonAttempts: attempts,
             starsByLesson: stars(progress: progress, exercises: exercises), courses: courses,
             openLetterDates: try openLetterDates(passes: passes, exercises: exercises, now: now),
-            counters: counters, timeZone: timeZone, now: now)
+            counters: counters, yoKeyStatCorrect: yoKeyStatCorrect, timeZone: timeZone, now: now)
     }
 
     /// Запись → факт; запись с неизвестным режимом или языком (из более новой версии) пропускается.
@@ -145,7 +152,9 @@ struct AchievementService {
             chars: record.chars, activeSeconds: record.activeSeconds, accuracy: record.accuracy, cpm: record.cpm,
             completed: record.completed, hintLevel: HintLevel(rawValue: record.hintLevel) ?? .full,
             maxErrorStreak: record.maxErrorStreak, wrongKeystrokes: record.wrongKeystrokes,
-            pinkyPresses: record.pinkyPresses, pinkyErrors: record.pinkyErrors)
+            pinkyPresses: record.pinkyPresses, pinkyErrors: record.pinkyErrors, source: record.source,
+            fingerPresses: FingerCounts.counts(record.fingerPresses),
+            fingerErrors: FingerCounts.counts(record.fingerErrors), yoCorrect: record.yoPresses)
     }
 
     /// Звёзды уроков — только `LessonScoring.effectiveStars` (как карта курса и аналитика): история —

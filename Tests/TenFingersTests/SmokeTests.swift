@@ -9,5 +9,5 @@ import Testing
         .appendingPathComponent("Localization/en.lproj/Localizable.strings")
     let strings = try #require(
         try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
-    #expect(strings["Десять пальцев"] == "Ten Fingers")
+    #expect(strings["Десять пальцев"] == "TenFingers")
 }

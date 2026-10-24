@@ -21,6 +21,7 @@ struct WeekStrip: View {
                         }
                 }
                 .frame(maxWidth: .infinity)
+                .help(HelpText.fire(day.status))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text("\(day.label): \(DayStatusStyle.title(day.status))"))
                 .accessibilityValue(day.isToday ? Text("сегодня") : Text(verbatim: ""))
@@ -28,5 +29,6 @@ struct WeekStrip: View {
         }
         .padding(.vertical, 14).padding(.horizontal, 8)
         .background(palette.card, in: RoundedRectangle(cornerRadius: 12))
+        .help(HelpText.weekStrip)
     }
 }

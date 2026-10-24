@@ -151,3 +151,32 @@ private struct Boom: Error {}
     defaults.set(2, forKey: SettingsKey.dayStartHour)
     #expect(StoredSettings.dayStartHour(defaults) == 2)
 }
+
+/// Сессия хранит нажатия и ошибки по пальцам и число «ё» без ошибки (фаза 5, поколение схемы 4).
+@MainActor @Test func sessionStoresFingerCountsAndYo() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    var engine = TypingEngine(text: "ёа о")
+    let keys: [(Character, UInt16, Double)] = [("ё", 50, 0), ("а", 3, 0.2), (" ", 49, 0.3), ("x", 7, 0.4), ("о", 38, 0.5)]
+    for (c, code, t) in keys { _ = engine.handle(Keystroke(character: c, keyCode: code, timestamp: t)) }
+    let typed = ExerciseResult(engine: engine, mode: .practice, language: .ru, lessonId: nil,
+                                startedAt: date(23, 12), endedAt: date(23, 12), hintLevel: .full)
+    try recorder.commit { try recorder.record(typed, source: "words") }
+    let session = try #require(try container.mainContext.fetch(FetchDescriptor<SessionRecord>()).first)
+    let expected = KeyStats.fingerCounts(from: typed)
+    #expect(FingerCounts.counts(session.fingerPresses) == expected.presses)
+    #expect(FingerCounts.counts(session.fingerErrors) == expected.errors)
+    #expect(FingerCounts.counts(session.fingerPresses)?[.thumb] == 1)
+    #expect(FingerCounts.counts(session.fingerErrors)?[FingerMap.finger(for: 38)!] == 1)
+    #expect(session.yoPresses == 1)
+
+    // Английская сессия: «ё» нет — 0, а не nil.
+    try recorder.commit { try recorder.record(result(at: date(23, 13))) }
+    let english = ExerciseResult(engine: TypingEngine(text: "a"), mode: .practice, language: .en, lessonId: nil,
+                                 startedAt: date(23, 14), endedAt: date(23, 14), hintLevel: .full)
+    try recorder.commit { try recorder.record(english) }
+    let last = try #require(try container.mainContext.fetch(
+        FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.endedAt)])).last)
+    #expect(last.language == "en" && last.yoPresses == 0)
+    #expect(FingerCounts.counts(last.fingerPresses) == [:])
+}

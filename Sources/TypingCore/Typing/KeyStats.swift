@@ -47,6 +47,27 @@ public enum KeyStats {
         return (pinky.count, pinky.filter(\.hadError).count)
     }
 
+    /// Нажатия и ошибки по пальцам (по `keyCode`, пробел — `thumb`); клавиши без пальца пропускаются.
+    /// Палец с нажатиями есть в обоих словарях (ошибок может быть 0).
+    public static func fingerCounts(from result: ExerciseResult) -> (presses: [Finger: Int], errors: [Finger: Int]) {
+        var presses: [Finger: Int] = [:]
+        var errors: [Finger: Int] = [:]
+        for timing in result.timings {
+            guard let finger = FingerMap.finger(for: timing.keyCode) else { continue }
+            presses[finger, default: 0] += 1
+            errors[finger, default: 0] += timing.hadError ? 1 : 0
+        }
+        return (presses, errors)
+    }
+
+    /// «ё» и «Ё» (для `yoCorrect` и для подсчёта прежних нажатий по `KeyStat`).
+    public static let yoLetters: Set<Character> = ["ё", "Ё"]
+
+    /// «ё» и «Ё» без ошибки.
+    public static func yoCorrect(from result: ExerciseResult) -> Int {
+        result.timings.filter { yoLetters.contains($0.character) && !$0.hadError }.count
+    }
+
     public static func ewma(_ old: Double?, _ sample: Double, alpha: Double = alpha) -> Double {
         guard let old else { return sample }
         return old + alpha * (sample - old)

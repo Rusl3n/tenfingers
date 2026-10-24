@@ -38,11 +38,16 @@ public struct SessionSummary: Equatable, Sendable {
 
     /// Скорость упражнения: сохранённая или знаки за минуту чистого времени.
     public var speed: Double { cpm ?? (activeSeconds > 0 ? Double(chars) / activeSeconds * 60 : 0) }
+
+    /// Подходит ли упражнение для рекорда скорости (общее правило с ачивками скорости, см. `Analytics.isSpeedRecordExercise`).
+    public var isSpeedRecordExercise: Bool {
+        Analytics.isSpeedRecordExercise(completed: completed, kind: exerciseKind, chars: chars, accuracy: accuracy)
+    }
 }
 
 public struct DailyPoint: Equatable, Sendable {
     public let day: String
-    /// Σchars / Σseconds × 60 по завершённым.
+    /// Σ(скорость × секунды) / Σсекунды по завершённым: то же, что Σзнаки / Σсекунды × 60, пока в скорости считаются все знаки.
     public let cpm: Double
     /// Средневзвешенная по chars точность завершённых.
     public let accuracy: Double
@@ -132,6 +137,19 @@ public enum HeatMode: Sendable { case errors, slowness }
 public enum Analytics {
     /// Рекорды считаются только по завершённым упражнениям не короче этого.
     public static let recordMinimumChars = 300
+
+    /// «Подходящее» упражнение: проверка урока (любой длины: шаги курса короче порога) или текст от
+    /// `recordMinimumChars` знаков. На нём держатся скорость, «Снайпер» и «Без подглядывания»; завершённость проверяет вызывающий.
+    public static func isQualifyingLength(kind: ExerciseKind?, chars: Int) -> Bool {
+        kind == .check || chars >= recordMinimumChars
+    }
+
+    /// Единое правило рекорда скорости и ачивок скорости (`speed.*`): завершённое подходящее упражнение
+    /// без единой ошибки (точность 100%). Хранимые значения скорости не пересчитываются, правило только отбирает.
+    public static func isSpeedRecordExercise(completed: Bool, kind: ExerciseKind?, chars: Int, accuracy: Double) -> Bool {
+        completed && isQualifyingLength(kind: kind, chars: chars) && accuracy >= 1
+    }
+
     /// Клавиши с меньшим числом нажатий не попадают в тепловую карту ошибок.
     static let heatMinimumPresses = 5
 
@@ -142,7 +160,8 @@ public enum Analytics {
             let done = list.filter(\.completed)
             let chars = done.reduce(0) { $0 + $1.chars }
             let doneSeconds = done.reduce(0.0) { $0 + $1.activeSeconds }
-            let cpm = doneSeconds > 0 ? Double(chars) / doneSeconds * 60 : 0
+            // Знаки со своим временем берутся из сохранённой скорости: у новых упражнений первый знак времени не имеет.
+            let cpm = doneSeconds > 0 ? done.reduce(0.0) { $0 + $1.speed * $1.activeSeconds } / doneSeconds : 0
             let accuracy = chars > 0
                 ? done.reduce(0.0) { $0 + $1.accuracy * Double($1.chars) } / Double(chars) : 0
             return DailyPoint(day: day, cpm: cpm, accuracy: accuracy,
@@ -175,18 +194,19 @@ public enum Analytics {
                       all: secondsByDay.values.reduce(0, +))
     }
 
+    /// Рекорд скорости — по `isSpeedRecordExercise` (проверка урока или текст от 300 знаков, без ошибок);
+    /// рекорд точности — по завершённым упражнениям от `recordMinimumChars` знаков.
     public static func records(_ sessions: [SessionSummary], longestStreak: Int) -> Records {
         var bestCpm: [Language: Record] = [:]
         var bestAccuracy: [Language: Record] = [:]
-        let eligible = sessions
-            .filter { $0.completed && $0.chars >= recordMinimumChars && $0.activeSeconds > 0 }
+        let ordered = sessions
+            .filter { $0.completed && $0.activeSeconds > 0 }
             .sorted { $0.endedAt < $1.endedAt }   // при равенстве побеждает более ранняя
-        for s in eligible {
-            let cpm = Double(s.chars) / s.activeSeconds * 60
-            if cpm > (bestCpm[s.language]?.value ?? -.infinity) {
-                bestCpm[s.language] = Record(value: cpm, date: s.endedAt, language: s.language)
+        for s in ordered {
+            if s.isSpeedRecordExercise, s.speed > (bestCpm[s.language]?.value ?? -.infinity) {
+                bestCpm[s.language] = Record(value: s.speed, date: s.endedAt, language: s.language)
             }
-            if s.accuracy > (bestAccuracy[s.language]?.value ?? -.infinity) {
+            if s.chars >= recordMinimumChars, s.accuracy > (bestAccuracy[s.language]?.value ?? -.infinity) {
                 bestAccuracy[s.language] = Record(value: s.accuracy, date: s.endedAt, language: s.language)
             }
         }

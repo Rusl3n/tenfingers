@@ -190,9 +190,13 @@ private func archiveJSON(_ fields: String) -> Data {
         session.source = session.source ?? "words"
         session.lessonId = session.lessonId ?? "x"
         session.exerciseKind = session.exerciseKind ?? "check"
+        session.fingerPresses = session.fingerPresses ?? FingerCounts.data([.leftPinky: 5, .thumb: 7])
+        session.fingerErrors = session.fingerErrors ?? FingerCounts.data([.leftPinky: 1, .thumb: 0])
+        session.yoPresses = session.yoPresses ?? 2
     }
     for stat in try context.fetch(FetchDescriptor<KeyStat>()) { stat.ewmaMs = stat.ewmaMs ?? 1 }
     for lesson in try context.fetch(FetchDescriptor<LessonProgress>()) { lesson.passedAt = lesson.passedAt ?? base }
+    for day in try context.fetch(FetchDescriptor<DayRecord>()) { day.goalSeconds = day.goalSeconds ?? 600 }
     try context.save()
     let (defaults, name) = makeDefaults()
     defer { removeTestDefaults(name) }
@@ -271,6 +275,7 @@ private func archiveJSON(_ fields: String) -> Data {
     let session = try #require(try context.fetch(FetchDescriptor<SessionRecord>()).first)
     #expect(session.id == UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF"))
     #expect(session.source == nil && session.exerciseKind == nil && session.pinkyPresses == 0)
+    #expect(session.fingerPresses == nil && session.fingerErrors == nil && session.yoPresses == nil)
     #expect(abs(session.endedAt.timeIntervalSince(session.startedAt) - 60.5) < 0.001)
     let key = try #require(try context.fetch(FetchDescriptor<KeyStat>()).first)
     #expect(key.presses == 0 && key.recent.isEmpty && key.ewmaMs == nil && key.keyCode == 0)
@@ -508,6 +513,8 @@ private func archiveJSON(_ fields: String) -> Data {
     defaults.set(false, forKey: SettingsKey.adultHumor)
     defaults.set("dark", forKey: SettingsKey.shareTheme)
     defaults.set(15, forKey: SettingsKey.dailyGoalMinutes)
+    defaults.set(true, forKey: SettingsKey.shareQR)
+    defaults.set("year", forKey: SettingsKey.shareProgressPeriod)
     let old = try ProgressArchive.decode(archiveJSON(#"""
         "format": "tenfingers-progress", "version": 1, "schemaGeneration": 2, "settings": {}
         """#))
@@ -515,6 +522,8 @@ private func archiveJSON(_ fields: String) -> Data {
     #expect(defaults.object(forKey: SettingsKey.adultHumor) as? Bool == false)
     #expect(defaults.string(forKey: SettingsKey.shareTheme) == "dark")
     #expect(defaults.object(forKey: SettingsKey.dailyGoalMinutes) == nil)
+    #expect(defaults.object(forKey: SettingsKey.shareQR) as? Bool == true)
+    #expect(defaults.string(forKey: SettingsKey.shareProgressPeriod) == "year")
 
     let current = try ProgressArchive.decode(archiveJSON(#"""
         "format": "tenfingers-progress", "version": 1, "schemaGeneration": 3, "settings": {}
@@ -522,6 +531,144 @@ private func archiveJSON(_ fields: String) -> Data {
     ProgressArchive.applyPreferences(of: current, to: defaults)
     #expect(defaults.object(forKey: SettingsKey.adultHumor) == nil)
     #expect(defaults.object(forKey: SettingsKey.shareTheme) == nil)
+    // Поколение 3 ещё не знает «QR-код» (поколение 4): значение остаётся.
+    #expect(defaults.object(forKey: SettingsKey.shareQR) as? Bool == true)
+    #expect(defaults.string(forKey: SettingsKey.shareProgressPeriod) == "year")
+
+    let latest = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 4, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: latest, to: defaults)
+    #expect(defaults.object(forKey: SettingsKey.shareQR) == nil)
+    #expect(defaults.object(forKey: SettingsKey.shareProgressPeriod) == nil)
+}
+
+/// Период карточки «Мой прогресс» попадает в архив строкой и возвращается из него.
+@Test func progressPeriodSettingRoundTripsThroughArchive() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    defaults.set("year", forKey: SettingsKey.shareProgressPeriod)
+    #expect(ArchivedSettings.read(defaults)[SettingsKey.shareProgressPeriod] == .string("year"))
+    #expect(ArchivedSettings.introducedIn[SettingsKey.shareProgressPeriod] == 4)
+}
+
+private let progressContentKeys = [
+    SettingsKey.shareProgressShowStreak, SettingsKey.shareProgressShowFullDays, SettingsKey.shareProgressShowTime,
+    SettingsKey.shareProgressShowSpeed, SettingsKey.shareProgressShowAccuracy,
+    SettingsKey.shareAchievementShowJoke, SettingsKey.shareAchievementShowReason,
+]
+
+/// Содержимое карточек «Мой прогресс» и ачивки и значение «all» периода переезжают в архив и обратно; ключи введены в поколении 5.
+@Test func progressCardContentSettingsRoundTripThroughArchive() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    defaults.set("all", forKey: SettingsKey.shareProgressPeriod)
+    for (index, key) in progressContentKeys.enumerated() { defaults.set(index.isMultiple(of: 2), forKey: key) }
+    let read = ArchivedSettings.read(defaults)
+    #expect(read[SettingsKey.shareProgressPeriod] == .string("all"))
+    for (index, key) in progressContentKeys.enumerated() {
+        #expect(read[key] == .bool(index.isMultiple(of: 2)))
+        #expect(ArchivedSettings.introducedIn[key] == 5)
+        #expect(ArchivedSettings.entries.contains { $0.key == key && $0.kind == .bool })
+    }
+    // В файле: «all» и переключатели проходят через архив.
+    let (target, targetName) = makeDefaults()
+    defer { removeTestDefaults(targetName) }
+    ArchivedSettings.apply(read, generation: 5, to: target)
+    #expect(target.string(forKey: SettingsKey.shareProgressPeriod) == "all")
+    for (index, key) in progressContentKeys.enumerated() {
+        #expect(target.object(forKey: key) as? Bool == index.isMultiple(of: 2))
+    }
+}
+
+/// Архивы поколений 3 и 4 не знают этих ключей: текущие значения остаются; архив поколения 5 без них — значения по умолчанию.
+@Test func progressCardContentSettingsSurviveGenerationThreeArchive() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    for key in progressContentKeys { defaults.set(false, forKey: key) }
+    let old = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 3, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: old, to: defaults)
+    for key in progressContentKeys { #expect(defaults.object(forKey: key) as? Bool == false, "\(key)") }
+    let previous = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 4, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: previous, to: defaults)
+    for key in progressContentKeys { #expect(defaults.object(forKey: key) as? Bool == false, "\(key)") }
+    let latest = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 5, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: latest, to: defaults)
+    for key in progressContentKeys { #expect(defaults.object(forKey: key) == nil, "\(key)") }
+}
+
+private let reminderScheduleKeys = [
+    SettingsKey.reminderSchedule, SettingsKey.reminderTime1, SettingsKey.reminderTime2, SettingsKey.reminderTime3,
+    SettingsKey.reminderFromHour, SettingsKey.reminderToHour, SettingsKey.reminderIntervalHours,
+    SettingsKey.reminderTone, SettingsKey.reminderEscalating,
+]
+
+/// Расписание, тон и нарастание напоминаний переезжают в архив и обратно; ключи введены в поколении 4.
+@MainActor @Test func reminderScheduleSettingsTravelWithArchive() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let (source, sourceName) = makeDefaults()
+    let (target, targetName) = makeDefaults()
+    defer {
+        removeTestDefaults(sourceName)
+        removeTestDefaults(targetName)
+    }
+    source.set("interval", forKey: SettingsKey.reminderSchedule)
+    source.set(540, forKey: SettingsKey.reminderTime1)
+    source.set(800, forKey: SettingsKey.reminderTime2)
+    source.set(1100, forKey: SettingsKey.reminderTime3)
+    source.set(8, forKey: SettingsKey.reminderFromHour)
+    source.set(22, forKey: SettingsKey.reminderToHour)
+    source.set(2, forKey: SettingsKey.reminderIntervalHours)
+    source.set("funny", forKey: SettingsKey.reminderTone)
+    source.set(true, forKey: SettingsKey.reminderEscalating)
+    let read = ArchivedSettings.read(source)
+    for key in reminderScheduleKeys {
+        #expect(read[key] != nil, "\(key) не попал в архив")
+        #expect(ArchivedSettings.introducedIn[key] == 4)
+    }
+    let archive = try ProgressArchive.decode(ProgressArchive.export(
+        context: container.mainContext, defaults: source, now: base))
+    ProgressArchive.applyPreferences(of: archive, to: target)
+    #expect(StoredSettings.reminders(target) == StoredSettings.reminders(source))
+    #expect(target.string(forKey: SettingsKey.reminderSchedule) == "interval")
+    #expect(target.object(forKey: SettingsKey.reminderTime2) as? Int == 800)
+    #expect(target.object(forKey: SettingsKey.reminderEscalating) as? Bool == true)
+}
+
+/// Архив поколения 3 не знает новых ключей напоминаний: настроенное расписание не сбрасывается,
+/// а прежние время и включённость применяются.
+@Test func generationThreeArchiveKeepsReminderSchedule() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    defaults.set("thrice", forKey: SettingsKey.reminderSchedule)
+    defaults.set(777, forKey: SettingsKey.reminderTime1)
+    defaults.set(2, forKey: SettingsKey.reminderIntervalHours)
+    defaults.set("funny", forKey: SettingsKey.reminderTone)
+    defaults.set(true, forKey: SettingsKey.reminderEscalating)
+    let archive = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 3,
+        "settings": {"remindersEnabled": true, "reminderHour": 7, "reminderMinute": 30}
+        """#))
+    ProgressArchive.applyPreferences(of: archive, to: defaults)
+    #expect(defaults.string(forKey: SettingsKey.reminderSchedule) == "thrice")
+    #expect(defaults.object(forKey: SettingsKey.reminderTime1) as? Int == 777)
+    #expect(defaults.object(forKey: SettingsKey.reminderIntervalHours) as? Int == 2)
+    #expect(defaults.string(forKey: SettingsKey.reminderTone) == "funny")
+    #expect(defaults.object(forKey: SettingsKey.reminderEscalating) as? Bool == true)
+    #expect(defaults.object(forKey: SettingsKey.reminderHour) as? Int == 7)
+    #expect(defaults.object(forKey: SettingsKey.remindersEnabled) as? Bool == true)
+    // Поколение 4 без ключей — возврат к умолчаниям.
+    let current = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 4, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: current, to: defaults)
+    for key in reminderScheduleKeys { #expect(defaults.object(forKey: key) == nil, "\(key)") }
 }
 
 @Test func settingNumbersOutsideValidRangesAreClampedOnApply() throws {
@@ -533,6 +680,8 @@ private func archiveJSON(_ fields: String) -> Data {
             "dayStartHour": 99, "dailyGoalMinutes": 12, "adaptiveTargetCpm": 9999,
             "keyboardUnit": 500, "keyboardOffset": -9000, "uiScale": 7,
             "darkFromHour": -3, "darkToHour": 40, "reminderHour": 24, "reminderMinute": 75,
+            "reminderTime1": -10, "reminderTime2": 5000, "reminderTime3": 700, "reminderFromHour": 40,
+            "reminderToHour": -2, "reminderIntervalHours": 9,
             "sound.keyClick.volume": 5
         }
         """#))
@@ -547,6 +696,12 @@ private func archiveJSON(_ fields: String) -> Data {
     #expect(defaults.object(forKey: SettingsKey.darkToHour) as? Int == 23)
     #expect(defaults.object(forKey: SettingsKey.reminderHour) as? Int == 23)
     #expect(defaults.object(forKey: SettingsKey.reminderMinute) as? Int == 59)
+    #expect(defaults.object(forKey: SettingsKey.reminderTime1) as? Int == 0)
+    #expect(defaults.object(forKey: SettingsKey.reminderTime2) as? Int == 1439)
+    #expect(defaults.object(forKey: SettingsKey.reminderTime3) as? Int == 700)
+    #expect(defaults.object(forKey: SettingsKey.reminderFromHour) as? Int == 23)
+    #expect(defaults.object(forKey: SettingsKey.reminderToHour) as? Int == 0)
+    #expect(defaults.object(forKey: SettingsKey.reminderIntervalHours) as? Int == 4)
     #expect(defaults.object(forKey: SoundSettings.volumeKey(.keyClick)) as? Double == 1)
 }
 
@@ -700,10 +855,14 @@ private struct SimulatedDiskFailure: Error {}
         session.lessonId = session.lessonId ?? "ru.1.2"
         session.exerciseKind = session.exerciseKind ?? "keys"
         session.startedAt = session.startedAt.addingTimeInterval(0.123_456_789)
+        session.fingerPresses = session.fingerPresses ?? FingerCounts.data([.rightPinky: 11, .leftIndex: 40, .thumb: 20])
+        session.fingerErrors = session.fingerErrors ?? FingerCounts.data([.rightPinky: 2, .leftIndex: 0, .thumb: 1])
+        session.yoPresses = session.yoPresses ?? 4
     }
     for stat in try context.fetch(FetchDescriptor<KeyStat>()) { stat.ewmaMs = stat.ewmaMs ?? 99.125 }
     for stat in try context.fetch(FetchDescriptor<BigramStat>()) { stat.ewmaMs = stat.ewmaMs ?? 77.5 }
     for lesson in try context.fetch(FetchDescriptor<LessonProgress>()) { lesson.passedAt = lesson.passedAt ?? odd }
+    for day in try context.fetch(FetchDescriptor<DayRecord>()) { day.goalSeconds = day.goalSeconds ?? 900 }
     context.insert(AdaptiveUnlock(language: "en", letter: "e", unlockedAt: odd.addingTimeInterval(1e-7)))
     context.insert(CustomText(title: "Второй", body: "Текст два", language: "en", createdAt: odd))
     try context.save()
@@ -715,8 +874,8 @@ private func fillPreferences(_ defaults: UserDefaults) {
         switch kind {
         case .bool: defaults.set(true, forKey: key)
         // Значения в допустимых пределах: при загрузке числа приводятся к ним (`ArchivedSettings.apply`)
-        case .int: defaults.set(key == SettingsKey.adaptiveTargetCpm ? 150 : key == SettingsKey.dailyGoalMinutes ? 15 : 5,
-                                forKey: key)
+        case .int: defaults.set(key == SettingsKey.adaptiveTargetCpm ? 150 : key == SettingsKey.dailyGoalMinutes ? 15
+                                    : key == SettingsKey.reminderIntervalHours ? 3 : 5, forKey: key)
         case .double: defaults.set(key == SettingsKey.keyboardUnit ? 44.0 : key == SettingsKey.uiScale ? 1.25 : 0.625,
                                    forKey: key)
         case .string: defaults.set("value-\(key)", forKey: key)
@@ -787,8 +946,9 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let keys = Set(pattern.matches(in: body, range: NSRange(body.startIndex..., in: body))
         .map { String(body[Range($0.range(at: 1), in: body)!]) })
     #expect(keys.count > 15)
-    // Не настройки: состояние окна, прежний ключ темы; профиль — отдельным разделом архива.
-    let excluded: Set<String> = [SettingsKey.settingsSection, SettingsKey.legacyTheme,
+    // Не настройки: состояние окна или устройства (язык интерфейса), прежний ключ темы; профиль — отдельным разделом архива.
+    let excluded: Set<String> = [SettingsKey.settingsSection, SettingsKey.legacyTheme, SettingsKey.interfaceLanguage,
+                                 SettingsKey.onboardingCompleted, SettingsKey.achievementsFilter,
                                  SettingsKey.profileNickname, SettingsKey.profileFullName]
     let archived = Set(ArchivedSettings.entries.map(\.key))
     #expect(keys.subtracting(excluded).subtracting(archived).isEmpty,
@@ -866,4 +1026,90 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let data = try Data(contentsOf: backup)
     #expect(throws: ArchiveError.invalidRecord("CustomText", 1)) { _ = try ProgressArchive.decode(data) }
     #expect(try ProgressArchive.decodeStructure(data).customTexts.count == 2)
+}
+
+/// Поля поколения 4 (статистика пальцев и «ё»): в файле — словарь «палец → число» и число, при загрузке — как были.
+@MainActor @Test func fingerAndYoFieldsRoundTripThroughArchive() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populate(context)
+    let sessions = try context.fetch(FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.endedAt)]))
+    sessions[0].fingerPresses = FingerCounts.data([.leftPinky: 9, .thumb: 20])
+    sessions[0].fingerErrors = FingerCounts.data([.leftPinky: 1, .thumb: 0])
+    sessions[0].yoPresses = 3
+    try context.save()
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+
+    let data = try ProgressArchive.export(context: context, defaults: defaults, now: base)
+    let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let records = try #require(json["sessions"] as? [[String: Any]])
+    let withStats = try #require(records.first { $0["yoPresses"] != nil })
+    #expect(withStats["fingerPresses"] as? [String: Int] == ["leftPinky": 9, "thumb": 20])
+    #expect(withStats["fingerErrors"] as? [String: Int] == ["leftPinky": 1, "thumb": 0])
+    #expect(withStats["yoPresses"] as? Int == 3)
+    // Сессия без статистики (как до 1.1.0) — полей в файле нет.
+    #expect(records.contains { $0["fingerPresses"] == nil && $0["yoPresses"] == nil })
+
+    let target = try ModelStore.makeContainer(inMemory: true)
+    try ProgressArchive.replaceAll(with: try ProgressArchive.decode(data), context: target.mainContext)
+    let restored = try target.mainContext.fetch(FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.endedAt)]))
+    #expect(FingerCounts.counts(restored[0].fingerPresses) == [.leftPinky: 9, .thumb: 20])
+    #expect(FingerCounts.counts(restored[0].fingerErrors) == [.leftPinky: 1, .thumb: 0])
+    #expect(restored[0].yoPresses == 3)
+    #expect(restored[1].fingerPresses == nil && restored[1].fingerErrors == nil && restored[1].yoPresses == nil)
+}
+
+/// Поле поколения 5 (цель дня): в файле — число секунд, при загрузке — как было; у дня без цели поля в файле нет.
+@MainActor @Test func dayGoalRoundTripsThroughArchive() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populate(context)
+    let days = try context.fetch(FetchDescriptor<DayRecord>(sortBy: [SortDescriptor(\.logicalDay)]))
+    days[0].goalSeconds = 900
+    try context.save()
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+
+    let data = try ProgressArchive.export(context: context, defaults: defaults, now: base)
+    let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let records = try #require(json["days"] as? [[String: Any]])
+    #expect(records.map { $0["goalSeconds"] as? Double } == [900, nil])
+
+    let target = try ModelStore.makeContainer(inMemory: true)
+    try ProgressArchive.replaceAll(with: try ProgressArchive.decode(data), context: target.mainContext)
+    let restored = try target.mainContext.fetch(FetchDescriptor<DayRecord>(sortBy: [SortDescriptor(\.logicalDay)]))
+    #expect(restored.map(\.goalSeconds) == [900, nil])
+}
+
+/// Файл поколения 4 (без цели дня) загружается: цель пустая, и после загрузки дням до сегодняшнего включительно
+/// записывается дневная цель из загруженных настроек. Смена цели на следующий день (без перезапуска) их не меняет.
+@MainActor @Test func generationFourArchiveGetsDayGoalsAfterImport() throws {
+    let data = archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 4,
+        "settings": { "dailyGoalMinutes": 15, "dayStartHour": 4 },
+        "days": [
+            { "logicalDay": "2026-09-20", "activeSeconds": 900, "completedExercises": 2, "languages": ["ru"] },
+            { "logicalDay": "2026-09-21", "activeSeconds": 60, "completedExercises": 1, "languages": ["ru"] }
+        ]
+        """#)
+    let archive = try ProgressArchive.decode(data)
+    #expect(archive.days.map(\.goalSeconds) == [nil, nil])
+    let directory = try temporaryDirectory("TenFingersDayGoalImport")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let importer = ProgressImporter(context: context, defaults: defaults, backupDirectory: directory)
+    // `base` — 21 сентября днём: логически сегодня 21-е.
+    _ = try importer.importArchive(archive, now: base)
+    let days = try context.fetch(FetchDescriptor<DayRecord>(sortBy: [SortDescriptor(\.logicalDay)]))
+    #expect(days.map(\.goalSeconds) == [900, 900])
+    #expect(days.map(\.activeSeconds) == [900, 60])
+
+    defaults.set(30, forKey: SettingsKey.dailyGoalMinutes)
+    DayGoals.goalChangedLogging(context: context, previousGoalSeconds: 900, defaults: defaults,
+                                now: base.addingTimeInterval(86_400))
+    #expect(try context.fetch(FetchDescriptor<DayRecord>()).map(\.goalSeconds) == [900, 900])
 }

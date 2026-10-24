@@ -74,17 +74,20 @@ struct NewAchievementsLine: View {
 /// Проверка ачивок вне упражнения: при запуске и после загрузки прогресса из файла.
 @MainActor
 enum AchievementAnnouncer {
-    /// Выданные задним числом — одна сводка с кнопкой (`open`); прочие новые — обычные тосты (без звука:
-    /// занятия не было).
+    /// Выданные задним числом — одна сводка с кнопкой (`open`). Прочие новые (например, новые ачивки после
+    /// обновления, найденные по истории): две и больше видимых — тоже одна сводка, одна — обычный тост
+    /// (без звука: занятия не было). Ачивки после обновления остаются непросмотренными (точки на значках).
     @discardableResult
     static func launchCheck(service: AchievementService, toasts: ToastCenter, adultHumor: Bool,
                             open: @escaping @MainActor () -> Void) -> AchievementService.Outcome {
         let outcome = service.checkLogging(reason: .launch)
+        let visible = AchievementVisibility.visible(outcome.new, adultHumor: adultHumor)
         if outcome.isBackfill {
-            let count = AchievementVisibility.visible(outcome.new, adultHumor: adultHumor).count
-            if count > 0 { toasts.showBackfillSummary(count: count, open: open) }
+            if !visible.isEmpty { toasts.showBackfillSummary(count: visible.count, open: open) }
+        } else if visible.count >= 2 {
+            toasts.showBackfillSummary(count: visible.count, open: open)
         } else {
-            toasts.showAchievements(outcome.new, adultHumor: adultHumor)
+            toasts.showAchievements(visible, adultHumor: adultHumor)
         }
         return outcome
     }

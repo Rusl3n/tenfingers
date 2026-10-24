@@ -10,13 +10,18 @@ struct ResultRecorder {
     /// Час начала логического дня. Читается при каждой записи, а не один раз на запуск:
     /// смена настройки посреди тренировки действует на следующую же запись.
     let dayStartHour: () -> Int
+    /// Дневная цель в секундах; тоже читается при каждой записи и записывается в день (`DayRecord.goalSeconds`).
+    let goalSeconds: () -> Double
     /// Шов для тестов: вызывается перед сохранением внутри `commit` и может бросить ошибку,
     /// чтобы проверить откат и алерт «Повторить» / «Отмена» (в приложении не задаётся).
     var beforeSave: (() throws -> Void)?
 
-    init(context: ModelContext, dayStartHour: @escaping () -> Int) {
+    /// Цель по умолчанию — исходная из настроек (`SettingsDefault.dailyGoalMinutes`), не из `UserDefaults`.
+    init(context: ModelContext, dayStartHour: @escaping () -> Int,
+         goalSeconds: @escaping () -> Double = { Double(SettingsDefault.dailyGoalMinutes) * 60 }) {
         self.context = context
         self.dayStartHour = dayStartHour
+        self.goalSeconds = goalSeconds
     }
 
     /// Постоянный час начала дня (для тестов).
@@ -24,9 +29,10 @@ struct ResultRecorder {
         self.init(context: context, dayStartHour: { dayStartHour })
     }
 
-    /// Для приложения: час начала дня берётся из настроек в момент записи.
+    /// Для приложения: час начала дня и цель берутся из настроек в момент записи.
     static func live(context: ModelContext) -> ResultRecorder {
-        ResultRecorder(context: context, dayStartHour: { StoredSettings.dayStartHour() })
+        ResultRecorder(context: context, dayStartHour: { StoredSettings.dayStartHour() },
+                       goalSeconds: { StoredSettings.dailyGoalSeconds() })
     }
 
     /// Выполняет изменения и сохраняет их одной транзакцией. При ошибке откатывает контекст,
@@ -46,7 +52,8 @@ struct ResultRecorder {
     func dayActivity(forKey key: String) throws -> DayActivity? {
         let descriptor = FetchDescriptor<DayRecord>(predicate: #Predicate { $0.logicalDay == key })
         return try context.fetch(descriptor).first.map {
-            DayActivity(activeSeconds: $0.activeSeconds, completedExercises: $0.completedExercises)
+            DayActivity(activeSeconds: $0.activeSeconds, completedExercises: $0.completedExercises,
+                        goalSeconds: $0.goalSeconds)
         }
     }
 
@@ -54,6 +61,7 @@ struct ResultRecorder {
     func record(_ result: ExerciseResult, source: String? = nil) throws {
         let day = LogicalDay.key(for: result.endedAt, dayStartHour: dayStartHour())
         let pinky = KeyStats.pinkyCounts(from: result)
+        let fingers = KeyStats.fingerCounts(from: result)
         context.insert(SessionRecord(
             mode: result.mode.rawValue, language: result.language.rawValue, lessonId: result.lessonId,
             startedAt: result.startedAt, endedAt: result.endedAt, logicalDay: day,
@@ -61,10 +69,14 @@ struct ResultRecorder {
             cpm: result.cpm, accuracy: result.accuracy, completed: result.completed,
             hintLevel: result.hintLevel.rawValue, maxErrorStreak: result.maxErrorStreak,
             wrongKeystrokes: result.wrongKeystrokes, exerciseKind: result.exerciseKind?.rawValue,
-            pinkyPresses: pinky.presses, pinkyErrors: pinky.errors, source: source
+            pinkyPresses: pinky.presses, pinkyErrors: pinky.errors, source: source,
+            fingerPresses: FingerCounts.data(fingers.presses), fingerErrors: FingerCounts.data(fingers.errors),
+            yoPresses: KeyStats.yoCorrect(from: result)
         ))
 
         let dayRecord = try fetchOrCreateDay(day)
+        // День следует текущей цели, пока в нём занимаются; после — остаётся с целью последней записи.
+        dayRecord.goalSeconds = goalSeconds()
         dayRecord.activeSeconds += result.activeSeconds
         if result.completed { dayRecord.completedExercises += 1 } else { dayRecord.abandonedExercises += 1 }
         if !dayRecord.languages.contains(result.language.rawValue) {

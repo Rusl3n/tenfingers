@@ -1,11 +1,39 @@
 #!/bin/bash
-# Собирает «Десять пальцев.app» (release), подписывает ad-hoc и устанавливает в /Applications.
+# Собирает TenFingers.app (release), подписывает ad-hoc и устанавливает в /Applications.
+# Имя в Finder и Dock локализовано (Localization/*/InfoPlist.strings): «Десять пальцев» / «TenFingers».
+# Старый бандл «Десять пальцев.app» при установке удаляется (если он запущен, сначала закрывается).
 # Иконка: scripts/AppIcon.icns (перерисовать: swift scripts/make-icon.swift build/icon).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 
-NAME="Десять пальцев.app"
+STORE_DIR="$HOME/Library/Application Support/TenFingers"
+
+# Защита от отката (спецификация §20): если базу уже записала версия с более новым поколением схемы,
+# эту сборку не ставим — она базу не откроет. Проверка идёт до сборки, резервной копии, закрытия
+# приложения и удаления бандлов, поэтому при отказе ничего не меняется. Маркера нет или он не читается —
+# ставим как раньше: приложение само разберётся при открытии базы.
+BUILD_GENERATION=$(sed -n 's/^[[:space:]]*static let current = \([0-9][0-9]*\).*$/\1/p' \
+    Sources/TenFingers/Persistence/SchemaGeneration.swift)
+[ -n "$BUILD_GENERATION" ] || {
+    echo "Не удалось прочитать SchemaGeneration.current из Sources/TenFingers/Persistence/SchemaGeneration.swift" >&2
+    exit 1
+}
+MARKER="$STORE_DIR/TenFingers.store.generation"
+if [ -f "$MARKER" ] && [ -r "$MARKER" ]; then
+    STORE_GENERATION=$(tr -d '[:space:]' < "$MARKER" || true)
+    if [[ "$STORE_GENERATION" =~ ^[0-9]{1,9}$ ]] && [ "$((10#$STORE_GENERATION))" -gt "$BUILD_GENERATION" ]; then
+        echo "Установка отменена: база прогресса записана более новой версией приложения." >&2
+        echo "  Поколение схемы базы:   $((10#$STORE_GENERATION)) ($MARKER)" >&2
+        echo "  Поколение схемы сборки: $BUILD_GENERATION (SchemaGeneration.current)" >&2
+        echo "Эта сборка не откроет базу. Соберите ветку с поколением не ниже $((10#$STORE_GENERATION))." >&2
+        echo "Установленное приложение и база не тронуты." >&2
+        exit 1
+    fi
+fi
+
+NAME="TenFingers.app"
+OLD_NAME="Десять пальцев.app"
 swift build -c release --product TenFingers
 BIN=$(swift build -c release --show-bin-path)
 APP="build/$NAME"
@@ -49,7 +77,6 @@ codesign --force --deep --sign - "$APP"
 # Хранятся последние 10 копий и, кроме них, самая новая копия каждого дня за последние 30 дней.
 # Закреплённые копии (TenFingers.backup-before-phase2, TenFingers.backup-<метка>-<дата> от scripts/pin-backup.sh)
 # лежат отдельно, рядом с TenFingers.backups, и ротация их не трогает: она чистит только папки <дата>_<время> внутри.
-STORE_DIR="$HOME/Library/Application Support/TenFingers"
 BACKUPS="$HOME/Library/Application Support/TenFingers.backups"
 if [ -d "$STORE_DIR" ]; then
     DEST="$BACKUPS/$(date +%Y-%m-%d_%H-%M-%S)"
@@ -98,8 +125,14 @@ if [ -d "$STORE_DIR" ]; then
     done
 fi
 
-# Прежние установки под старым именем и в ~/Applications больше не нужны
-rm -rf ~/Applications/TenFingers.app /Applications/TenFingers.app
+# Прежние установки в ~/Applications больше не нужны
+rm -rf ~/Applications/TenFingers.app
+# Запущенное старое приложение закрываем до удаления
+if pgrep -f "/Applications/$OLD_NAME/Contents/MacOS/TenFingers" >/dev/null; then
+    pkill -f "/Applications/$OLD_NAME/Contents/MacOS/TenFingers" || true
+    sleep 1
+fi
 rm -rf "/Applications/$NAME"
 cp -R "$APP" /Applications/
+rm -rf "/Applications/$OLD_NAME"
 echo "Установлено: /Applications/$NAME"

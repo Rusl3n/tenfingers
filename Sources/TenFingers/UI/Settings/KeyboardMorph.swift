@@ -5,7 +5,7 @@ import SwiftUI
 /// оба прямоугольника измеряются в общем пространстве координат экрана настроек.
 enum KeyboardMorph {
     static let space = "keyboardMorph"
-    static let spring = Animation.spring(response: 0.42, dampingFraction: 0.86)
+    static let spring = Animation.spring(response: 0.35, dampingFraction: 0.85)
     static let backdrop = Animation.easeOut(duration: 0.25)
 
     struct Transform: Equatable {

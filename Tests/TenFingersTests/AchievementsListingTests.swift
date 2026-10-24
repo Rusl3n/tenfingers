@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftData
 import Testing
@@ -56,11 +57,96 @@ private let catalog = AchievementCatalog.all
 
 @Test func categoryFilterKeepsOnlyThatCategory() {
     let entries = AchievementsListing.entries(catalog: catalog, earned: [], adultHumor: true)
-    #expect(AchievementsListing.filtered(entries, category: nil).count == entries.count)
-    let streak = AchievementsListing.filtered(entries, category: .streak)
+    #expect(AchievementsListing.filtered(entries, category: nil, filter: .all).count == entries.count)
+    let streak = AchievementsListing.filtered(entries, category: .streak, filter: .all)
     #expect(!streak.isEmpty)
     #expect(streak.allSatisfy { $0.achievement.category == .streak })
     #expect(streak.count == catalog.filter { $0.category == .streak }.count)
+}
+
+@Test func earnedFilterCombinesWithTheCategory() {
+    let entries = AchievementsListing.entries(
+        catalog: catalog, earned: [earned("streak.3", 1), earned("accuracy.sniper", 2), earned("fun.not_today", 3)],
+        adultHumor: true)
+    let ids = { (list: [AchievementEntry]) in Set(list.map(\.achievement.id)) }
+    #expect(ids(AchievementsListing.filtered(entries, category: nil, filter: .earned))
+            == ["streak.3", "accuracy.sniper", "fun.not_today"])
+    #expect(ids(AchievementsListing.filtered(entries, category: .streak, filter: .earned)) == ["streak.3"])
+    let locked = AchievementsListing.filtered(entries, category: nil, filter: .locked)
+    #expect(locked.count == catalog.count - 3)
+    #expect(locked.allSatisfy { !$0.isEarned })
+    let lockedFun = AchievementsListing.filtered(entries, category: .fun, filter: .locked)
+    #expect(lockedFun.count == catalog.filter { $0.category == .fun }.count - 1)
+    #expect(lockedFun.allSatisfy { $0.achievement.category == .fun && !$0.isEarned })
+}
+
+@Test func emptyFilterCombinationGivesAnEmptyList() {
+    let noneEarned = AchievementsListing.entries(catalog: catalog, earned: [], adultHumor: true)
+    #expect(AchievementsListing.filtered(noneEarned, category: nil, filter: .earned).isEmpty)
+    #expect(AchievementsListing.filtered(noneEarned, category: .fun, filter: .earned).isEmpty)
+    let allFun = catalog.filter { $0.category == .fun }.map { earned($0.id, 1) }
+    let entries = AchievementsListing.entries(catalog: catalog, earned: allFun, adultHumor: true)
+    #expect(AchievementsListing.filtered(entries, category: .fun, filter: .locked).isEmpty)
+}
+
+@Test func filterHasTitlesAndStableRawValues() {
+    #expect(AchievementsFilter.allCases == [.all, .earned, .locked])
+    #expect(AchievementsFilter.allCases.map(\.rawValue) == ["all", "earned", "locked"])
+    #expect(AchievementsFilter.allCases.map(\.title) == ["Все", "Полученные", "Не полученные"])
+}
+
+@Test func concealedEntryRevealsNothing() throws {
+    let owl = try #require(catalog.first { $0.id == "special.night_owl" })
+    let entry = AchievementEntry(achievement: owl, unlockedAt: nil, seen: true)
+    #expect(entry.isConcealed)
+    #expect(entry.displayTitle == "???")
+    #expect(entry.displayIcon == "lock.fill")
+    #expect(entry.badgeCaption == "Секретная ачивка")
+}
+
+@Test func newSymbolsExist() {
+    for name in ["lock.fill", "tray"] {
+        #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "\(name)")
+    }
+}
+
+@Test func earnedSecretEntryShowsRealContent() throws {
+    let owl = try #require(catalog.first { $0.id == "special.night_owl" })
+    let entry = AchievementEntry(achievement: owl, unlockedAt: day(1), seen: true)
+    #expect(!entry.isConcealed)
+    #expect(entry.displayTitle == owl.title)
+    #expect(entry.displayIcon == owl.icon)
+    #expect(entry.badgeCaption == entry.earnedText)
+}
+
+@Test func lockedPublicEntryShowsHowToGetIt() throws {
+    let pizza = try #require(catalog.first { $0.id == "letters.ru.pizza" })
+    let entry = AchievementEntry(achievement: pizza, unlockedAt: nil, seen: true)
+    #expect(!entry.isConcealed)
+    #expect(entry.displayTitle == pizza.title)
+    #expect(entry.displayIcon == pizza.icon)
+    #expect(entry.badgeCaption == "Как получить: \(entry.lockedText)")
+    #expect(entry.badgeCaption.hasPrefix("Как получить:"))
+}
+
+@Test func earnedEntryReasonLineIsTheConditionAsAStatement() throws {
+    let pizza = try #require(catalog.first { $0.id == "letters.ru.pizza" })
+    let entry = AchievementEntry(achievement: pizza, unlockedAt: day(1), seen: true)
+    #expect(entry.reasonText == pizza.earnedConditionText)
+    #expect(entry.reasonLine == "За что: \(entry.reasonText)")
+    #expect(entry.badgeCaption == entry.earnedText)
+    // Просьба остаётся у неполученной («Как получить»), утверждение — у полученной («За что»).
+    #expect(entry.reasonText != entry.lockedText)
+}
+
+@Test func progressCountsSecretAchievementsToo() {
+    let entries = AchievementsListing.entries(
+        catalog: catalog, earned: [earned("fun.not_today", 1), earned("special.night_owl", 2), earned("streak.3", 3)],
+        adultHumor: true)
+    let progress = AchievementsListing.progress(entries)
+    #expect(progress.earned == 3)
+    #expect(progress.total == catalog.count)
+    #expect(entries.filter(\.isConcealed).count == 28 - 2)
 }
 
 @Test func availableCategoriesFollowTheCatalogOrderAndSkipEmptyOnes() {

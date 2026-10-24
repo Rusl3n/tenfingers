@@ -25,11 +25,18 @@ import SwiftData
     /// Откуда текст вне курса: `adaptive`, `weak`, `words`, `symbols`, `custom`, `library:<id>`;
     /// `nil` для уроков и для записей до фазы 2.
     var source: String? = nil
+    /// Нажатия и ошибки по пальцам (`FingerCounts`: JSON «палец → число»); `nil` у записей до фазы 5
+    /// (поколение схемы 4).
+    var fingerPresses: Data? = nil
+    var fingerErrors: Data? = nil
+    /// «ё» и «Ё», набранные без ошибки (у английских сессий 0); `nil` у записей до фазы 5.
+    var yoPresses: Int? = nil
 
     init(mode: String, language: String, lessonId: String?, startedAt: Date, endedAt: Date,
          logicalDay: String, activeSeconds: Double, chars: Int, errorCount: Int, cpm: Double,
          accuracy: Double, completed: Bool, hintLevel: String, maxErrorStreak: Int, wrongKeystrokes: Int,
-         exerciseKind: String? = nil, pinkyPresses: Int = 0, pinkyErrors: Int = 0, source: String? = nil) {
+         exerciseKind: String? = nil, pinkyPresses: Int = 0, pinkyErrors: Int = 0, source: String? = nil,
+         fingerPresses: Data? = nil, fingerErrors: Data? = nil, yoPresses: Int? = nil) {
         id = UUID()
         self.mode = mode
         self.language = language
@@ -50,6 +57,9 @@ import SwiftData
         self.pinkyPresses = pinkyPresses
         self.pinkyErrors = pinkyErrors
         self.source = source
+        self.fingerPresses = fingerPresses
+        self.fingerErrors = fingerErrors
+        self.yoPresses = yoPresses
     }
 }
 
@@ -107,6 +117,10 @@ import SwiftData
     var completedExercises: Int = 0
     var abandonedExercises: Int = 0
     var languages: [String] = []
+    /// Дневная цель (секунды), действовавшая в этот день: пишется при каждом сохранении результата, у сегодняшнего
+    /// дня — и при смене цели в настройках. Прошлый день считается по ней, поэтому смена цели не меняет прошлые
+    /// огоньки. `nil` у дней до поколения схемы 5, пока при запуске их не заполнит текущая цель (`DayGoals`).
+    var goalSeconds: Double? = nil
 
     init(logicalDay: String) {
         self.logicalDay = logicalDay

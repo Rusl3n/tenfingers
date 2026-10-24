@@ -32,7 +32,7 @@ protocol ReminderCenter {
     func add(_ notification: ReminderNotification) async
 }
 
-/// Планирует напоминания: удаляет прежние и ставит новые по `ReminderPlan`.
+/// Планирует напоминания: удаляет прежние и ставит новые по `ReminderPlanner`.
 /// Вызывается при запуске, при активации приложения, при смене настроек и после каждой записи результата.
 @MainActor @Observable
 final class ReminderScheduler {
@@ -43,7 +43,7 @@ final class ReminderScheduler {
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let inputs: (Date) throws -> ReminderInputs
     @ObservationIgnored private let title: String
-    @ObservationIgnored private let text: (String, [Int]) -> String
+    @ObservationIgnored private let text: (ReminderLine) -> String
     @ObservationIgnored private var observer: (any NSObjectProtocol)?
     /// Номер последнего вызова: более ранний вызов, не успевший закончиться, прекращает работу.
     @ObservationIgnored private var generation = 0
@@ -54,7 +54,7 @@ final class ReminderScheduler {
 
     init(center: ReminderCenter, defaults: UserDefaults = .standard, calendar: Calendar = .current,
          inputs: @escaping (Date) throws -> ReminderInputs, title: String,
-         text: @escaping (String, [Int]) -> String) {
+         text: @escaping (ReminderLine) -> String = { ReminderCatalog.render($0) }) {
         self.center = center
         self.defaults = defaults
         self.calendar = calendar
@@ -75,8 +75,7 @@ final class ReminderScheduler {
                                                goalSeconds: StoredSettings.dailyGoalSeconds(defaults),
                                                dayStartHour: StoredSettings.dayStartHour(defaults))
             },
-            title: Bundle.main.localizedString(forKey: "Десять пальцев", value: "Десять пальцев", table: nil),
-            text: { ReminderMessage.text(key: $0, args: $1) })
+            title: Bundle.main.localizedString(forKey: "Десять пальцев", value: "Десять пальцев", table: nil))
         scheduler.observer = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak scheduler] _ in
@@ -111,15 +110,14 @@ final class ReminderScheduler {
         if settings.enabled, authorization == .authorized {
             // Прогресс не прочитан: оставляем уже поставленные напоминания, они лучше, чем ничего.
             guard let input = try? inputs(now) else { return }
-            planned = ReminderPlan.requests(now: now, settings: settings, streak: input.streak,
-                                            todayStatus: input.todayStatus, minutesLeft: input.minutesLeft,
-                                            dayStartHour: StoredSettings.dayStartHour(defaults), calendar: calendar)
+            planned = ReminderPlanner.plan(now: now, config: settings.config, situation: input.situation,
+                                           dayStartHour: StoredSettings.dayStartHour(defaults), calendar: calendar)
         }
         center.removePending(ids: ReminderID.all)
         for item in planned {
             guard mine == generation else { return }
             await center.add(ReminderNotification(id: item.id, title: title,
-                                                  body: text(item.key, item.args), date: item.date))
+                                                  body: text(item.line), date: item.date))
         }
     }
 }

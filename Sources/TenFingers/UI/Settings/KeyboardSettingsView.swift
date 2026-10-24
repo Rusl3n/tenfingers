@@ -5,10 +5,13 @@ import TypingCore
 /// показ клавиатуры в реальном размере (его рисует `SettingsView` поверх всего экрана).
 struct KeyboardSettingsView: View {
     @Binding var preview: KeyboardPreviewState
+    let miniature: KeyboardMiniatureFrame
     @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
     @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
     @Environment(KeyboardLayoutService.self) private var layout
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var previewWidth = 0.0
+    @State private var confirmReset = false
 
     /// Миниатюра рисуется уменьшенной: клавиатура и сдвиг умножаются на этот коэффициент.
     private static let previewScale = 0.6
@@ -20,18 +23,25 @@ struct KeyboardSettingsView: View {
                 Slider(value: $keyboardUnit, in: KeyboardSizing.unitRange, step: 2,
                        label: { Text("Размер клавиатуры") },
                        onEditingChanged: { preview.isEditingSize = $0 })
+                    .help(HelpText.keyboardSize)
                 Slider(value: $keyboardOffset, in: KeyboardSizing.offsetRange, step: 10,
                        label: { Text("Сдвиг") },
                        onEditingChanged: { preview.isEditingOffset = $0 })
+                    .help(HelpText.keyboardOffset)
                 Button("По центру") { keyboardOffset = 0 }
-                // Рисуем в полный размер и уменьшаем, чтобы подписи клавиш сохраняли пропорции.
-                KeyboardView(snapshot: layout.snapshot, marks: [:], unit: CGFloat(unit))
+                Button("Клавиатура по умолчанию") { confirmReset = true }
+                    .disabled(KeyboardSettingsDefaults.isDefault(unit: keyboardUnit, offset: keyboardOffset))
+                    .help(HelpText.keyboardReset)
+                // Та же клавиатура, что в уроке, уменьшенная целиком: подписи клавиш сохраняют пропорции.
+                ScaledKeyboardView(snapshot: layout.snapshot, unit: unit)
                     .scaleEffect(Self.previewScale)
                     .frame(width: CGFloat(KeyboardSizing.keyboardWidth(unit: unit) * Self.previewScale),
                            height: CGFloat(KeyboardSizing.keyboardHeight(unit: unit) * Self.previewScale))
-                    // Измеряем до сдвига: сдвиг входит в измеренный прямоугольник.
+                    .animation(reduceMotion ? nil : KeyboardMorph.spring, value: unit)
+                    // Измеряем до сдвига: сдвиг входит в измеренный прямоугольник. Тот же прямоугольник не пишем:
+                    // запись пересчитывает оверлей.
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(KeyboardMorph.space)) } action: {
-                        preview.miniatureFrame = $0
+                        if miniature.rect != $0 { miniature.rect = $0 }
                     }
                     // Пока клавиатура выросла в оверлей, миниатюры нет: на экране одна клавиатура.
                     .opacity(preview.isOverlayShown ? 0 : 1)
@@ -44,5 +54,10 @@ struct KeyboardSettingsView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+        // Запись в те же ключи, что у ползунков: `@AppStorage` обновляется, миниатюра меняется той же пружиной.
+        .confirmationDialog("Вернуть клавиатуру по умолчанию?", isPresented: $confirmReset) {
+            Button("Вернуть") { KeyboardSettingsDefaults.reset(in: .standard) }
+            Button("Отмена", role: .cancel) {}
+        }
     }
 }

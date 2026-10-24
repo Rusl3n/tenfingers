@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 import Testing
 @testable import TenFingers
 
@@ -28,4 +29,8 @@ private let full = CGRect(x: 40, y: 500, width: 600, height: 240)
     #expect(KeyboardMorph.transform(from: nil, to: full, progress: 0) == .identity)
     #expect(KeyboardMorph.transform(from: mini, to: nil, progress: 0) == .identity)
     #expect(KeyboardMorph.transform(from: mini, to: .zero, progress: 0) == .identity)
+}
+
+@Test func morphSpringIsQuickAndSoft() {
+    #expect(KeyboardMorph.spring == .spring(response: 0.35, dampingFraction: 0.85))
 }

@@ -22,13 +22,17 @@ private func at(_ text: String) -> Date {
                                       language: String = "ru", lessonId: String? = nil, kind: String? = nil,
                                       chars: Int = 80, seconds: Double = 30, accuracy: Double = 0.99,
                                       cpm: Double = 160, completed: Bool = true, hint: String = "full",
-                                      maxErrorStreak: Int = 1, wrong: Int = 1, pinky: Int = 0, pinkyErrors: Int = 0) {
+                                      maxErrorStreak: Int = 1, wrong: Int = 1, pinky: Int = 0, pinkyErrors: Int = 0,
+                                      source: String? = nil, fingerPresses: [Finger: Int]? = nil,
+                                      fingerErrors: [Finger: Int]? = nil, yo: Int? = nil) {
     let end = at(ended)
     context.insert(SessionRecord(
         mode: mode, language: language, lessonId: lessonId, startedAt: end.addingTimeInterval(-seconds), endedAt: end,
         logicalDay: day, activeSeconds: seconds, chars: chars, errorCount: wrong, cpm: cpm, accuracy: accuracy,
         completed: completed, hintLevel: hint, maxErrorStreak: maxErrorStreak, wrongKeystrokes: wrong,
-        exerciseKind: kind, pinkyPresses: pinky, pinkyErrors: pinkyErrors))
+        exerciseKind: kind, pinkyPresses: pinky, pinkyErrors: pinkyErrors, source: source,
+        fingerPresses: fingerPresses.map(FingerCounts.data), fingerErrors: fingerErrors.map(FingerCounts.data),
+        yoPresses: yo))
 }
 
 @MainActor private func makeService(_ context: ModelContext, now: Date = at("2026-10-24 07:00"),
@@ -561,6 +565,10 @@ func probeAchievementsOnStoreCopy() throws {
     let context = container.mainContext
     let start = at("2024-01-01 10:00")
     let total = 20_000
+    // Статистика пальцев у каждой сессии (как после 1.1.0); большой палец ошибается — «Десять из десяти» не выдаётся,
+    // и окно по пальцам проходит всю историю при каждой проверке.
+    let fingerPresses = FingerCounts.data(Dictionary(uniqueKeysWithValues: Finger.allCases.map { ($0, 20) }))
+    let fingerErrors = FingerCounts.data(Dictionary(uniqueKeysWithValues: Finger.allCases.map { ($0, $0 == .thumb ? 5 : 0) }))
     for index in 0..<total {
         let end = start.addingTimeInterval(Double(index) * 3_600)
         context.insert(SessionRecord(
@@ -568,7 +576,8 @@ func probeAchievementsOnStoreCopy() throws {
             lessonId: index % 3 == 0 ? nil : "ru.1.1", startedAt: end.addingTimeInterval(-60), endedAt: end,
             logicalDay: LogicalDay.key(for: end, dayStartHour: 4), activeSeconds: 60, chars: 300, errorCount: 2,
             cpm: 200, accuracy: 0.99, completed: index % 7 != 0, hintLevel: "full", maxErrorStreak: 1,
-            wrongKeystrokes: 2, exerciseKind: index % 3 == 0 ? nil : "check"))
+            wrongKeystrokes: 2, exerciseKind: index % 3 == 0 ? nil : "check", fingerPresses: fingerPresses,
+            fingerErrors: fingerErrors, yoPresses: 0))
     }
     try context.save()
     let cache = AchievementFactsCache()
@@ -662,4 +671,123 @@ private func localization(_ language: String) -> Bundle {
     let en = Locale(identifier: "en")
     #expect(Formatting.backfillSummary(1, bundle: localization("en"), locale: en) == "1 achievement earned for past practice")
     #expect(Formatting.backfillSummary(4, bundle: localization("en"), locale: en) == "4 achievements earned for past practice")
+}
+
+// MARK: - Фаза 5: новые ачивки по истории
+
+/// Новые ачивки фазы 5 (21).
+private let phase5Ids: Set<String> = [
+    "streak.fire_month", "streak.insurance", "speed.growth.150", "speed.growth.200", "accuracy.all_fingers",
+    "volume.exercises.100", "volume.exercises.500", "volume.exercises.1000", "volume.books.5", "volume.books.25",
+    "special.weak_spot", "special.weak_spot.10", "special.own_words", "fun.pi", "fun.answer42", "fun.yo_master",
+    "fun.learning_from_mistakes", "fun.cinderella", "fun.friday_night", "fun.weekend_warrior", "fun.almost",
+]
+
+/// База как у пользователя до 1.1.0: сессии без статистики пальцев и «ё», но «ё» в `KeyStat` (160 нажатий,
+/// 20 ошибок); пять отрывков из книг, свой текст, «Слабые места».
+@MainActor private func populatePhaseFiveHistory(_ context: ModelContext) throws {
+    for (index, day) in ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"].enumerated() {
+        insertSession(context, ended: "\(day) 12:00:00", day: day, mode: "practice", chars: 400, seconds: 120,
+                      source: "library:book\(index)")
+    }
+    insertSession(context, ended: "2026-10-23 13:00:00", day: "2026-10-23", mode: "practice", source: "custom")
+    insertSession(context, ended: "2026-10-23 14:00:00", day: "2026-10-23", mode: "weak", accuracy: 0.985,
+                  source: "weak")
+    let yo = KeyStat(language: "ru", character: "ё")
+    yo.presses = 150
+    yo.errors = 15
+    context.insert(yo)
+    let capital = KeyStat(language: "ru", character: "Ё")
+    capital.presses = 10
+    capital.errors = 5
+    context.insert(capital)
+    let english = KeyStat(language: "en", character: "e")
+    english.presses = 500
+    context.insert(english)
+    try context.save()
+}
+
+@MainActor @Test func factsCarrySourceFingerStatsAndYo() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populatePhaseFiveHistory(context)
+    insertSession(context, ended: "2026-10-24 05:00:00", day: "2026-10-24", mode: "practice",
+                  fingerPresses: [.thumb: 30, .leftPinky: 4], fingerErrors: [.thumb: 0, .leftPinky: 1], yo: 2)
+    try context.save()
+    let facts = try makeService(context).facts()
+    #expect(facts.yoKeyStatCorrect == 135 + 5)
+    let last = try #require(facts.exercises.last)
+    #expect(last.fingerPresses == [.thumb: 30, .leftPinky: 4])
+    #expect(last.fingerErrors == [.thumb: 0, .leftPinky: 1])
+    #expect(last.yoCorrect == 2)
+    let first = try #require(facts.exercises.first)
+    #expect(first.source == "library:book0")
+    #expect(first.fingerPresses == nil && first.fingerErrors == nil && first.yoCorrect == nil)
+}
+
+/// После обновления на базе с прежними ачивками новые выдаются с датами из истории; «ё» — по `KeyStat` (момент
+/// проверки); «Десять из десяти» без статистики пальцев не выдаётся. Это не «задним числом»: новые не просмотрены.
+@MainActor @Test func updateGrantsPhaseFiveAchievementsFromHistory() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populatePhaseFiveHistory(context)
+    context.insert(AchievementRecord(achievementId: "course.first_lesson", unlockedAt: at("2026-10-01 10:00"),
+                                     seen: true))
+    try context.save()
+    let now = at("2026-10-24 07:00")
+    let outcome = try makeService(context, now: now).check(reason: .launch)
+    #expect(!outcome.isBackfill)
+    let stored = Dictionary(uniqueKeysWithValues: try records(context).map { ($0.achievementId, $0) })
+    let new = Set(outcome.new.map(\.id)).intersection(phase5Ids)
+    #expect(new == ["fun.yo_master", "volume.books.5", "special.own_words", "special.weak_spot"])
+    #expect(stored["fun.yo_master"]?.unlockedAt == now)
+    #expect(stored["volume.books.5"]?.unlockedAt == at("2026-10-23 12:00"))
+    #expect(stored["special.own_words"]?.unlockedAt == at("2026-10-23 13:00"))
+    #expect(stored["special.weak_spot"]?.unlockedAt == at("2026-10-23 14:00"))
+    #expect(stored["accuracy.all_fingers"] == nil)
+    #expect(outcome.new.count >= 2)
+    #expect(outcome.new.allSatisfy { stored[$0.id]?.seen == false })
+    #expect(stored["course.first_lesson"]?.seen == true)
+}
+
+/// Проверка при запуске после обновления выдала несколько видимых ачивок — одна сводка, а не очередь тостов.
+@MainActor @Test func launchCheckAfterUpdateShowsOneSummary() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populatePhaseFiveHistory(context)
+    context.insert(AchievementRecord(achievementId: "course.first_lesson", unlockedAt: at("2026-10-01 10:00"),
+                                     seen: true))
+    try context.save()
+    let toasts = ToastCenter(timer: ManualClock().timer)
+    var opened = 0
+    let outcome = AchievementAnnouncer.launchCheck(service: makeService(context), toasts: toasts, adultHumor: true) {
+        opened += 1
+    }
+    #expect(!outcome.isBackfill && outcome.new.count >= 2)
+    let toast = try #require(toasts.current)
+    #expect(toast.message == Formatting.backfillSummary(outcome.new.count))
+    #expect(toast.action != nil)
+    toasts.dismiss()
+    #expect(toasts.current == nil, "после сводки в очереди ничего нет")
+    toasts.perform(toast)
+    #expect(opened == 1)
+    #expect(try records(context).filter { !$0.seen }.count == outcome.new.count)
+}
+
+/// Одна новая ачивка при запуске — обычный тост с её названием.
+@MainActor @Test func launchCheckWithOneNewAchievementShowsItsToast() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populatePhaseFiveHistory(context)
+    let others = AchievementCatalog.all.filter { $0.id != "special.own_words" }
+    for achievement in others {
+        context.insert(AchievementRecord(achievementId: achievement.id, unlockedAt: at("2026-10-01 10:00"), seen: true))
+    }
+    try context.save()
+    let toasts = ToastCenter(timer: ManualClock().timer)
+    let outcome = AchievementAnnouncer.launchCheck(service: makeService(context), toasts: toasts, adultHumor: true) {}
+    #expect(outcome.new.map(\.id) == ["special.own_words"])
+    let toast = try #require(toasts.current)
+    #expect(toast.icon == "text.quote")
+    #expect(toast.message.contains(outcome.new[0].title))
 }

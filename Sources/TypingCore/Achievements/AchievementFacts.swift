@@ -20,11 +20,20 @@ public struct ExerciseFact: Equatable, Sendable {
     public let wrongKeystrokes: Int
     public let pinkyPresses: Int
     public let pinkyErrors: Int
+    /// Откуда текст вне курса (`SessionRecord.source`): `custom`, `library:<id>`, …
+    public let source: String?
+    /// Нажатия и ошибки по пальцам; `nil` у сессий до 1.1.0 (статистики нет).
+    public let fingerPresses: [Finger: Int]?
+    public let fingerErrors: [Finger: Int]?
+    /// «Ё» без ошибки; `nil` у сессий до 1.1.0.
+    public let yoCorrect: Int?
 
     public init(endedAt: Date, logicalDay: String, language: Language, mode: ExerciseMode,
                 lessonId: String? = nil, exerciseKind: ExerciseKind? = nil, chars: Int, activeSeconds: Double,
                 accuracy: Double, cpm: Double, completed: Bool, hintLevel: HintLevel = .full,
-                maxErrorStreak: Int = 0, wrongKeystrokes: Int = 0, pinkyPresses: Int = 0, pinkyErrors: Int = 0) {
+                maxErrorStreak: Int = 0, wrongKeystrokes: Int = 0, pinkyPresses: Int = 0, pinkyErrors: Int = 0,
+                source: String? = nil, fingerPresses: [Finger: Int]? = nil, fingerErrors: [Finger: Int]? = nil,
+                yoCorrect: Int? = nil) {
         self.endedAt = endedAt
         self.logicalDay = logicalDay
         self.language = language
@@ -41,6 +50,10 @@ public struct ExerciseFact: Equatable, Sendable {
         self.wrongKeystrokes = wrongKeystrokes
         self.pinkyPresses = pinkyPresses
         self.pinkyErrors = pinkyErrors
+        self.source = source
+        self.fingerPresses = fingerPresses
+        self.fingerErrors = fingerErrors
+        self.yoCorrect = yoCorrect
     }
 }
 
@@ -66,6 +79,8 @@ public struct AchievementFacts: Sendable {
     public let openLetterDates: [Language: [Character: Date]]
     /// Счётчики приложения (`CounterName`).
     public let counters: [String: Int]
+    /// «ё» и «Ё» без ошибки по `KeyStat` (ru, `presses − errors`): все нажатия, в том числе до 1.1.0.
+    public let yoKeyStatCorrect: Int
     /// Часовой пояс для времени суток и календарной даты упражнения и для полудня логического дня.
     public let timeZone: TimeZone
     /// Момент проверки: дата для ачивок, чью дату по истории установить нельзя.
@@ -76,7 +91,7 @@ public struct AchievementFacts: Sendable {
                 streakStatuses: [String: DayStatus] = [:], lessonPasses: [String: Date] = [:],
                 lessonAttempts: [String: Int] = [:], starsByLesson: [String: Int] = [:],
                 courses: [Language: Course] = [:], openLetterDates: [Language: [Character: Date]] = [:],
-                counters: [String: Int] = [:], timeZone: TimeZone, now: Date) {
+                counters: [String: Int] = [:], yoKeyStatCorrect: Int = 0, timeZone: TimeZone, now: Date) {
         self.exercises = exercises
         self.days = days
         self.abandonedByDay = abandonedByDay
@@ -88,6 +103,7 @@ public struct AchievementFacts: Sendable {
         self.courses = courses
         self.openLetterDates = openLetterDates
         self.counters = counters
+        self.yoKeyStatCorrect = yoKeyStatCorrect
         self.timeZone = timeZone
         self.now = now
     }

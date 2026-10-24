@@ -31,13 +31,15 @@ private let testNow = at("2027-06-01 10:00")
 private func ex(_ time: String, language: Language = .ru, mode: ExerciseMode = .practice, lessonId: String? = nil,
                 kind: ExerciseKind? = nil, chars: Int = 100, seconds: Double = 30, accuracy: Double = 1,
                 cpm: Double = 200, completed: Bool = true, hint: HintLevel = .full, maxErrorStreak: Int = 0,
-                wrong: Int = 0, pinkyPresses: Int = 0, pinkyErrors: Int = 0) -> ExerciseFact {
+                wrong: Int = 0, pinkyPresses: Int = 0, pinkyErrors: Int = 0, source: String? = nil,
+                fingers: (presses: [Finger: Int], errors: [Finger: Int])? = nil, yo: Int? = nil) -> ExerciseFact {
     let endedAt = at(time)
     return ExerciseFact(endedAt: endedAt, logicalDay: logicalDay(endedAt), language: language, mode: mode,
                         lessonId: lessonId, exerciseKind: kind, chars: chars, activeSeconds: seconds,
                         accuracy: accuracy, cpm: cpm, completed: completed, hintLevel: hint,
                         maxErrorStreak: maxErrorStreak, wrongKeystrokes: wrong,
-                        pinkyPresses: pinkyPresses, pinkyErrors: pinkyErrors)
+                        pinkyPresses: pinkyPresses, pinkyErrors: pinkyErrors, source: source,
+                        fingerPresses: fingers?.presses, fingerErrors: fingers?.errors, yoCorrect: yo)
 }
 
 private func facts(_ exercises: [ExerciseFact] = [], days: [String: DayActivity] = [:],
@@ -45,11 +47,13 @@ private func facts(_ exercises: [ExerciseFact] = [], days: [String: DayActivity]
                    streakStatuses: [String: DayStatus] = [:], lessonPasses: [String: Date] = [:],
                    lessonAttempts: [String: Int] = [:], starsByLesson: [String: Int] = [:],
                    courses: [Language: Course] = [:], openLetterDates: [Language: [Character: Date]] = [:],
-                   counters: [String: Int] = [:], timeZone: TimeZone = msk, now: Date = testNow) -> AchievementFacts {
+                   counters: [String: Int] = [:], yoKeyStatCorrect: Int = 0, timeZone: TimeZone = msk,
+                   now: Date = testNow) -> AchievementFacts {
     AchievementFacts(exercises: exercises, days: days, abandonedByDay: abandonedByDay,
                      languagesByDay: languagesByDay, streakStatuses: streakStatuses, lessonPasses: lessonPasses,
                      lessonAttempts: lessonAttempts, starsByLesson: starsByLesson, courses: courses,
-                     openLetterDates: openLetterDates, counters: counters, timeZone: timeZone, now: now)
+                     openLetterDates: openLetterDates, counters: counters, yoKeyStatCorrect: yoKeyStatCorrect,
+                     timeZone: timeZone, now: now)
 }
 
 /// Дата получения одной ачивки с условием `condition`; `nil` — не получена.
@@ -610,9 +614,376 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
         EarnedAchievement(id: "special.night_owl", date: at("2026-10-24 02:24:09")),
         EarnedAchievement(id: "special.steel_pinkies", date: at("2026-10-24 04:15:30")),
         EarnedAchievement(id: "fun.not_today", date: at("2026-10-24 02:26:56")),
+        // 23.10.2026 — пятница, урок в 21:40 (фаза 5).
+        EarnedAchievement(id: "fun.friday_night", date: at("2026-10-23 21:40:34")),
     ])
     // Почти: «Хирург» — 9 подряд ≥ 98% из 10, серия — 2 дня из 3.
     #expect(earned(.accuracyRun(count: 9, minimum: 0.98), f) == at("2026-10-24 02:55:48"))
     // Серия дошла до 2 дней 24.10 — на последнем завершённом упражнении дня, а не в полдень (позже now = 07:00).
     #expect(earned(.streak(days: 2), f) == at("2026-10-24 04:42:51"))
+}
+
+// MARK: - Фаза 5: новые условия
+
+@Test func engineExercisesCompletedCountsOnlyCompleted() {
+    let list = [ex("2026-10-01 10:00", mode: .course), ex("2026-10-01 11:00", completed: false),
+                ex("2026-10-02 10:00", mode: .weak), ex("2026-10-03 10:00", mode: .adaptive)]
+    #expect(earned(.exercisesCompleted(3), facts(list)) == at("2026-10-03 10:00"))
+    #expect(earned(.exercisesCompleted(1), facts(list)) == at("2026-10-01 10:00"))
+    #expect(earned(.exercisesCompleted(4), facts(list)) == nil)
+}
+
+/// Пять упражнений с `cpm` в логический день `day` (10:00, 10:10, …).
+private func five(_ day: String, cpm: Double, language: Language = .ru, count: Int = 5) -> [ExerciseFact] {
+    (0..<count).map { ex("\(day) 10:\($0)0", language: language, cpm: cpm) }
+}
+
+@Test func engineSpeedGrowthNeedsSeparateWindows() {
+    let first = five("2026-10-01", cpm: 100)
+    // 13.10 = D0 + 12: окно [07.10, 13.10] задевает первую неделю — не считается.
+    let early = first + five("2026-10-13", cpm: 300)
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(early)) == nil)
+    // 14.10 = D0 + 13: окна не пересекаются; в окне [08.10, 14.10] пять по 300 из 13.10 и одно по 150.
+    let later = early + [ex("2026-10-14 09:00", cpm: 150)]
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(later)) == at("2026-10-14 09:00"))
+}
+
+@Test func engineSpeedGrowthNeedsEnoughExercisesInBothWindows() {
+    // Четыре упражнения в последнем окне — нет.
+    let fewLast = five("2026-10-01", cpm: 100) + five("2026-10-20", cpm: 300, count: 4)
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(fewLast)) == nil)
+    // Четыре в первой неделе (брошенное не считается) — нет.
+    let fewFirst = five("2026-10-01", cpm: 100, count: 4) + [ex("2026-10-02 10:00", cpm: 100, completed: false)]
+        + five("2026-10-20", cpm: 300)
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(fewFirst)) == nil)
+}
+
+@Test func engineSpeedGrowthExactFactorQualifies() {
+    let list = five("2026-10-01", cpm: 100) + five("2026-10-20", cpm: 150)
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(list)) == at("2026-10-20 10:40"))
+    #expect(earned(.speedGrowth(factor: 2, minExercises: 5), facts(list)) == nil)
+    // Чуть меньше 1,5× — нет.
+    let slower = five("2026-10-01", cpm: 100) + five("2026-10-20", cpm: 149.9)
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(slower)) == nil)
+}
+
+@Test func engineSpeedGrowthTakesTheEarlierLanguage() {
+    // RU: рост в 1,5× 30.10; EN начал позже, но вырос раньше — 25.10.
+    let ru = five("2026-10-01", cpm: 100) + five("2026-10-30", cpm: 200)
+    let en = five("2026-10-05", cpm: 100, language: .en) + five("2026-10-25", cpm: 200, language: .en)
+    let date = earned(.speedGrowth(factor: 2, minExercises: 5), facts((ru + en).sorted { $0.endedAt < $1.endedAt }))
+    #expect(date == at("2026-10-25 10:40"))
+    // Языки не смешиваются: первая неделя RU и быстрые EN — нет.
+    let mixed = five("2026-10-01", cpm: 100) + five("2026-10-25", cpm: 300, language: .en)
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(mixed)) == nil)
+}
+
+/// Статистика по всем 9 пальцам: `presses` нажатий на палец, ошибки — из `errors`.
+private func fingers(_ presses: Int, errors: [Finger: Int] = [:]) -> (presses: [Finger: Int], errors: [Finger: Int]) {
+    var p: [Finger: Int] = [:], e: [Finger: Int] = [:]
+    for finger in Finger.allCases {
+        p[finger] = presses
+        e[finger] = errors[finger] ?? 0
+    }
+    return (p, e)
+}
+
+@Test func engineAllFingersSkipsSessionsWithoutStats() {
+    let all = AchievementCondition.allFingersAccuracy(minimum: 0.97, presses: 30, days: 7)
+    // Старая сессия без статистики (много нажатий, но их не видно) не считается.
+    let list = [ex("2026-10-01 10:00", chars: 5000), ex("2026-10-02 10:00", fingers: fingers(29))]
+    #expect(earned(all, facts(list)) == nil)
+    // Ещё одно нажатие на палец (брошенное упражнение тоже считается) — 30.
+    let more = list + [ex("2026-10-03 10:00", completed: false, fingers: fingers(1))]
+    #expect(earned(all, facts(more)) == at("2026-10-03 10:00"))
+}
+
+@Test func engineAllFingersUsesASevenDayWindow() {
+    let all = AchievementCondition.allFingersAccuracy(minimum: 0.97, presses: 30, days: 7)
+    // 01.10 вне окна [02.10, 08.10].
+    let list = [ex("2026-10-01 10:00", fingers: fingers(29)), ex("2026-10-08 10:00", fingers: fingers(1))]
+    #expect(earned(all, facts(list)) == nil)
+    let inside = [ex("2026-10-02 10:00", fingers: fingers(29)), ex("2026-10-08 10:00", fingers: fingers(1))]
+    #expect(earned(all, facts(inside)) == at("2026-10-08 10:00"))
+}
+
+@Test func engineAllFingersNeedsEveryFingerAccurate() {
+    let all = AchievementCondition.allFingersAccuracy(minimum: 0.97, presses: 30, days: 7)
+    // Один палец — 96,9%.
+    let weak = [ex("2026-10-02 10:00", fingers: fingers(1000, errors: [.rightRing: 31]))]
+    #expect(earned(all, facts(weak)) == nil)
+    // Ровно 97% у каждого.
+    let ok = [ex("2026-10-02 10:00", fingers: fingers(1000, errors: Dictionary(uniqueKeysWithValues:
+        Finger.allCases.map { ($0, 30) })))]
+    #expect(earned(all, facts(ok)) == at("2026-10-02 10:00"))
+    // Пальца нет в статистике — не выполнено.
+    var missing = fingers(100)
+    missing.presses[.thumb] = nil
+    missing.errors[.thumb] = nil
+    #expect(earned(all, facts([ex("2026-10-02 10:00", fingers: missing)])) == nil)
+    #expect(Finger.allCases.count == 9)
+}
+
+@Test func engineWeakSpotsCleanCountsAccurateWeakExercises() {
+    let list = [
+        ex("2026-10-01 10:00", mode: .weak, accuracy: 0.97),
+        ex("2026-10-01 11:00", mode: .practice, accuracy: 1),
+        ex("2026-10-01 12:00", mode: .weak, accuracy: 1, completed: false),
+        ex("2026-10-02 10:00", mode: .weak, accuracy: 0.98),
+        ex("2026-10-03 10:00", mode: .weak, accuracy: 0.995),
+    ]
+    #expect(earned(.weakSpotsClean(count: 1, minimum: 0.98), facts(list)) == at("2026-10-02 10:00"))
+    #expect(earned(.weakSpotsClean(count: 2, minimum: 0.98), facts(list)) == at("2026-10-03 10:00"))
+    #expect(earned(.weakSpotsClean(count: 3, minimum: 0.98), facts(list)) == nil)
+}
+
+@Test func engineBooksFinishedCountsDistinctCompletedExcerpts() {
+    let list = [
+        ex("2026-10-01 10:00", source: "library:a"),
+        ex("2026-10-01 11:00", source: "library:a"),
+        ex("2026-10-02 10:00", completed: false, source: "library:b"),
+        ex("2026-10-02 11:00", source: "custom"),
+        ex("2026-10-03 10:00", source: "library:c"),
+        ex("2026-10-04 10:00", source: "library:b"),
+    ]
+    #expect(earned(.booksFinished(2), facts(list)) == at("2026-10-03 10:00"))
+    #expect(earned(.booksFinished(3), facts(list)) == at("2026-10-04 10:00"))
+    #expect(earned(.booksFinished(4), facts(list)) == nil)
+}
+
+@Test func engineOwnTextNeedsACompletedCustomExercise() {
+    let list = [ex("2026-10-01 10:00", completed: false, source: "custom"), ex("2026-10-01 11:00", source: "words"),
+                ex("2026-10-02 10:00", source: "custom")]
+    #expect(earned(.ownText, facts(list)) == at("2026-10-02 10:00"))
+    #expect(earned(.ownText, facts(Array(list.prefix(2)))) == nil)
+}
+
+@Test func engineFullFireMonthNeedsEveryDayFull() {
+    func month(_ first: String, _ last: String, except: [String: DayStatus] = [:]) -> [String: DayStatus] {
+        var statuses: [String: DayStatus] = [:]
+        for day in StreakCalculator.dayKeys(from: first, to: last) { statuses[day] = except[day] ?? .full }
+        return statuses
+    }
+    // Февраль високосного 2024 — 29 дней; дата — последнее завершённое упражнение 29.02.
+    let list = [ex("2024-02-29 10:00"), ex("2024-02-29 20:00"), ex("2024-03-01 02:00", completed: false)]
+    #expect(earned(.fullFireMonth, facts(list, streakStatuses: month("2024-02-01", "2024-02-29")))
+            == at("2024-02-29 20:00"))
+    // Без 29-го — месяц не целый.
+    #expect(earned(.fullFireMonth, facts(streakStatuses: month("2024-02-01", "2024-02-28"))) == nil)
+    // С 2-го числа — тоже.
+    #expect(earned(.fullFireMonth, facts(streakStatuses: month("2024-02-02", "2024-02-29"))) == nil)
+    // Одна заморозка — нет.
+    #expect(earned(.fullFireMonth, facts(streakStatuses: month("2026-09-01", "2026-09-30",
+                                                                 except: ["2026-09-15": .frozen]))) == nil)
+    // Без упражнений — полдень последнего дня.
+    #expect(earned(.fullFireMonth, facts(streakStatuses: month("2026-09-01", "2026-09-30")))
+            == at("2026-09-30 12:00"))
+    // Текущий месяц, ещё не закончился.
+    #expect(earned(.fullFireMonth, facts(streakStatuses: month("2026-10-01", "2026-10-20"),
+                                         now: at("2026-10-20 18:00"))) == nil)
+}
+
+@Test func engineFreezeSavedStreakNeedsAReturn() {
+    // Заморозка в конце, возврата ещё нет.
+    #expect(earned(.freezeSavedStreak, facts(streakStatuses: ["2026-10-01": .full, "2026-10-02": .frozen])) == nil)
+    // После заморозки — разрыв.
+    #expect(earned(.freezeSavedStreak, facts(streakStatuses: [
+        "2026-10-01": .full, "2026-10-02": .frozen, "2026-10-03": DayStatus.none, "2026-10-04": .half,
+    ])) == nil)
+    // Пропущенный ключ — тоже разрыв.
+    #expect(earned(.freezeSavedStreak, facts(streakStatuses: [
+        "2026-10-01": .full, "2026-10-02": .frozen, "2026-10-04": .half,
+    ])) == nil)
+    // Две заморозки, затем половинный день: первое завершённое упражнение того дня.
+    let statuses: [String: DayStatus] = [
+        "2026-10-01": .full, "2026-10-02": .frozen, "2026-10-03": .frozen, "2026-10-04": .half,
+    ]
+    let list = [ex("2026-10-01 10:00"), ex("2026-10-04 09:00", completed: false), ex("2026-10-04 10:00"),
+                ex("2026-10-04 11:00")]
+    #expect(earned(.freezeSavedStreak, facts(list, streakStatuses: statuses)) == at("2026-10-04 10:00"))
+}
+
+@Test func engineExactSpeedAndSecondsRound() {
+    #expect(earned(.exactSpeed(cpm: 314), facts([ex("2026-10-01 10:00", cpm: 314.5),
+                                                  ex("2026-10-02 10:00", cpm: 313.6)])) == at("2026-10-02 10:00"))
+    #expect(earned(.exactSpeed(cpm: 314), facts([ex("2026-10-01 10:00", cpm: 313.4),
+                                                  ex("2026-10-02 10:00", cpm: 314, completed: false)])) == nil)
+    #expect(earned(.exactSeconds(42), facts([ex("2026-10-01 10:00", seconds: 42.5),
+                                             ex("2026-10-02 10:00", seconds: 41.5)])) == at("2026-10-02 10:00"))
+    #expect(earned(.exactSeconds(42), facts([ex("2026-10-01 10:00", seconds: 41.49)])) == nil)
+}
+
+/// Огромные и нечисловые скорость и время (возможны в загруженном архиве) не роняют проверку и не засчитываются.
+@Test func engineExactSpeedAndSecondsSurviveNonFiniteValues() {
+    let list = [ex("2026-10-01 10:00", seconds: .nan, cpm: 1e300), ex("2026-10-02 10:00", seconds: .infinity, cpm: .nan),
+                ex("2026-10-03 10:00", seconds: 42, cpm: 314)]
+    #expect(earned(.exactSpeed(cpm: 314), facts(list)) == at("2026-10-03 10:00"))
+    #expect(earned(.exactSeconds(42), facts(list)) == at("2026-10-03 10:00"))
+}
+
+@Test func engineYoPressesCombinesSessionsAndKeyStats() {
+    let list = [ex("2026-10-01 10:00", yo: 40), ex("2026-10-02 10:00", completed: false, yo: 50),
+                ex("2026-10-03 10:00"), ex("2026-10-04 10:00", yo: 30)]
+    #expect(earned(.yoPresses(100), facts(list)) == at("2026-10-04 10:00"))
+    // Сессий со статистикой «ё» нет, но в KeyStat 150 верных — момент проверки.
+    #expect(earned(.yoPresses(100), facts([ex("2026-10-01 10:00")], yoKeyStatCorrect: 150)) == testNow)
+    // 60 по сессиям и 99 по KeyStat — максимум 99, нет.
+    #expect(earned(.yoPresses(100), facts([ex("2026-10-01 10:00", yo: 60)], yoKeyStatCorrect: 99)) == nil)
+}
+
+@Test func engineTotalErrorsIncludeAbandoned() {
+    let list = [ex("2026-10-01 10:00", wrong: 400), ex("2026-10-02 10:00", completed: false, wrong: 500),
+                ex("2026-10-03 10:00", wrong: 100), ex("2026-10-04 10:00", wrong: 5)]
+    #expect(earned(.totalErrors(1000), facts(list)) == at("2026-10-03 10:00"))
+    #expect(earned(.totalErrors(1006), facts(list)) == nil)
+}
+
+@Test func engineFinishedAtMinuteUsesLocalTime() {
+    let cinderella = AchievementCondition.finishedAtMinute(hour: 0, minute: 0)
+    #expect(earned(cinderella, facts([ex("2026-10-02 00:00:30")])) == at("2026-10-02 00:00:30"))
+    #expect(earned(cinderella, facts([ex("2026-10-02 00:01:00"), ex("2026-10-02 23:59:59")])) == nil)
+    #expect(earned(cinderella, facts([ex("2026-10-02 00:00:30", completed: false)])) == nil)
+    // 03:00:30 по Москве — это 00:00:30 UTC: считается по часовому поясу фактов.
+    #expect(earned(cinderella, facts([ex("2026-10-02 03:00:30")])) == nil)
+    #expect(earned(cinderella, facts([ex("2026-10-02 03:00:30")], timeZone: utc)) == at("2026-10-02 03:00:30"))
+}
+
+@Test func engineFridayEveningFromNinePM() {
+    let friday = AchievementCondition.fridayEvening(fromHour: 21)
+    // 23.10.2026 — пятница.
+    #expect(earned(friday, facts([ex("2026-10-23 20:59"), ex("2026-10-24 22:00")])) == nil)
+    #expect(earned(friday, facts([ex("2026-10-23 20:59"), ex("2026-10-23 21:00")])) == at("2026-10-23 21:00"))
+    #expect(earned(friday, facts([ex("2026-10-23 23:59:59")])) == at("2026-10-23 23:59:59"))
+}
+
+/// Суббота и воскресенье с занятиями в 10:00 (и ещё одно в воскресенье в 12:00).
+private func weekend(_ saturday: String, _ sunday: String) -> [ExerciseFact] {
+    [ex("\(saturday) 10:00"), ex("\(sunday) 10:00"), ex("\(sunday) 12:00")]
+}
+
+@Test func engineWeekendStreakCountsConsecutiveFullWeekends() {
+    let warrior = AchievementCondition.weekendStreak(4)
+    let four = weekend("2026-10-24", "2026-10-25") + weekend("2026-10-31", "2026-11-01")
+        + weekend("2026-11-07", "2026-11-08") + weekend("2026-11-14", "2026-11-15")
+    #expect(earned(warrior, facts(four)) == at("2026-11-15 10:00"))
+    #expect(earned(warrior, facts(Array(four.dropLast(3)))) == nil)
+    #expect(earned(.weekendStreak(2), facts(four)) == at("2026-11-01 10:00"))
+}
+
+@Test func engineWeekendStreakRestartsAfterAHalfWeekend() {
+    let warrior = AchievementCondition.weekendStreak(4)
+    // Третий выходной без воскресенья: счёт заново.
+    let list = weekend("2026-10-24", "2026-10-25") + weekend("2026-10-31", "2026-11-01")
+        + [ex("2026-11-07 10:00"), ex("2026-11-08 10:00", completed: false)]
+        + weekend("2026-11-14", "2026-11-15") + weekend("2026-11-21", "2026-11-22")
+        + weekend("2026-11-28", "2026-11-29")
+    #expect(earned(warrior, facts(list)) == nil)
+    let more = list + weekend("2026-12-05", "2026-12-06")
+    #expect(earned(warrior, facts(more)) == at("2026-12-06 10:00"))
+    // Пропущенный выходной целиком тоже рвёт счёт.
+    let gap = weekend("2026-10-24", "2026-10-25") + weekend("2026-10-31", "2026-11-01")
+        + weekend("2026-11-14", "2026-11-15") + weekend("2026-11-21", "2026-11-22")
+    #expect(earned(warrior, facts(gap)) == nil)
+}
+
+@Test func engineWeekendStreakUsesLogicalDays() {
+    // Субботнее занятие в 2:00 при начале дня в 4:00 — это ещё пятница: первый выходной не засчитан.
+    let list = [ex("2026-10-24 02:00"), ex("2026-10-25 10:00")]
+        + weekend("2026-10-31", "2026-11-01") + weekend("2026-11-07", "2026-11-08")
+        + weekend("2026-11-14", "2026-11-15")
+    #expect(list[0].logicalDay == "2026-10-23")
+    #expect(earned(.weekendStreak(4), facts(list)) == nil)
+    // А воскресенье в 2:00 ночи понедельника — ещё воскресенье.
+    let late = [ex("2026-10-24 10:00"), ex("2026-10-26 02:00")]
+        + weekend("2026-10-31", "2026-11-01") + weekend("2026-11-07", "2026-11-08")
+        + weekend("2026-11-14", "2026-11-15")
+    #expect(earned(.weekendStreak(4), facts(late)) == at("2026-11-15 10:00"))
+}
+
+@Test func engineAlmostPerfectExcludesHundredPercent() {
+    let almost = AchievementCondition.almostPerfect(minChars: 300, minimum: 0.999)
+    #expect(earned(almost, facts([ex("2026-10-01 10:00", chars: 299, accuracy: 0.9995)])) == nil)
+    #expect(earned(almost, facts([ex("2026-10-01 10:00", chars: 300, accuracy: 1)])) == nil)
+    #expect(earned(almost, facts([ex("2026-10-01 10:00", chars: 300, accuracy: 0.998)])) == nil)
+    #expect(earned(almost, facts([ex("2026-10-01 10:00", chars: 300, accuracy: 0.9995, completed: false)])) == nil)
+    #expect(earned(almost, facts([ex("2026-10-01 10:00", chars: 300, accuracy: 1),
+                                  ex("2026-10-02 10:00", chars: 300, accuracy: 0.9995)])) == at("2026-10-02 10:00"))
+}
+
+// MARK: - Фаза 5: задним числом по синтетической истории
+
+/// Новые ачивки фазы 5 (21).
+private let phase5Ids: Set<String> = [
+    "streak.fire_month", "streak.insurance", "speed.growth.150", "speed.growth.200", "accuracy.all_fingers",
+    "volume.exercises.100", "volume.exercises.500", "volume.exercises.1000", "volume.books.5", "volume.books.25",
+    "special.weak_spot", "special.weak_spot.10", "special.own_words", "fun.pi", "fun.answer42", "fun.yo_master",
+    "fun.learning_from_mistakes", "fun.cinderella", "fun.friday_night", "fun.weekend_warrior", "fun.almost",
+]
+
+/// 35 дней (01.10–04.11.2026, Москва, день с 4:00): по три упражнения в день, кроме замороженного 15.10;
+/// пять разных отрывков из книг, свой текст, 10 «Слабых мест», 314 зн/мин, 42 с, полночь, пятница 22:00,
+/// 300 знаков с 99,9%. Статистики пальцев и «ё» нет (как у сессий до 1.1.0).
+private func syntheticHistory() -> (exercises: [ExerciseFact], statuses: [String: DayStatus]) {
+    var list: [ExerciseFact] = []
+    var statuses: [String: DayStatus] = [:]
+    for day in StreakCalculator.dayKeys(from: "2026-10-01", to: "2026-11-04") {
+        if day == "2026-10-15" {
+            statuses[day] = .frozen
+            continue
+        }
+        statuses[day] = .full
+        for hour in [10, 11, 12] {
+            let time = "\(day) \(hour):00"
+            switch time {
+            case "2026-10-05 11:00": list.append(ex(time, cpm: 313.8, wrong: 3))
+            case "2026-10-06 12:00": list.append(ex(time, seconds: 42, wrong: 3))
+            case "2026-10-12 12:00": list.append(ex(time, chars: 300, accuracy: 0.999, wrong: 1))
+            default: list.append(ex(time, accuracy: 0.97, wrong: 3))
+            }
+        }
+        list.append(ex("\(day) 13:00", chars: 4, completed: false, wrong: 1))
+    }
+    for (index, day) in ["2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06"].enumerated() {
+        list.append(ex("\(day) 15:00", accuracy: 0.97, source: "library:book\(index + 1)"))
+    }
+    list.append(ex("2026-10-08 15:00", accuracy: 0.97, source: "custom"))
+    for day in StreakCalculator.dayKeys(from: "2026-10-16", to: "2026-10-25") {
+        list.append(ex("\(day) 16:00", mode: .weak, accuracy: 0.99, source: "weak"))
+    }
+    list.append(ex("2026-10-20 00:00:10", accuracy: 0.97))
+    list.append(ex("2026-10-09 22:00", accuracy: 0.97))
+    return (list.sorted { $0.endedAt < $1.endedAt }, statuses)
+}
+
+@Test func phase5BackfillOnSyntheticHistory() {
+    let history = syntheticHistory()
+    let completed = history.exercises.filter(\.completed)
+    #expect(completed.count == 120)
+    let now = at("2026-11-05 09:00")
+    let result = AchievementEngine.evaluate(facts(history.exercises, streakStatuses: history.statuses, now: now))
+    let new = Dictionary(uniqueKeysWithValues: result.filter { phase5Ids.contains($0.id) }.map { ($0.id, $0.date) })
+    #expect(Set(new.keys) == [
+        "volume.exercises.100", "volume.books.5", "special.own_words", "special.weak_spot", "special.weak_spot.10",
+        "fun.pi", "fun.answer42", "fun.cinderella", "fun.friday_night", "fun.weekend_warrior", "fun.almost",
+        "streak.insurance",
+    ])
+    #expect(new["volume.exercises.100"] == completed[99].endedAt)
+    #expect(new["volume.books.5"] == at("2026-10-06 15:00"))
+    #expect(new["special.own_words"] == at("2026-10-08 15:00"))
+    #expect(new["special.weak_spot"] == at("2026-10-16 16:00"))
+    #expect(new["special.weak_spot.10"] == at("2026-10-25 16:00"))
+    #expect(new["fun.pi"] == at("2026-10-05 11:00"))
+    #expect(new["fun.answer42"] == at("2026-10-06 12:00"))
+    #expect(new["fun.cinderella"] == at("2026-10-20 00:00:10"))
+    #expect(new["fun.friday_night"] == at("2026-10-09 22:00"))
+    // Выходные 03–04, 10–11, 17–18, 24–25.10: четвёртый засчитан первым упражнением воскресенья.
+    #expect(new["fun.weekend_warrior"] == at("2026-10-25 10:00"))
+    #expect(new["fun.almost"] == at("2026-10-12 12:00"))
+    // Заморозка 15.10, возврат 16.10.
+    #expect(new["streak.insurance"] == at("2026-10-16 10:00"))
+    // Даты — из истории, не момент проверки.
+    #expect(new.values.allSatisfy { $0 < now })
+    for id in ["accuracy.all_fingers", "fun.yo_master", "volume.exercises.500"] {
+        #expect(new[id] == nil, "\(id)")
+    }
 }

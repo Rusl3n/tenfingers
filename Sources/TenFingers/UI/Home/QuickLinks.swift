@@ -12,6 +12,7 @@ struct QuickLinks: View {
             link("Тренировка", icon: "target", subtitle: trainingSubtitle, action: openTraining)
             link("Слабые места", icon: "scope", subtitle: weakSubtitle,
                  action: data.canStartWeakSpots ? startWeakSpots : openTraining)
+                .help(HelpText.weakSpots)
             link("Практика", icon: "text.book.closed", subtitle: String(localized: "Слова, отрывки, свой текст"),
                  action: openPractice)
         }

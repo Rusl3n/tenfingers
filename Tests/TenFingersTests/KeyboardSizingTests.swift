@@ -10,9 +10,19 @@ import Testing
     #expect(KeyboardSizing.clampedOffset(500) == 200)
 }
 
-@Test func keyboardWidthIsFifteenUnitsPlusGaps() {
+@Test func keyboardWidthIsProportionalToUnit() {
+    // Клавиатура рисуется в базовом размере (656 при 40) и масштабируется: 16,4 · unit.
     #expect(KeyboardSizing.keyboardWidth(unit: 40) == 656)
-    #expect(KeyboardSizing.keyboardWidth(unit: 32) == 536)
+    #expect(abs(KeyboardSizing.keyboardWidth(unit: 32) - 524.8) < 0.001)
+    #expect(abs(KeyboardSizing.keyboardWidth(unit: 56) - 918.4) < 0.001)
+}
+
+@Test func keyboardScaleIsUnitOverBase() {
+    #expect(KeyboardSizing.baseUnit == 40)
+    #expect(KeyboardSizing.scale(unit: 40) == 1)
+    #expect(abs(KeyboardSizing.scale(unit: 56) - 1.4) < 0.000_001)
+    // Размер вне пределов зажимается: 32 / 40.
+    #expect(abs(KeyboardSizing.scale(unit: 10) - 0.8) < 0.000_001)
 }
 
 @Test func effectiveOffsetIsCenteredWhenKeyboardDoesNotFit() {
@@ -36,7 +46,8 @@ import Testing
     #expect(KeyboardSizing.effectiveOffset(requested: -900, unit: 40, availableWidth: 5000) == -200)
 }
 
-@Test func keyboardHeightIsFiveRowsPlusGaps() {
-    // 5 рядов по 0.92 единицы и 4 промежутка.
-    #expect(abs(KeyboardSizing.keyboardHeight(unit: 40) - (5 * 36.8 + 16)) < 0.001)
+@Test func keyboardHeightIsProportionalToUnit() {
+    // При 40: 5 рядов по 0,92 единицы и 4 промежутка = 200; дальше пропорционально, 5 · unit.
+    #expect(abs(KeyboardSizing.keyboardHeight(unit: 40) - 200) < 0.001)
+    #expect(abs(KeyboardSizing.keyboardHeight(unit: 56) - 280) < 0.001)
 }

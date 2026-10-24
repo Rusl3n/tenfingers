@@ -11,6 +11,7 @@ struct MetricsCard: View {
             Text("Курс: \(data.language.displayName)").font(.headline)
             HStack(alignment: .top, spacing: 16) {
                 metric("Скорость за 7 дней", data.weekCpm.map { unit.format($0) } ?? "—")
+                    .help(HelpText.speedUnits)
                 metric("Точность за 7 дней", data.weekAccuracy.map { Formatting.percent($0) } ?? "—")
                 metric("Всего практики", Formatting.duration(data.totalSeconds))
                 metric("Занимаетесь с", data.firstSessionDate.map { $0.formatted(date: .long, time: .omitted) }

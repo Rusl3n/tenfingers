@@ -6,11 +6,15 @@ struct ActivityCalendarView: View {
     let calendar: ActivityCalendar
     /// Прокрутка по горизонтали на узком окне (у `ImageRenderer` её нет — там `false`).
     var scrolls = true
+    /// Открывает карточку «Мой прогресс»; `nil` — кнопки «Поделиться» нет.
+    var share: (() -> Void)?
     private let cell: CGFloat = 11
     private let gap: CGFloat = 3
 
     var body: some View {
-        AnalyticsCard("Календарь занятий") {
+        AnalyticsCard("Календарь занятий", accessory: {
+            if let share { ShareLinkButton(action: share).font(.callout) }
+        }) {
             VStack(alignment: .leading, spacing: 10) {
                 if scrolls {
                     ScrollView(.horizontal, showsIndicators: false) { grid }
@@ -80,6 +84,7 @@ struct ActivityCalendarView: View {
                     Circle().fill(color(status)).frame(width: cell, height: cell)
                     Text(DayStatusStyle.title(status))
                 }
+                .help(HelpText.fire(status))
             }
         }
         .font(.caption)

@@ -5,8 +5,8 @@ import UniformTypeIdentifiers
 
 private let shareLog = Logger(subsystem: "local.tenfingers", category: "share")
 
-/// Лист «Поделиться»: живой предпросмотр карточки, опции (подпись, тема, фон, формат) и действия
-/// «Поделиться…», «Сохранить PNG…», «Скопировать». Опции запоминаются. Esc закрывает лист.
+/// Лист «Поделиться»: живой предпросмотр карточки, опции (подпись, тема, фон, формат; у «Мой прогресс» ещё период и
+/// что показывать) и действия «Поделиться…», «Сохранить PNG…», «Скопировать». Опции запоминаются. Esc закрывает лист.
 struct ShareSheetView: View {
     let card: ShareCard
     @Environment(\.dismiss) private var dismiss
@@ -19,8 +19,11 @@ struct ShareSheetView: View {
         case copied, saved, failed
     }
 
-    /// Ширина и высота области предпросмотра.
-    private static let previewSize = CGSize(width: 560, height: 340)
+    /// Ширина области предпросмотра и её высота: у вертикальной «сторис» выше.
+    private static let previewWidth: CGFloat = 560
+    private static func previewSize(for format: ShareFormat) -> CGSize {
+        CGSize(width: previewWidth, height: format == .story ? 420 : 340)
+    }
 
     init(card: ShareCard) {
         self.card = card
@@ -29,15 +32,21 @@ struct ShareSheetView: View {
 
     private var cardView: ShareCardView { ShareCardView.make(card: card, options: options, profile: profile) }
 
+    /// У «Мой прогресс» всё выключено и нет календаря: картинки нет, кнопки неактивны.
+    private var nothingToShow: Bool { options.hasNothingToShow(for: card.event) }
+
     var body: some View {
         VStack(spacing: 18) {
             Text("Поделиться").font(.title2.bold())
             preview
+            if nothingToShow {
+                Text("Выберите, что показать").font(.callout).foregroundStyle(.secondary)
+            }
             controls
             actions
         }
         .padding(24)
-        .frame(width: Self.previewSize.width + 48)
+        .frame(width: Self.previewWidth + 48)
         .onChange(of: options) { _, new in
             new.save()
             status = nil
@@ -48,7 +57,8 @@ struct ShareSheetView: View {
 
     private var preview: some View {
         let size = options.format.size
-        let scale = min(Self.previewSize.width / size.width, Self.previewSize.height / size.height)
+        let area = Self.previewSize(for: options.format)
+        let scale = min(area.width / size.width, area.height / size.height)
         return cardView
             .scaleEffect(scale, anchor: .topLeading)
             .frame(width: size.width * scale, height: size.height * scale, alignment: .topLeading)
@@ -57,7 +67,7 @@ struct ShareSheetView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator))
-            .frame(width: Self.previewSize.width, height: Self.previewSize.height)
+            .frame(width: area.width, height: area.height)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("Предпросмотр карточки"))
     }
@@ -80,6 +90,26 @@ struct ShareSheetView: View {
                     }
                 }
             }
+            if case .progress = card.event {
+                GridRow {
+                    Text("Период")
+                    segmented("Период", selection: $options.progressPeriod, ProgressPeriod.allCases) { $0.title }
+                }
+                GridRow(alignment: .firstTextBaseline) {
+                    Text("Что показывать")
+                    progressContentToggles
+                }
+            }
+            if case .achievement = card.event {
+                GridRow(alignment: .firstTextBaseline) {
+                    Text("Что показывать")
+                    HStack(spacing: 20) {
+                        Toggle("Описание", isOn: $options.achievementContent.showsJoke)
+                        Toggle("За что", isOn: $options.achievementContent.showsReason)
+                    }
+                    .toggleStyle(.checkbox)
+                }
+            }
             GridRow {
                 Text("Тема")
                 segmented("Тема", selection: $options.theme, ShareTheme.allCases) { $0.title }
@@ -92,8 +122,34 @@ struct ShareSheetView: View {
                 Text("Формат")
                 segmented("Формат", selection: $options.format, ShareFormat.allCases) { $0.title }
             }
+            GridRow {
+                Text("QR-код")
+                Toggle("Показывать в углу", isOn: $options.showsQR)
+                    .toggleStyle(.checkbox)
+                    .help("Ссылка на страницу приложения на GitHub")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Пять переключателей содержимого «Мой прогресс» в два столбца.
+    private var progressContentToggles: some View {
+        let content = $options.progressContent
+        return Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 6) {
+            GridRow {
+                Toggle("Огонь серии", isOn: content.showsStreak)
+                Toggle("Время занятий", isOn: content.showsTime)
+            }
+            GridRow {
+                Toggle("Полные дни", isOn: content.showsFullDays)
+                Toggle("Лучшая скорость", isOn: content.showsSpeed)
+            }
+            GridRow {
+                Color.clear.frame(height: 0)
+                Toggle("Средняя точность", isOn: content.showsAccuracy)
+            }
+        }
+        .toggleStyle(.checkbox)
     }
 
     private func segmented<T: Hashable & Identifiable>(_ label: LocalizedStringKey, selection: Binding<T>, _ values: [T],
@@ -112,8 +168,11 @@ struct ShareSheetView: View {
         HStack(spacing: 10) {
             Button("Поделиться…", action: share)
                 .background(ShareAnchorView(anchor: anchor))
+                .disabled(nothingToShow)
             Button("Сохранить PNG…", action: save)
+                .disabled(nothingToShow)
             Button("Скопировать", action: copy)
+                .disabled(nothingToShow)
             statusLabel
             Spacer(minLength: 8)
             Button("Готово") { dismiss() }

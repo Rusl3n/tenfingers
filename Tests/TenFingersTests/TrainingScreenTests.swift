@@ -65,7 +65,7 @@ import TypingCore
     totals.add(seconds: 10, chars: 20, errors: 0)
     #expect(totals.isComplete)
     #expect(totals.seconds == 300)
-    #expect(totals.cpm == 104)
+    #expect(abs(totals.cpm - 103.4) < 1e-9)   // первый знак каждой из трёх порций времени не имеет
     #expect(abs(totals.accuracy - (1 - 10.0 / 520)) < 1e-9)
 }
 

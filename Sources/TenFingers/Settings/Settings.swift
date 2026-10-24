@@ -2,6 +2,12 @@ import SwiftUI
 import TypingCore
 
 enum SettingsKey {
+    /// Язык интерфейса (`InterfaceLanguage`): system | ru | en. Не архивируется: это состояние устройства.
+    static let interfaceLanguage = "interfaceLanguage"
+    /// Знакомство пройдено или пропущено (`OnboardingDraft`), Bool, по умолчанию false. Не архивируется: состояние устройства.
+    static let onboardingCompleted = "onboardingCompleted"
+    /// Фильтр экрана «Ачивки» (`AchievementsFilter`): all | earned | locked. Не архивируется: состояние окна.
+    static let achievementsFilter = "achievementsFilter"
     static let themeMode = "themeMode"
     static let lightPalette = "lightPalette"
     static let darkPalette = "darkPalette"
@@ -22,19 +28,47 @@ enum SettingsKey {
     /// Масштаб интерфейса (`UIScale`), Double: 1 — 100%.
     static let uiScale = "uiScale"
     /// Напоминания о занятиях (`ReminderScheduler`): включены ли, час и минута (по умолчанию выключены, 20:00).
+    /// Час и минута — время режима «Один раз в день»; они же остались от версий до расписания.
     static let remindersEnabled = "remindersEnabled"
     static let reminderHour = "reminderHour"
     static let reminderMinute = "reminderMinute"
+    /// Расписание (`ReminderScheduleMode`): once | thrice | interval.
+    static let reminderSchedule = "reminderSchedule"
+    /// Режим «3 раза в день»: три времени, минуты суток.
+    static let reminderTime1 = "reminderTime1"
+    static let reminderTime2 = "reminderTime2"
+    static let reminderTime3 = "reminderTime3"
+    /// Режим «Каждые N часов»: с какого часа, до какого (включительно) и шаг в часах (1…4).
+    static let reminderFromHour = "reminderFromHour"
+    static let reminderToHour = "reminderToHour"
+    static let reminderIntervalHours = "reminderIntervalHours"
+    /// Тон текстов (`ReminderTone`): normal | funny | mixed.
+    static let reminderTone = "reminderTone"
+    /// Нарастающие напоминания: каждое следующее за день настойчивее предыдущего.
+    static let reminderEscalating = "reminderEscalating"
     /// Профиль: никнейм и имя (для карточек «Поделиться» фазы 4).
     static let profileNickname = "profileNickname"
     static let profileFullName = "profileFullName"
     /// «Взрослый юмор»: выключенный скрывает ачивки с `adult` из списка, тостов и карточек (выдаются они всё равно).
     static let adultHumor = "adultHumor"
-    /// Опции карточки «Поделиться» (`ShareOptions`): подпись, тема, фон, формат.
+    /// Опции карточки «Поделиться» (`ShareOptions`): подпись, тема, фон, формат, QR-код.
     static let shareSignature = "shareSignature"
     static let shareTheme = "shareTheme"
     static let shareBackground = "shareBackground"
     static let shareFormat = "shareFormat"
+    /// QR-код со ссылкой на приложение в углу карточки (по умолчанию выключен).
+    static let shareQR = "shareQR"
+    /// Период карточки «Мой прогресс» (`ProgressPeriod`): month, year или all — без календаря (по умолчанию month).
+    static let shareProgressPeriod = "shareProgressPeriod"
+    /// Что показывать на карточке «Мой прогресс» (`ProgressCardContent`): все пять — по умолчанию включены.
+    static let shareProgressShowStreak = "shareProgressShowStreak"
+    static let shareProgressShowFullDays = "shareProgressShowFullDays"
+    static let shareProgressShowTime = "shareProgressShowTime"
+    static let shareProgressShowSpeed = "shareProgressShowSpeed"
+    static let shareProgressShowAccuracy = "shareProgressShowAccuracy"
+    /// Что показывать на карточке ачивки (`AchievementCardContent`): шутку (по умолчанию да) и «За что» (по умолчанию нет).
+    static let shareAchievementShowJoke = "shareAchievementShowJoke"
+    static let shareAchievementShowReason = "shareAchievementShowReason"
     /// Прежний ключ темы (system/light/dark), читается один раз как начальное значение `themeMode`.
     static let legacyTheme = "theme"
 }
@@ -51,6 +85,15 @@ enum SettingsDefault {
     static let remindersEnabled = false
     static let reminderHour = 20
     static let reminderMinute = 0
+    static let reminderSchedule = ReminderScheduleMode.once.rawValue
+    static let reminderTime1 = 600
+    static let reminderTime2 = 900
+    static let reminderTime3 = 1200
+    static let reminderFromHour = 10
+    static let reminderToHour = 21
+    static let reminderIntervalHours = 3
+    static let reminderTone = ReminderTone.mixed.rawValue
+    static let reminderEscalating = false
     static let adultHumor = true
 }
 
@@ -69,12 +112,30 @@ enum StoredSettings {
         defaults.object(forKey: SettingsKey.adultHumor) as? Bool ?? SettingsDefault.adultHumor
     }
 
-    /// Напоминания; значения вне допустимого диапазона приводятся к нему.
+    /// Напоминания; значения вне допустимого диапазона приводятся к нему, неизвестные строки — к умолчанию.
+    /// «Один раз в день» читает прежние ключи `reminderHour` / `reminderMinute`, поэтому время и включённость,
+    /// выбранные до появления расписания, сохраняются. «Взрослый юмор» берётся из общей настройки.
     static func reminders(_ defaults: UserDefaults = .standard) -> ReminderSettings {
-        ReminderSettings(
+        func int(_ key: String, _ fallback: Int, _ range: ClosedRange<Int>) -> Int {
+            min(range.upperBound, max(range.lowerBound, defaults.object(forKey: key) as? Int ?? fallback))
+        }
+        let hour = int(SettingsKey.reminderHour, SettingsDefault.reminderHour, 0...23)
+        let minute = int(SettingsKey.reminderMinute, SettingsDefault.reminderMinute, 0...59)
+        let config = ReminderConfig(
+            mode: (defaults.string(forKey: SettingsKey.reminderSchedule)).flatMap(ReminderScheduleMode.init(rawValue:)) ?? .once,
+            onceMinute: hour * 60 + minute,
+            thriceMinutes: [int(SettingsKey.reminderTime1, SettingsDefault.reminderTime1, 0...1439),
+                            int(SettingsKey.reminderTime2, SettingsDefault.reminderTime2, 0...1439),
+                            int(SettingsKey.reminderTime3, SettingsDefault.reminderTime3, 0...1439)],
+            fromHour: int(SettingsKey.reminderFromHour, SettingsDefault.reminderFromHour, 0...23),
+            toHour: int(SettingsKey.reminderToHour, SettingsDefault.reminderToHour, 0...23),
+            intervalHours: int(SettingsKey.reminderIntervalHours, SettingsDefault.reminderIntervalHours, 1...4),
+            tone: (defaults.string(forKey: SettingsKey.reminderTone)).flatMap(ReminderTone.init(rawValue:)) ?? .mixed,
+            escalating: defaults.object(forKey: SettingsKey.reminderEscalating) as? Bool ?? SettingsDefault.reminderEscalating,
+            adultHumor: adultHumor(defaults))
+        return ReminderSettings(
             enabled: defaults.object(forKey: SettingsKey.remindersEnabled) as? Bool ?? SettingsDefault.remindersEnabled,
-            hour: min(23, max(0, defaults.object(forKey: SettingsKey.reminderHour) as? Int ?? SettingsDefault.reminderHour)),
-            minute: min(59, max(0, defaults.object(forKey: SettingsKey.reminderMinute) as? Int ?? SettingsDefault.reminderMinute)))
+            config: config)
     }
 }
 
@@ -135,6 +196,14 @@ enum SpeedUnit: String, CaseIterable, Identifiable {
         switch self {
         case .cpm: return String(localized: "\(speed) зн/мин")
         case .wpm: return "\(speed) WPM"
+        }
+    }
+
+    /// То же без числа, пока скорость ещё считается: «— зн/мин», «— WPM».
+    var placeholder: String {
+        switch self {
+        case .cpm: String(localized: "— зн/мин")
+        case .wpm: "— WPM"
         }
     }
 }

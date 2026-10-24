@@ -3,9 +3,12 @@ import Testing
 @testable import TypingCore
 
 private func session(_ day: String, chars: Int, seconds: Double, accuracy: Double = 1, completed: Bool = true,
-                     language: Language = .ru, endedAt: Double = 0) -> SessionSummary {
-    SessionSummary(day: day, endedAt: Date(timeIntervalSince1970: endedAt), language: language, mode: .practice,
-                   chars: chars, activeSeconds: seconds, accuracy: accuracy, completed: completed)
+                     language: Language = .ru, endedAt: Double = 0, cpm: Double? = nil,
+                     kind: ExerciseKind? = nil, errors: Int = 0) -> SessionSummary {
+    SessionSummary(day: day, endedAt: Date(timeIntervalSince1970: endedAt), language: language,
+                   mode: kind == nil ? .practice : .course, chars: chars, activeSeconds: seconds, accuracy: accuracy,
+                   completed: completed, lessonId: kind == nil ? nil : "l1", exerciseKind: kind, cpm: cpm,
+                   errorCount: errors)
 }
 
 @Test func dailyAggregatesCompletedSessions() {
@@ -21,6 +24,28 @@ private func session(_ day: String, chars: Int, seconds: Double, accuracy: Doubl
     #expect(abs(day.accuracy - (1000 * 1.0 + 500 * 0.97) / 1500) < 1e-9)
     #expect(day.seconds == 540)
     #expect(day.sessions == 2)
+}
+
+@Test func dailyStoredCpmEqualToCharsPerSecondMatchesDerived() {
+    let derived = Analytics.daily([session("d", chars: 600, seconds: 120)], language: nil)[0].cpm
+    let stored = Analytics.daily([session("d", chars: 600, seconds: 120, cpm: 600.0 / 120 * 60)], language: nil)[0].cpm
+    #expect(abs(derived - 300) < 1e-9 && abs(stored - derived) < 1e-9)
+}
+
+@Test func dailyUsesLowerStoredCpm() {
+    // Новая формула: первый знак времени не имеет, скорость считается по (chars - 1).
+    let stored = 599.0 / 120 * 60
+    let point = Analytics.daily([session("d", chars: 600, seconds: 120, cpm: stored)], language: nil)[0]
+    #expect(abs(point.cpm - stored) < 1e-9 && point.cpm < 300)
+}
+
+@Test func dailyMixedStoredCpmIsSecondsWeightedMean() {
+    let point = Analytics.daily([
+        session("d", chars: 600, seconds: 100, cpm: 300),
+        session("d", chars: 600, seconds: 300, cpm: 100),
+        session("d", chars: 600, seconds: 50, completed: false, cpm: 5000),   // брошенная не учитывается
+    ], language: nil)[0]
+    #expect(abs(point.cpm - (300.0 * 100 + 100.0 * 300) / 400) < 1e-9)
 }
 
 @Test func dailyOnlyAbandonedSessionsGivesZeroCpm() {
@@ -62,23 +87,87 @@ private func session(_ day: String, chars: Int, seconds: Double, accuracy: Doubl
 @Test func recordsIgnoreShortSessions() {
     let r = Analytics.records([
         session("d", chars: 200, seconds: 1, accuracy: 1, language: .ru),       // слишком короткая
-        session("d", chars: 600, seconds: 120, accuracy: 0.9, language: .ru, endedAt: 10),   // 300 cpm
-        session("d", chars: 600, seconds: 100, accuracy: 0.95, language: .ru, endedAt: 20),  // 360 cpm
-        session("d", chars: 400, seconds: 100, accuracy: 0.99, language: .en, endedAt: 30),  // 240 cpm
+        session("d", chars: 600, seconds: 120, accuracy: 0.9, language: .ru, endedAt: 10),   // 300 cpm, с ошибками
+        session("d", chars: 600, seconds: 100, accuracy: 1, language: .ru, endedAt: 20),     // 360 cpm
+        session("d", chars: 400, seconds: 100, accuracy: 1, language: .en, endedAt: 30),     // 240 cpm
         session("d", chars: 900, seconds: 10, accuracy: 1, completed: false, language: .en), // не завершена
     ], longestStreak: 5)
     #expect(r.bestCpm[.ru]?.value == 360)
     #expect(r.bestCpm[.ru]?.date == Date(timeIntervalSince1970: 20))
     #expect(r.bestCpm[.en]?.value == 240)
-    #expect(r.bestAccuracy[.ru]?.value == 0.95)
-    #expect(r.bestAccuracy[.en]?.value == 0.99)
+    #expect(r.bestAccuracy[.ru]?.value == 1)
+    #expect(r.bestAccuracy[.en]?.value == 1)
     #expect(r.longestStreak == 5)
+}
+
+// MARK: Рекорд скорости: проверка урока или текст от 300 знаков, без ошибок
+
+@Test func speedRecordTakesLessonCheckOfAnyLengthWithoutErrors() {
+    let r = Analytics.records([
+        session("d", chars: 90, seconds: 90.0 * 60 / 224, accuracy: 1, endedAt: 10, kind: .check),
+    ], longestStreak: 0)
+    #expect(abs((r.bestCpm[.ru]?.value ?? 0) - 224) < 1e-9)
+    // Рекорд точности по-прежнему только от 300 знаков.
+    #expect(r.bestAccuracy.isEmpty)
+}
+
+@Test func speedRecordSkipsCheckWithAnError() {
+    let r = Analytics.records([
+        session("d", chars: 90, seconds: 24, accuracy: 89.0 / 90, endedAt: 10, kind: .check, errors: 1),
+    ], longestStreak: 0)
+    #expect(r.bestCpm.isEmpty)
+}
+
+@Test func speedRecordSkipsShortNonCheckSteps() {
+    let r = Analytics.records([
+        session("d", chars: 90, seconds: 20, accuracy: 1, endedAt: 10, kind: .drill),
+        session("d", chars: 90, seconds: 20, accuracy: 1, endedAt: 20, kind: .words),
+        session("d", chars: 90, seconds: 20, accuracy: 1, endedAt: 30),   // практика
+    ], longestStreak: 0)
+    #expect(r.bestCpm.isEmpty)
+}
+
+@Test func speedRecordTakesLongTextWithoutErrorsButNotWithErrors() {
+    let clean = Analytics.records([session("d", chars: 300, seconds: 60, accuracy: 1, endedAt: 10)], longestStreak: 0)
+    #expect(clean.bestCpm[.ru]?.value == 300)
+    let dirty = Analytics.records([session("d", chars: 600, seconds: 60, accuracy: 0.99, endedAt: 10, errors: 6)],
+                                  longestStreak: 0)
+    #expect(dirty.bestCpm.isEmpty)
+    #expect(dirty.bestAccuracy[.ru]?.value == 0.99)
+}
+
+@Test func speedRecordRuleIsSharedWithAchievements() {
+    func eligible(completed: Bool = true, kind: ExerciseKind?, chars: Int, accuracy: Double) -> Bool {
+        Analytics.isSpeedRecordExercise(completed: completed, kind: kind, chars: chars, accuracy: accuracy)
+    }
+    #expect(eligible(kind: .check, chars: 90, accuracy: 1))
+    #expect(eligible(kind: nil, chars: 300, accuracy: 1))
+    #expect(!eligible(kind: .check, chars: 90, accuracy: 0.99))
+    #expect(!eligible(kind: .drill, chars: 90, accuracy: 1))
+    #expect(!eligible(kind: nil, chars: 299, accuracy: 1))
+    #expect(!eligible(completed: false, kind: .check, chars: 90, accuracy: 1))
+    let summary = session("d", chars: 90, seconds: 20, accuracy: 1, kind: .check)
+    #expect(summary.isSpeedRecordExercise)
+    #expect(!session("d", chars: 90, seconds: 20, accuracy: 1, kind: .drill).isSpeedRecordExercise)
+}
+
+@Test func recordsStoredCpmEqualToCharsPerSecondMatchesDerived() {
+    let r = Analytics.records([session("d", chars: 600, seconds: 100, endedAt: 1, cpm: 600.0 / 100 * 60)],
+                              longestStreak: 0)
+    #expect(abs((r.bestCpm[.ru]?.value ?? 0) - 360) < 1e-9)
+}
+
+@Test func recordsUseLowerStoredCpm() {
+    let stored = 599.0 / 100 * 60
+    let r = Analytics.records([session("d", chars: 600, seconds: 100, endedAt: 1, cpm: stored)], longestStreak: 0)
+    #expect(abs((r.bestCpm[.ru]?.value ?? 0) - stored) < 1e-9)
+    #expect((r.bestCpm[.ru]?.value ?? 0) < 360)
 }
 
 @Test func recordsTieGoesToEarlier() {
     let r = Analytics.records([
-        session("d", chars: 300, seconds: 60, accuracy: 0.98, endedAt: 50),
-        session("d", chars: 300, seconds: 60, accuracy: 0.98, endedAt: 10),
+        session("d", chars: 300, seconds: 60, accuracy: 1, endedAt: 50),
+        session("d", chars: 300, seconds: 60, accuracy: 1, endedAt: 10),
     ], longestStreak: 0)
     #expect(r.bestAccuracy[.ru]?.date == Date(timeIntervalSince1970: 10))
     #expect(r.bestCpm[.ru]?.date == Date(timeIntervalSince1970: 10))

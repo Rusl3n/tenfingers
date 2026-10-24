@@ -1,11 +1,11 @@
-<p align="center"><img src="docs/images/icon.png" width="128" alt="Ten Fingers icon"></p>
+<p align="center"><img src="docs/images/icon.png" width="128" alt="TenFingers icon"></p>
 
-<h1 align="center">Ten Fingers</h1>
+<h1 align="center">TenFingers</h1>
 
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.1-blue" alt="Version 1.0.1">
+  <img src="https://img.shields.io/badge/version-1.1.0-blue" alt="Version 1.1.0">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -16,7 +16,7 @@
 ## Features
 
 - A lesson-based course in the spirit of "Solo on the Keyboard": 5 stages for each of Russian and English.
-- An on-screen keyboard that follows your actual system layout (including remapped symbols, such as Shift+6 = ":" in "Russian – PC") and is colored by finger. Keyboard size is adjustable.
+- An on-screen keyboard that follows your actual system layout (including remapped symbols, such as Shift+6 = ":" in "Russian – PC") and is colored by finger. Keyboard size is adjustable, and the keyboard scales smoothly when you change it.
 - A mistake stops the cursor: you have to press the correct key first.
 - Hints that are gradually withdrawn: from a highlighted key and finger to typing blind.
 - A lesson step indicator and a detailed exercise summary. A lesson resumes from the first step you haven't finished.
@@ -31,13 +31,14 @@
 - Speed and accuracy are collected for every key while you type; the result screen shows the keys with the most errors.
 - A daily streak: a full flame for reaching your daily goal (10 minutes of active typing by default), a half flame for any finished exercise. Freezes (up to two, a new one for every 7 full days in a row) cover a missed day. The home screen shows the streak, the last seven days, today's goal, and your weekly speed and accuracy.
 - Analytics: speed and accuracy charts with a trend line, a keyboard heat map of errors and slow keys, per-finger statistics, a year-long activity calendar, records, the last 100 exercises, and course progress.
-- Practice reminders at the time you choose; the text depends on your streak ("Your 12-day streak is at risk", "4 min left until a full flame").
-- 68 achievements in eight categories: streak, speed, accuracy, course, volume, special, letters and funny ones. Everything you earned in past sessions is awarded the first time you launch a version with achievements, dated from your history, in one summary instead of an avalanche of messages. The Achievements screen shows your progress and, for the ones you do not have yet, how to get them; the latest achievement is on the home screen. The "Adult humor" setting hides the achievements with strong language without stopping you from earning them.
-- "Share" cards: an achievement, a streak, a speed record, a finished stage or the whole course as an image with a signature of your choice, light or dark, colored or transparent, wide or square; copy it, save it as PNG or send it through the system menu.
+- Practice reminders: once a day, three times a day, or every N hours within a window you set; a tone for the texts (plain, funny or mixed) and escalation, where each reminder of the day is pushier than the previous one. The text depends on your streak ("Your 12-day streak is at risk", "4 min left until a full flame").
+- 89 achievements in eight categories: streak, speed, accuracy, course, volume, special, letters and funny ones. Each has a joke, and each earned one has an "Earned for" line. 28 of them are secret: until earned they show as "???" and do not reveal how to get them; an "All / Earned / Not earned" filter helps you find what you need. Everything you earned in past sessions is awarded the first time you launch a version with achievements, dated from your history, in one summary instead of an avalanche of messages. The latest achievement is on the home screen. The "Adult humor" setting hides the achievements with strong language without stopping you from earning them.
+- "Share" cards: an achievement (its joke and the optional "Earned for" line, off by default, can be switched), a speed record, a finished stage or the whole course, and "My progress" with a month or year calendar, as an image with a signature of your choice, light or dark, colored or transparent, wide, square or a vertical 1080×1920 story; optionally with a QR code of the project. Copy it, save it as PNG or send it through the system menu.
 - A profile (nickname and name) and progress transfer: all your progress, profile and settings can be saved to a file and loaded from it, for example on another Mac. Before loading, your current progress is backed up automatically.
 - Sounds synthesized inside the app: key click, error, exercise finished, lesson passed, new achievement, streak. Each sound has its own volume and switch.
 - Light (white, beige, gray) and dark (graphite, night, coffee) palettes; theme follows the system, is set manually, or switches on a schedule. Interface scale from 80 to 150%.
-- English interface; the language follows your system settings.
+- A first-launch introduction (skippable, and you can replay it from the profile) and hover tips; a "?" next to the harder concepts.
+- Russian and English interface; choose the language in Settings → General or follow the system.
 - All data stays local: no network, no accounts, no telemetry.
 
 ## Screenshots
@@ -66,7 +67,7 @@ cd tenfingers
 ./scripts/build-app.sh
 ```
 
-The script builds a release version, signs it ad hoc and copies it to `/Applications`. The app appears in Applications as "Десять пальцев" (Ten Fingers).
+The script builds a release version, signs it ad hoc and copies it to `/Applications`. The app is installed as `/Applications/TenFingers.app`; Finder and the Dock show it as "Десять пальцев" on a Russian system and "TenFingers" on an English one. The interface language can be changed in Settings → General. The old "Десять пальцев.app" bundle is removed during installation and your progress stays in place. Version 1.1.0 changes the database schema (generation 5): earlier versions cannot open it, so you may want to save a copy before updating with `./scripts/pin-backup.sh before-phase5`.
 
 ## Development
 

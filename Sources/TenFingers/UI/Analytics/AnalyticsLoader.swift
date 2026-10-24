@@ -70,10 +70,14 @@ struct AnalyticsLoader {
         }
     }
 
-    /// Только завершённые упражнения, достаточно длинные для рекорда.
+    /// Только завершённые упражнения, которые могут дать рекорд: от порога знаков (точность и скорость)
+    /// или проверка урока любой длины (скорость). Точный отбор — в `Analytics.records`.
     private func recordCandidates() throws -> [SessionSummary] {
         let minimum = Analytics.recordMinimumChars
-        let descriptor = FetchDescriptor<SessionRecord>(predicate: #Predicate { $0.completed && $0.chars >= minimum })
+        let check: String? = ExerciseKind.check.rawValue
+        let descriptor = FetchDescriptor<SessionRecord>(predicate: #Predicate {
+            $0.completed && ($0.chars >= minimum || $0.exerciseKind == check)
+        })
         return try context.fetch(descriptor).compactMap(ProgressSnapshot.summary)
     }
 

@@ -297,6 +297,29 @@ private func session(day: String, language: Language = .ru, mode: ExerciseMode =
     #expect(!rows[1].abandoned)
 }
 
+/// Лучшая скорость: чистая проверка урока в 90 знаков (224 зн/мин) — рекорд; та же с ошибкой, тренировка и шаг «слова» — нет;
+/// рекорд точности остаётся только от 300 знаков.
+@MainActor @Test func loaderRecordsTakeCleanLessonChecksForSpeedOnly() throws {
+    let container = try makeContainer()
+    let context = container.mainContext
+    let seconds = 90.0 * 60 / 224
+    context.insert(session(day: "2026-03-09", chars: 90, seconds: seconds, accuracy: 1, endedAt: noon,
+                           lessonId: "l1", kind: .check))
+    let dirty = session(day: "2026-03-09", chars: 90, seconds: 10, accuracy: 89.0 / 90, endedAt: noon.addingTimeInterval(1),
+                        lessonId: "l1", kind: .check)
+    dirty.errorCount = 1
+    context.insert(dirty)
+    context.insert(session(day: "2026-03-09", chars: 90, seconds: 10, accuracy: 1, endedAt: noon.addingTimeInterval(2),
+                           lessonId: "l1", kind: .drill))
+    context.insert(session(day: "2026-03-09", chars: 90, seconds: 10, accuracy: 1, endedAt: noon.addingTimeInterval(3),
+                           lessonId: "l1", kind: .words))
+    try context.save()
+    let data = try AnalyticsLoader(context: context).summary(
+        language: .ru, courses: [:], today: "2026-03-10", goalSeconds: 600, firstWeekday: 2)
+    #expect(abs((data.records.bestCpm[.ru]?.value ?? 0) - 224) < 1e-9)
+    #expect(data.records.bestAccuracy.isEmpty)
+}
+
 @MainActor @Test func loaderSummaryHasTotalsDatesRecordsAndCalendar() throws {
     let container = try makeContainer()
     let context = container.mainContext
@@ -327,7 +350,7 @@ private func session(day: String, language: Language = .ru, mode: ExerciseMode =
     #expect(data.totals.all == 800)
     #expect(data.firstSessionDate == first)
     #expect(data.courseStartDate == noon.addingTimeInterval(-86_400))
-    #expect(data.records.bestCpm[.ru]?.value == 400)          // 100 знаков — короче рекордного минимума
+    #expect(data.records.bestCpm[.ru] == nil)                 // 400 знаков с ошибками и 100 знаков вне проверки — не рекорд скорости
     #expect(data.records.bestAccuracy[.ru]?.value == 0.99)
     #expect(data.records.longestStreak == 2)
     #expect(data.calendar.weeks[52][0].status == .full)

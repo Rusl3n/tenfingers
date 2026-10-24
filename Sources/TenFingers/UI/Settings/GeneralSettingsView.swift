@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Раздел «Общие»: тема, палитры, расписание, поведение окна и «Взрослый юмор» ачивок.
+/// Раздел «Общие»: язык интерфейса, тема, палитры, расписание, поведение окна и «Взрослый юмор» ачивок.
 struct GeneralSettingsView: View {
+    @AppStorage(SettingsKey.interfaceLanguage) private var interfaceLanguage = InterfaceLanguage.system.rawValue
     @AppStorage(SettingsKey.themeMode) private var themeMode = ThemeMode.system.rawValue
     @AppStorage(SettingsKey.lightPalette) private var lightPalette = LightPalette.white.rawValue
     @AppStorage(SettingsKey.darkPalette) private var darkPalette = DarkPalette.graphite.rawValue
@@ -10,14 +11,31 @@ struct GeneralSettingsView: View {
     @AppStorage(SettingsKey.quitOnWindowClose) private var quitOnWindowClose = false
     @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
+    @Environment(ReminderScheduler.self) private var reminders
 
     /// Значение не из списка (например, записанное вручную) показывается ближайшим допустимым.
     private var uiScaleSelection: Binding<Double> {
         Binding(get: { UIScale.clamped(uiScale) }, set: { uiScale = $0 })
     }
 
+    /// Выбор языка пишет и `interfaceLanguage`, и `AppleLanguages`; сам язык меняется после перезапуска.
+    private var interfaceLanguageSelection: Binding<InterfaceLanguage> {
+        Binding(get: { InterfaceLanguage(rawValue: interfaceLanguage) ?? .system },
+                set: { $0.apply(to: .standard) })
+    }
+
     var body: some View {
         Form {
+            Section("Язык интерфейса") {
+                Picker("Язык", selection: interfaceLanguageSelection) {
+                    ForEach(InterfaceLanguage.allCases) { Text(verbatim: $0.title).tag($0) }
+                }
+                .help(HelpText.interfaceLanguage)
+                if InterfaceLanguage.needsRestart(selected: interfaceLanguageSelection.wrappedValue,
+                                                  atLaunch: InterfaceLanguage.atLaunch) {
+                    LanguageRestartBanner(relaunch: AppRelauncher.relaunch)
+                }
+            }
             Section("Внешний вид") {
                 Picker("Масштаб интерфейса", selection: uiScaleSelection) {
                     ForEach(UIScale.options, id: \.self) { Text(verbatim: UIScale.title($0)).tag($0) }
@@ -46,6 +64,7 @@ struct GeneralSettingsView: View {
             }
             Section("Окно") {
                 Toggle("Закрывать приложение вместе с окном", isOn: $quitOnWindowClose)
+                    .help(HelpText.quitOnClose)
             }
             Section {
                 Toggle("Взрослый юмор", isOn: $adultHumor)
@@ -59,6 +78,8 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+        // «Взрослые» тексты напоминаний зависят от этой настройки.
+        .onChange(of: adultHumor) { reminders.rescheduleSoon() }
     }
 
     private func swatch(_ color: Color) -> some View {

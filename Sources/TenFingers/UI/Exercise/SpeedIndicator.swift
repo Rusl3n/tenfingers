@@ -7,6 +7,16 @@ enum SpeedIndicator {
     static let minimumChars = 10
     static let minimumSeconds: Double = 3
 
+    /// Пока данных мало, вместо числа показывается прочерк (тот же порог, что и у цвета).
+    static func isMeasuring(typedChars: Int, activeSeconds: Double) -> Bool {
+        typedChars < minimumChars || activeSeconds < minimumSeconds
+    }
+
+    /// Текст крупной скорости: число с единицей или «— зн/мин», пока скорость ещё считается.
+    static func speedText(cpm: Double, typedChars: Int, activeSeconds: Double, unit: SpeedUnit) -> String {
+        isMeasuring(typedChars: typedChars, activeSeconds: activeSeconds) ? unit.placeholder : unit.format(cpm)
+    }
+
     static func state(cpm: Double, target: Double?, typedChars: Int, activeSeconds: Double) -> SpeedState {
         guard let target, typedChars >= minimumChars, activeSeconds >= minimumSeconds else { return .neutral }
         return cpm >= target ? .ahead : .behind
@@ -21,7 +31,9 @@ enum SpeedIndicator {
         }
     }
 
-    static func accessibilityLabel(cpm: Double, target: Double?, state: SpeedState, unit: SpeedUnit) -> String {
+    static func accessibilityLabel(cpm: Double, target: Double?, state: SpeedState, unit: SpeedUnit,
+                                   measuring: Bool = false) -> String {
+        if measuring { return String(localized: "Скорость ещё считается") }
         let speed = unit.format(cpm)
         guard let target else { return String(localized: "Скорость \(speed)") }
         let goal = unit.format(target)
@@ -45,6 +57,10 @@ struct SpeedIndicatorView: View {
         SpeedIndicator.state(cpm: cpm, target: target, typedChars: typedChars, activeSeconds: activeSeconds)
     }
 
+    private var measuring: Bool {
+        SpeedIndicator.isMeasuring(typedChars: typedChars, activeSeconds: activeSeconds)
+    }
+
     private var color: Color {
         switch state {
         case .neutral: .primary
@@ -55,7 +71,7 @@ struct SpeedIndicatorView: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            Text(unit.format(cpm))
+            Text(SpeedIndicator.speedText(cpm: cpm, typedChars: typedChars, activeSeconds: activeSeconds, unit: unit))
                 .font(.system(size: 34, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(color)
@@ -77,6 +93,7 @@ struct SpeedIndicatorView: View {
         .lineLimit(1)
         .fixedSize()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(SpeedIndicator.accessibilityLabel(cpm: cpm, target: target, state: state, unit: unit))
+        .accessibilityLabel(SpeedIndicator.accessibilityLabel(cpm: cpm, target: target, state: state, unit: unit,
+                                                              measuring: measuring))
     }
 }

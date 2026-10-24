@@ -10,6 +10,7 @@ struct AnalyticsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(ContentLibrary.self) private var library
     @Environment(KeyboardLayoutService.self) private var layout
+    @Environment(ToastCenter.self) private var toasts
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
@@ -20,6 +21,8 @@ struct AnalyticsView: View {
     @State private var history: [HistoryRow] = []
     /// Какие части экрана не прочитались из базы.
     @State private var failed: Set<Part> = []
+    /// Открытая карточка «Мой прогресс».
+    @State private var share: ShareCard?
 
     private enum Part { case summary, chart, history }
 
@@ -33,16 +36,23 @@ struct AnalyticsView: View {
             } else if let data {
                 AnalyticsContent(data: data, chart: chart, history: history,
                                  unit: SpeedUnit(rawValue: speedUnit) ?? .cpm, snapshot: layout.snapshot,
-                                 period: $period)
+                                 period: $period, shareProgress: openProgressCard)
             } else {
                 Color.clear
             }
         }
+        .shareSheet($share)
         .onAppear(perform: reloadAll)
         .onChange(of: activeLanguage) { reload() }
         .onChange(of: dayStartHour) { reload() }
         .onChange(of: dailyGoal) { reload() }
         .onChange(of: period) { reloadChart() }
+    }
+
+    /// «Поделиться» у календаря: карточка «Мой прогресс» из свежих данных базы; ошибка чтения — тост.
+    private func openProgressCard() {
+        share = ShareCard.openProgress(context: modelContext, goalSeconds: Double(dailyGoal) * 60,
+                                       dayStartHour: dayStartHour, toasts: toasts)
     }
 
     private func reloadAll() {
@@ -88,6 +98,10 @@ struct AnalyticsContent: View {
     let unit: SpeedUnit
     let snapshot: LayoutSnapshot
     @Binding var period: AnalyticsPeriod
+    var shareProgress: (() -> Void)?
+
+    /// Поделиться прогрессом можно, как только есть хоть одно занятие (как на главной).
+    nonisolated static func canShareProgress(_ data: AnalyticsData) -> Bool { data.firstSessionDate != nil }
 
     var body: some View {
         ScrollView { column }
@@ -102,7 +116,7 @@ struct AnalyticsContent: View {
             ProgressChartsView(chart: chart, unit: unit, period: $period)
             KeyboardHeatmapView(snapshot: snapshot, language: data.language, keys: data.keys)
             FingerStatsView(rows: data.fingers)
-            ActivityCalendarView(calendar: data.calendar)
+            ActivityCalendarView(calendar: data.calendar, share: Self.canShareProgress(data) ? shareProgress : nil)
             RecordsView(records: data.records, unit: unit)
             SessionHistoryView(rows: history, unit: unit)
             CourseProgressView(rows: data.courseProgress)

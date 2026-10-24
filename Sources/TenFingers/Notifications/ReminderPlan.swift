@@ -1,34 +1,18 @@
 import Foundation
 import TypingCore
 
-/// Настройки напоминаний (в `UserDefaults`; по умолчанию выключены).
+/// Настройки напоминаний (в `UserDefaults`; по умолчанию выключены): включены ли и расписание с тоном (`ReminderConfig`).
 struct ReminderSettings: Equatable {
     var enabled: Bool
-    var hour: Int
-    var minute: Int
+    var config: ReminderConfig
 }
 
 enum ReminderID {
-    /// Горизонт планирования: напоминания на ближайшие `horizon` логических дней.
-    static let horizon = 7
-    static func day(_ index: Int) -> String { "reminder.d\(index)" }
     /// Идентификаторы прежних версий: при пересчёте удаляются, чтобы не оставить дубли.
     static let legacy = ["reminder.today", "reminder.tomorrow"]
     /// Всё, что планировщик может оставить ожидающим: удаляется перед каждой постановкой.
-    static let all = (0..<horizon).map(day) + legacy
-}
-
-/// Ключи текста напоминания на будущие дни (числа серии к тому времени могут устареть):
-/// при серии — «не теряйте серию», без серии — просто «Пора позаниматься».
-let genericReminderKey = "Пора позаниматься — не теряйте серию"
-let idleReminderKey = "Пора позаниматься"
-
-/// Одно запланированное напоминание: когда и какой текст (ключ локализации и числовые аргументы из `ReminderText`).
-struct PlannedReminder: Equatable {
-    let id: String
-    let date: Date
-    let key: String
-    let args: [Int]
+    /// Идентификаторы прежних версий (`d0…d6`) — часть того же ряда.
+    static let all = (0..<ReminderPlanner.maxPending).map(ReminderPlanner.slotID) + legacy
 }
 
 /// Что нужно знать о прогрессе, чтобы выбрать текст напоминания.
@@ -53,43 +37,8 @@ struct ReminderInputs: Equatable {
     }
 }
 
-/// Чистая часть планировщика: какие напоминания нужно поставить.
-enum ReminderPlan {
-    /// Просматривает ближайшие `horizon + 2` календарных дня (два запасных дня компенсируют пропуски: прошедший
-    /// сегодняшний момент и день без напоминания) и оставляет первые `horizon` подходящих: момент ещё не наступил и текст нужен.
-    /// - Момент в текущем логическом дне — реальный текст `ReminderText.content` (статус дня, серия, остаток);
-    ///   для полного огня и заморозки напоминания нет.
-    /// - Момент в любом будущем логическом дне — общий текст без чисел (при нулевой серии — без упоминания серии).
-    /// Так день, чьё напоминание лежит до `dayStartHour` (например, 02:00 при начале дня в 4:00), не остаётся без него.
-    static func requests(now: Date, settings: ReminderSettings, streak: Int, todayStatus: DayStatus,
-                         minutesLeft: Int, dayStartHour: Int = SettingsDefault.dayStartHour,
-                         calendar: Calendar = .current) -> [PlannedReminder] {
-        guard settings.enabled else { return [] }
-        let nowDay = LogicalDay.key(for: now, dayStartHour: dayStartHour, calendar: calendar)
-        var result: [PlannedReminder] = []
-        for offset in 0...(ReminderID.horizon + 1) {
-            guard result.count < ReminderID.horizon else { break }
-            guard let day = calendar.date(byAdding: .day, value: offset, to: now),
-                  let fire = calendar.date(bySettingHour: settings.hour, minute: settings.minute, second: 0, of: day),
-                  fire > now else { continue }
-            let content: (key: String, args: [Int])?
-            if LogicalDay.key(for: fire, dayStartHour: dayStartHour, calendar: calendar) == nowDay {
-                content = ReminderText.content(today: todayStatus, streak: streak, minutesLeft: minutesLeft)
-            } else {
-                content = (key: streak > 0 ? genericReminderKey : idleReminderKey, args: [])
-            }
-            guard let content else { continue }
-            result.append(PlannedReminder(id: ReminderID.day(result.count), date: fire,
-                                          key: content.key, args: content.args))
-        }
-        return result
-    }
-}
-
-/// Текст уведомления: ключ из `ReminderText` переводится и подставляются числа.
-enum ReminderMessage {
-    static func text(key: String, args: [Int], bundle: Bundle = .main) -> String {
-        let format = bundle.localizedString(forKey: key, value: key, table: nil)
-        return args.isEmpty ? format : String(format: format, arguments: args.map { $0 as CVarArg })
+extension ReminderInputs {
+    var situation: ReminderSituation {
+        ReminderSituation(streak: streak, todayStatus: todayStatus, minutesLeft: minutesLeft)
     }
 }

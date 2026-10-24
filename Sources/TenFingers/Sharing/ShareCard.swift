@@ -13,12 +13,14 @@ enum ShareEvent: Equatable {
     case stage(id: String, title: String, language: Language)
     /// Пройден весь курс языка.
     case course(language: Language)
+    /// «Мой прогресс»: серия, календарь месяца или года и итоги периода.
+    case progress(ProgressCardData)
 
     /// Дата самого события; `nil` — событие «сейчас» (серия, этап, курс).
     var date: Date? {
         switch self {
         case .achievement(_, let date), .speedRecord(_, _, let date): date
-        case .streak, .stage, .course: nil
+        case .streak, .stage, .course, .progress: nil
         }
     }
 
@@ -26,11 +28,16 @@ enum ShareEvent: Equatable {
     var icon: String {
         switch self {
         case .achievement(let achievement, _): achievement.icon
-        case .streak: "flame.fill"
+        case .streak, .progress: "flame.fill"
         case .speedRecord: "speedometer"
         case .stage: "flag.checkered"
         case .course: "graduationcap.fill"
         }
+    }
+
+    /// Данные календаря у «Мой прогресс».
+    var progressData: ProgressCardData? {
+        if case .progress(let data) = self { data } else { nil }
     }
 
     /// Основа имени файла (ASCII): `tenfingers-streak-30`.
@@ -41,6 +48,7 @@ enum ShareEvent: Equatable {
         case .speedRecord(let language, let cpm, _): "tenfingers-speed-\(language.rawValue)-\(Int(cpm.rounded()))"
         case .stage(let id, _, _): "tenfingers-stage-\(id)"
         case .course(let language): "tenfingers-course-\(language.rawValue)"
+        case .progress(let data): "tenfingers-progress-\(data.today)"
         }
     }
 
@@ -116,12 +124,15 @@ enum ShareFormat: String, CaseIterable, Identifiable {
     case wide
     /// 1080×1080 — квадрат.
     case square
+    /// 1080×1920 — вертикальная «сторис».
+    case story
     var id: String { rawValue }
 
     var size: CGSize {
         switch self {
         case .wide: CGSize(width: 1200, height: 630)
         case .square: CGSize(width: 1080, height: 1080)
+        case .story: CGSize(width: 1080, height: 1920)
         }
     }
 
@@ -129,6 +140,7 @@ enum ShareFormat: String, CaseIterable, Identifiable {
         switch self {
         case .wide: String(localized: "Широкая 1200×630")
         case .square: String(localized: "Квадрат 1080×1080")
+        case .story: String(localized: "Сторис 1080×1920")
         }
     }
 }
@@ -184,12 +196,45 @@ struct ShareProfile: Equatable {
     }
 }
 
+/// Что показывать на карточке ачивки: иконка и название есть всегда, шутка и «За что» — по выбору.
+struct AchievementCardContent: Equatable {
+    /// Подзаголовок — шутка (`detail`).
+    var showsJoke = true
+    /// Мелкая строка «За что: …». По умолчанию выключена: «иконка и название» выглядит чище.
+    var showsReason = false
+
+    static func load(from defaults: UserDefaults) -> AchievementCardContent {
+        AchievementCardContent(
+            showsJoke: defaults.object(forKey: SettingsKey.shareAchievementShowJoke) as? Bool ?? true,
+            showsReason: defaults.object(forKey: SettingsKey.shareAchievementShowReason) as? Bool ?? false)
+    }
+
+    func save(to defaults: UserDefaults) {
+        defaults.set(showsJoke, forKey: SettingsKey.shareAchievementShowJoke)
+        defaults.set(showsReason, forKey: SettingsKey.shareAchievementShowReason)
+    }
+}
+
 /// Настройки карточки; запоминаются между открытиями листа.
 struct ShareOptions: Equatable {
     var signature: ShareSignature
     var theme: ShareTheme
     var background: ShareBackground
     var format: ShareFormat
+    /// QR-код со ссылкой на приложение в углу.
+    var showsQR = false
+    /// Период карточки «Мой прогресс»: месяц, год или «Без календаря» (у остальных событий не используется).
+    var progressPeriod = ProgressPeriod.month
+    /// Что показывать на карточке «Мой прогресс» (у остальных событий не используется).
+    var progressContent = ProgressCardContent()
+    /// Что показывать на карточке ачивки (у остальных событий не используется).
+    var achievementContent = AchievementCardContent()
+
+    /// Карточка получилась бы пустой, и делиться ей нечем: у «Мой прогресс» всё выключено и нет календаря.
+    func hasNothingToShow(for event: ShareEvent) -> Bool {
+        guard case .progress = event else { return false }
+        return progressContent.isEmpty && !progressPeriod.showsCalendar
+    }
 
     /// Сохранённые опции; подпись, для которой в профиле больше нет данных, — подпись по умолчанию.
     static func load(_ defaults: UserDefaults = .standard, profile: ShareProfile) -> ShareOptions {
@@ -200,7 +245,11 @@ struct ShareOptions: Equatable {
         let signature = stored.flatMap { profile.available.contains($0) ? $0 : nil } ?? profile.defaultSignature
         return ShareOptions(signature: signature, theme: value(SettingsKey.shareTheme, ShareTheme.light),
                             background: value(SettingsKey.shareBackground, ShareBackground.colored),
-                            format: value(SettingsKey.shareFormat, ShareFormat.wide))
+                            format: value(SettingsKey.shareFormat, ShareFormat.wide),
+                            showsQR: defaults.bool(forKey: SettingsKey.shareQR),
+                            progressPeriod: value(SettingsKey.shareProgressPeriod, ProgressPeriod.month),
+                            progressContent: ProgressCardContent.load(from: defaults),
+                            achievementContent: AchievementCardContent.load(from: defaults))
     }
 
     func save(_ defaults: UserDefaults = .standard) {
@@ -208,6 +257,10 @@ struct ShareOptions: Equatable {
         defaults.set(theme.rawValue, forKey: SettingsKey.shareTheme)
         defaults.set(background.rawValue, forKey: SettingsKey.shareBackground)
         defaults.set(format.rawValue, forKey: SettingsKey.shareFormat)
+        defaults.set(showsQR, forKey: SettingsKey.shareQR)
+        defaults.set(progressPeriod.rawValue, forKey: SettingsKey.shareProgressPeriod)
+        progressContent.save(to: defaults)
+        achievementContent.save(to: defaults)
     }
 }
 
@@ -218,45 +271,81 @@ enum ShareAvailability {
     }
 }
 
+private extension Achievement {
+    /// Условие как утверждение («Открыты буквы: П И Ц А») на языке карточки; язык вне ru/en — язык системы.
+    func earnedConditionText(locale: Locale) -> String {
+        let code = locale.language.languageCode?.identifier
+        return AchievementConditionText.describe(condition, display: lettersDisplay,
+                                                 localization: code.flatMap { ["ru", "en"].contains($0) ? $0 : nil },
+                                                 earned: true)
+    }
+}
+
 /// Тексты карточки на языке интерфейса (`bundle` и `locale` подменяются в тестах и при рендере картинок README).
 struct ShareCardText: Equatable {
     let header: String
     let headline: String
     let subtitle: String?
+    /// Мелкая строка под подзаголовком: у ачивки — «За что: …» (условие утверждением), у прочих `nil`.
+    let footnote: String?
+    /// Календарь, показатели и переключатели содержимого карточки «Мой прогресс»; у прочих событий `nil`.
+    let progress: ProgressCardText?
     let signature: String?
     let date: String
-    let watermark: String
+    /// Водяной знак: название приложения на языке карточки и ссылка на проект двумя строками.
+    let appName: String
+    let link = ShareCardText.projectLink
 
     init(card: ShareCard, options: ShareOptions, profile: ShareProfile, unit: SpeedUnit,
          bundle: Bundle = .main, locale: Locale? = nil) {
         let locale = locale ?? Formatting.interfaceLocale(bundle: bundle)
+        var progress: ProgressCardText?
         switch card.event {
         case .achievement(let achievement, _):
             header = String(localized: "Новая ачивка", bundle: bundle, locale: locale)
             headline = achievement.title
-            subtitle = achievement.detail
+            subtitle = options.achievementContent.showsJoke ? achievement.detail : nil
+            let reason = achievement.earnedConditionText(locale: locale)
+            footnote = options.achievementContent.showsReason
+                ? String(localized: "За что: \(reason)", bundle: bundle, locale: locale) : nil
         case .streak(let days, let full):
             let count = Formatting.days(days, bundle: bundle, locale: locale)
             header = String(localized: "Серия занятий", bundle: bundle, locale: locale)
             headline = String(localized: "\(count) подряд", bundle: bundle, locale: locale)
             subtitle = String(localized: "Полных дней: \(full)", bundle: bundle, locale: locale)
+            footnote = nil
         case .speedRecord(let language, let cpm, _):
             header = String(localized: "Рекорд скорости", bundle: bundle, locale: locale)
             headline = "\(unit.wholeValue(cpm))"
             subtitle = Self.speedSubtitle(unit: unit, language: language, bundle: bundle, locale: locale)
+            footnote = nil
         case .stage(_, let title, let language):
             header = String(localized: "Этап пройден", bundle: bundle, locale: locale)
             headline = title
             subtitle = Self.layoutName(language, bundle: bundle, locale: locale)
+            footnote = nil
         case .course(let language):
             header = String(localized: "Курс пройден", bundle: bundle, locale: locale)
             headline = Self.layoutName(language, bundle: bundle, locale: locale)
             subtitle = String(localized: "Все уроки курса пройдены", bundle: bundle, locale: locale)
+            footnote = nil
+        case .progress(let data):
+            let count = Formatting.days(data.streak, bundle: bundle, locale: locale)
+            header = String(localized: "Мой прогресс", bundle: bundle, locale: locale)
+            headline = String(localized: "\(count) подряд", bundle: bundle, locale: locale)
+            subtitle = options.progressContent.showsFullDays
+                ? String(localized: "Полных дней: \(data.fullDays)", bundle: bundle, locale: locale) : nil
+            footnote = nil
+            progress = ProgressCardText(data: data, period: options.progressPeriod, content: options.progressContent,
+                                        unit: unit, bundle: bundle, locale: locale)
         }
+        self.progress = progress
         signature = profile.text(for: options.signature)
         date = card.date.formatted(Date.FormatStyle(date: .long, time: .omitted).locale(locale))
-        watermark = String(localized: "Десять пальцев · github.com/Rusl3n/tenfingers", bundle: bundle, locale: locale)
+        appName = String(localized: "Десять пальцев", bundle: bundle, locale: locale)
     }
+
+    static let projectLink = "github.com/Rusl3n/tenfingers"
 
     /// Текст «Поделиться…» к картинке.
     static func message(bundle: Bundle = .main) -> String {

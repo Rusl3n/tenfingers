@@ -59,8 +59,9 @@ public struct TypingEngine: Sendable {
     public var expected: Character? { isFinished ? nil : target[position] }
     public var currentPositionHasError: Bool { errorPositions.contains(position) }
 
-    /// Символов в минуту по чистому времени.
-    public var cpm: Double { activeTime > 0 ? Double(position) / activeTime * 60 : 0 }
+    /// Символов в минуту по чистому времени. Первый знак запускает отсчёт и не имеет своего времени,
+    /// поэтому считаются только знаки после первого засчитанного.
+    public var cpm: Double { activeTime > 0 && position > 1 ? Double(position - 1) / activeTime * 60 : 0 }
 
     public var accuracy: Double {
         target.isEmpty ? 1 : 1 - Double(errorPositions.count) / Double(target.count)

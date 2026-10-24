@@ -5,16 +5,21 @@ import TypingCore
 
 private let seenLog = Logger(subsystem: "local.tenfingers", category: "achievements")
 
-/// Экран «Ачивки»: прогресс «Получено N из M», фильтр по категориям и сетка значков. При появлении все
+/// Экран «Ачивки»: прогресс «Получено N из M», фильтры (по состоянию и по категориям) и сетка значков. При появлении все
 /// видимые ачивки помечаются просмотренными (одной транзакцией), но точки «новое» остаются, пока экран открыт.
 struct AchievementsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \AchievementRecord.unlockedAt, order: .reverse) private var records: [AchievementRecord]
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
+    @AppStorage(SettingsKey.achievementsFilter) private var filterRaw = AchievementsFilter.all.rawValue
     @State private var category: AchievementCategory?
     @State private var selected: AchievementEntry?
     /// Ачивки, которые были новыми к моменту открытия экрана: на них точка, хотя в базе они уже просмотрены.
     @State private var fresh: Set<String> = []
+
+    private var filter: Binding<AchievementsFilter> {
+        Binding(get: { AchievementsFilter(rawValue: filterRaw) ?? .all }, set: { filterRaw = $0.rawValue })
+    }
 
     private var stored: [StoredAchievement] { records.map(StoredAchievement.init) }
 
@@ -28,7 +33,7 @@ struct AchievementsView: View {
 
     var body: some View {
         ScrollView {
-            AchievementsContent(entries: entries, category: $category, freshIds: fresh,
+            AchievementsContent(entries: entries, category: $category, filter: filter, freshIds: fresh,
                                 select: { selected = $0 })
         }
         .scrollContentBackground(.hidden)
@@ -61,6 +66,7 @@ struct AchievementsView: View {
 struct AchievementsContent: View {
     let entries: [AchievementEntry]
     @Binding var category: AchievementCategory?
+    @Binding var filter: AchievementsFilter
     let freshIds: Set<String>
     let select: (AchievementEntry) -> Void
 
@@ -68,6 +74,7 @@ struct AchievementsContent: View {
 
     var body: some View {
         let progress = AchievementsListing.progress(entries)
+        let shown = AchievementsListing.filtered(entries, category: category, filter: filter)
         VStack(alignment: .leading, spacing: 16) {
             Text("Ачивки").font(.largeTitle.bold())
             VStack(alignment: .leading, spacing: 8) {
@@ -77,19 +84,44 @@ struct AchievementsContent: View {
                     Text("Пока ни одной: они появятся после занятий").foregroundStyle(.secondary)
                 }
             }
+            Picker("Показывать", selection: $filter) {
+                ForEach(AchievementsFilter.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
             CategoryFilter(categories: AchievementsListing.categories(of: entries), selection: $category)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12, alignment: .top)], spacing: 12) {
-                ForEach(AchievementsListing.filtered(entries, category: category)) { entry in
-                    Button { select(entry) } label: {
-                        AchievementBadge(entry: entry, showsDot: freshIds.contains(entry.id) || !entry.seen)
+            if shown.isEmpty {
+                EmptyAchievements { filter = .all; category = nil }
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12, alignment: .top)], spacing: 12) {
+                    ForEach(shown) { entry in
+                        Button { select(entry) } label: {
+                            AchievementBadge(entry: entry, showsDot: freshIds.contains(entry.id) || !entry.seen)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
         .padding(28)
         .frame(maxWidth: 900, alignment: .leading)
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Пустое сочетание фильтров: подсказка и кнопка сброса.
+private struct EmptyAchievements: View {
+    let reset: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "tray").font(.system(size: 32)).foregroundStyle(.secondary).accessibilityHidden(true)
+            Text("Здесь пока пусто").font(.headline)
+            Button("Показать все", action: reset)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
     }
 }
 

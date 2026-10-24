@@ -62,8 +62,8 @@ struct LessonIntroView: View {
                 }
             }
             .frame(maxWidth: 760, alignment: .leading)
-            KeyboardView(snapshot: layout.snapshot, marks: marks, unit: CGFloat(keyboardUnitValue),
-                         spaceHalf: teachesSpaceThumb ? spaceHalf : nil)
+            ScaledKeyboardView(snapshot: layout.snapshot, marks: marks, unit: keyboardUnitValue,
+                               spaceHalf: teachesSpaceThumb ? spaceHalf : nil)
                 .keyboardPlacement(offset: keyboardOffset, unit: keyboardUnitValue)
             Button("Начать", action: onStart)
                 .buttonStyle(.borderedProminent)

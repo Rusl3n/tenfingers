@@ -89,6 +89,7 @@ struct RootView: View {
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
+    @AppStorage(SettingsKey.onboardingCompleted) private var onboardingCompleted = false
     @Query(filter: #Predicate<AchievementRecord> { !$0.seen }) private var unseenRecords: [AchievementRecord]
     @State private var selection: SidebarItem? = .home
     @State private var activeRun: RunKind?
@@ -177,6 +178,13 @@ struct RootView: View {
         }
         .onDisappear(perform: removeEscapeMonitor)
         .shareSheet($shareCard)
+        // Знакомство: лист закрывают только его кнопки («Пропустить» или «Готово» ставят флаг).
+        .sheet(isPresented: Binding(get: { !onboardingCompleted }, set: { _ in })) { OnboardingView() }
+        .interactiveDismissDisabled()
+        // Пока открыто знакомство, запуск скрыт: без монитора клавиш Return и буквы не уходят в упражнение.
+        .onChange(of: onboardingCompleted, initial: true) { _, done in
+            if !done, activeRun != nil { presence.isVisible = false }
+        }
         // Первый запуск версии с ачивками выдаёт всё заработанное задним числом (одна сводка вместо лавины тостов).
         // Кнопка «Поделиться» в тостах ачивок открывает карточку здесь.
         .task {

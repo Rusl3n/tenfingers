@@ -99,7 +99,10 @@ struct TrainingView: View {
 
     private func adaptiveCard(_ snapshot: TrainingSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Адаптивная тренировка").font(.title3.bold())
+            HStack(spacing: 6) {
+                Text("Адаптивная тренировка").font(.title3.bold())
+                InfoButton(text: HelpText.trainingLetters)
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 10)], alignment: .leading, spacing: 10) {
                 ForEach(snapshot.letters) { letterBadge($0) }
             }
@@ -145,7 +148,10 @@ struct TrainingView: View {
 
     private func weakSpotsCard(_ snapshot: TrainingSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Слабые места").font(.title3.bold())
+            HStack(spacing: 6) {
+                Text("Слабые места").font(.title3.bold())
+                InfoButton(text: HelpText.weakSpots)
+            }
             HStack(alignment: .top, spacing: 32) {
                 weakColumn("Клавиши", items: snapshot.weakKeys.map { String($0) })
                 weakColumn("Сочетания", items: snapshot.weakBigrams)

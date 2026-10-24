@@ -7,12 +7,13 @@ import TypingCore
 struct ProgressSnapshot {
     let context: ModelContext
 
-    /// Активность по логическим дням (`DayRecord`).
+    /// Активность по логическим дням (`DayRecord`) вместе с целью каждого дня.
     func dayActivities() throws -> [String: DayActivity] {
         var result: [String: DayActivity] = [:]
         for record in try context.fetch(FetchDescriptor<DayRecord>()) {
             result[record.logicalDay] = DayActivity(activeSeconds: record.activeSeconds,
-                                                    completedExercises: record.completedExercises)
+                                                    completedExercises: record.completedExercises,
+                                                    goalSeconds: record.goalSeconds)
         }
         return result
     }

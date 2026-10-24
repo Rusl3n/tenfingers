@@ -372,10 +372,10 @@ enum LegacySchemaGeneration2 {
     }
 }
 
-/// Поколение 3: база поколения 2 (маркер «2») открывается, данные на месте, маркер становится 3,
+/// Поколение 3: база поколения 2 (маркер «2») открывается, данные на месте, маркер становится текущим,
 /// ачивки пишутся.
 @MainActor @Test func generationTwoStoreOpensAndBecomesGenerationThree() throws {
-    #expect(SchemaGeneration.current == 3)
+    #expect(SchemaGeneration.current >= 3)
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TenFingersGen2-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -398,7 +398,7 @@ enum LegacySchemaGeneration2 {
     try SchemaGeneration.write(2, at: url)
 
     let container = try ModelStore.makeContainer(at: url)
-    #expect(try SchemaGeneration.read(at: url) == 3)
+    #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
     let context = container.mainContext
     let session = try #require(try context.fetch(FetchDescriptor<SessionRecord>()).first)
     #expect(session.chars == 240 && session.source == "adaptive" && session.pinkyPresses == 12)

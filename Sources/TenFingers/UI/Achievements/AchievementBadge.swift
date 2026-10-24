@@ -2,14 +2,16 @@ import SwiftUI
 import TypingCore
 
 /// Круглая плашка с символом: у полученной — цвет категории, у неполученной — серый силуэт (прозрачность 0,35).
+/// `systemName` подменяет символ ачивки (замок у скрытой секретной).
 struct AchievementIcon: View {
     let achievement: Achievement
     let earned: Bool
     let size: CGFloat
+    var systemName: String? = nil
 
     var body: some View {
         let tint = AchievementStyle.tint(achievement.category)
-        Image(systemName: achievement.icon)
+        Image(systemName: systemName ?? achievement.icon)
             .font(.system(size: size * 0.42, weight: .medium))
             .foregroundStyle(earned ? tint : Color.gray)
             .frame(width: size, height: size)
@@ -19,21 +21,23 @@ struct AchievementIcon: View {
     }
 }
 
-/// Значок в сетке: получен — название и дата, не получен — силуэт, название и условие мелким текстом.
-/// Маленькая точка — ачивка ещё не просмотрена.
+/// Значок в сетке: получен — название, шутка и дата; не получен — силуэт, название и «Как получить: …» мелким
+/// текстом; секретный не полученный — замок, «???» и «Секретная ачивка». Маленькая точка — ачивка ещё не просмотрена.
 struct AchievementBadge: View {
     let entry: AchievementEntry
     let showsDot: Bool
     @Environment(\.palette) private var palette
 
-    /// Минимальная высота: вмещает самое длинное название (две строки) и самое длинное условие целиком, чтобы
-    /// все значки сетки были одной высоты (проверяет `AchievementBadgeLayoutTests`).
-    static let height: CGFloat = 200
+    /// Минимальная высота: вмещает название в две строки и худшую из подписей (самое длинное «Как получить: …»
+    /// целиком или шутку в две строки с датой), чтобы все значки сетки были одной высоты
+    /// (проверяет `AchievementBadgeLayoutTests`).
+    static let height: CGFloat = 212
     var minHeight: CGFloat = AchievementBadge.height
 
     var body: some View {
         VStack(spacing: 8) {
-            AchievementIcon(achievement: entry.achievement, earned: entry.isEarned, size: 56)
+            AchievementIcon(achievement: entry.achievement, earned: entry.isEarned, size: 56,
+                            systemName: entry.displayIcon)
                 .overlay(alignment: .topTrailing) {
                     if showsDot {
                         Circle().fill(Color.red).frame(width: 11, height: 11)
@@ -42,15 +46,19 @@ struct AchievementBadge: View {
                             .accessibilityHidden(true)
                     }
                 }
-            Text(entry.title)
+            Text(entry.displayTitle)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(entry.isEarned ? .primary : .secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
             if let date = entry.unlockedAt {
-                Text(AchievementStyle.shortDate(date)).font(.caption).foregroundStyle(.secondary)
+                Text(entry.badgeCaption)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                Text(AchievementStyle.shortDate(date)).font(.caption2).foregroundStyle(.secondary)
             } else {
-                Text(entry.lockedText)
+                Text(entry.badgeCaption)
                     .font(.caption2).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -67,6 +75,7 @@ struct AchievementBadge: View {
     }
 
     private var accessibilityText: String {
+        if entry.isConcealed { return String(localized: "Секретная ачивка, не получена") }
         let title = entry.title
         if let date = entry.unlockedAt {
             let when = AchievementStyle.longDate(date)

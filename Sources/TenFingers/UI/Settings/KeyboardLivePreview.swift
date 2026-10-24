@@ -5,6 +5,7 @@ import TypingCore
 /// Рисуется поверх экрана настроек, пока пользователь двигает ползунки размера или сдвига.
 /// Клавиатура вырастает из миниатюры (`miniatureFrame`) пружиной, фон и легенда проявляются параллельно;
 /// когда `isPresented` снимается, клавиатура сжимается обратно и вызывается `onDismissed`.
+/// Смена размера во время показа — пружина масштаба (`ScaledKeyboardView`), без перестройки клавиш.
 struct KeyboardLivePreview: View {
     let snapshot: LayoutSnapshot
     let unit: Double
@@ -24,7 +25,7 @@ struct KeyboardLivePreview: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            KeyboardView(snapshot: snapshot, marks: [:], unit: CGFloat(unit))
+            ScaledKeyboardView(snapshot: snapshot, unit: unit)
                 .modifier(KeyboardMorphEffect(progress: progress, from: miniatureFrame, to: keyboardFrame))
                 .opacity(canMorph || backdropVisible ? 1 : 0)
                 // Фон снаружи преобразования: меряет место клавиатуры в реальном размере, без морфинга.
@@ -38,6 +39,8 @@ struct KeyboardLivePreview: View {
         .padding(28)
         .background(palette.background.opacity(backdropVisible ? 0.92 : 0))
         .overlay(alignment: .top) { Divider().opacity(backdropVisible ? 1 : 0) }
+        // Размер меняется пружиной: клавиатура, легенда и фон вместе, без скачков на каждом шаге ползунка.
+        .animation(reduceMotion ? nil : KeyboardMorph.spring, value: unit)
         // Не перехватывает мышь, иначе ползунок потеряет перетаскивание.
         .allowsHitTesting(false)
         .accessibilityHidden(true)

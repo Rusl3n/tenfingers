@@ -13,66 +13,9 @@ private func utc() -> Calendar {
 
 /// 2026-03-10 12:00 UTC.
 private let noon = Date(timeIntervalSince1970: 1_773_144_000)
-private let evening = ReminderSettings(enabled: true, hour: 20, minute: 0)
-
-private func plan(now: Date = noon, settings: ReminderSettings = evening, streak: Int = 5, today: DayStatus = .none,
-                  minutesLeft: Int = 6, dayStartHour: Int = 4) -> [PlannedReminder] {
-    ReminderPlan.requests(now: now, settings: settings, streak: streak, todayStatus: today, minutesLeft: minutesLeft,
-                          dayStartHour: dayStartHour, calendar: utc())
-}
 
 private func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
     utc().date(from: DateComponents(year: 2026, month: 3, day: day, hour: hour, minute: minute))!
-}
-
-// MARK: - Чистое планирование
-
-@Test func disabledPlansNothing() {
-    #expect(plan(settings: ReminderSettings(enabled: false, hour: 20, minute: 0)).isEmpty)
-}
-
-private let generic = "Пора позаниматься — не теряйте серию"
-
-@Test func untouchedDayPlansSevenDaysWithRealTextOnlyToday() {
-    let result = plan(streak: 5, today: .none)
-    #expect(result.map(\.id) == (0..<7).map { "reminder.d\($0)" })
-    #expect(result.map(\.date) == (10...16).map { date($0, 20) })
-    #expect(result[0] == PlannedReminder(id: "reminder.d0", date: date(10, 20),
-                                         key: "Серия %lld дн. под угрозой", args: [5]))
-    // Будущие дни: общий текст без чисел.
-    #expect(result.dropFirst().allSatisfy { $0.key == generic && $0.args.isEmpty })
-}
-
-@Test func fullDaySkipsTodayAndKeepsSevenFutureDays() {
-    let result = plan(today: .full)
-    #expect(result.map(\.date) == (11...17).map { date($0, 20) })
-    #expect(result.map(\.id) == (0..<7).map { "reminder.d\($0)" })
-    #expect(result.allSatisfy { $0.key == generic })
-}
-
-@Test func frozenDaySkipsToday() {
-    #expect(plan(today: .frozen).first?.date == date(11, 20))
-}
-
-@Test func passedTimeStartsTomorrow() {
-    #expect(plan(now: date(10, 21), today: .none).first?.date == date(11, 20))
-    // Ровно в момент напоминания «сегодня» уже не планируется.
-    #expect(plan(now: date(10, 20), today: .none).first?.date == date(11, 20))
-    #expect(plan(now: date(10, 21), today: .none).count == 7)
-}
-
-@Test func halfDayShowsMinutesLeftToday() {
-    let result = plan(today: .half, minutesLeft: 7)
-    #expect(result.first == PlannedReminder(id: "reminder.d0", date: date(10, 20),
-                                            key: "До полного огня осталось %lld мин", args: [7]))
-}
-
-@Test func noStreakAsksToStartANewOne() {
-    let result = plan(streak: 0, today: .none)
-    #expect(result.first?.key == "Пора позаниматься: начните новую серию")
-    // Серии нет — на будущие дни без «не теряйте серию».
-    #expect(result.dropFirst().allSatisfy { $0.key == "Пора позаниматься" })
-    #expect(result.allSatisfy { $0.args.isEmpty })
 }
 
 /// Во время упражнения баннер напоминания не показывается (не отвлекает и не перехватывает ввод).
@@ -87,81 +30,91 @@ private let generic = "Пора позаниматься — не теряйте
     #expect(presenter.currentOptions == [.banner, .sound])
 }
 
-@Test func minutesOfReminderAreUsed() {
-    let result = plan(settings: ReminderSettings(enabled: true, hour: 7, minute: 45), today: .none)
-    #expect(result.first?.date == date(11, 7, 45))   // 7:45 сегодня уже прошло
-    #expect(plan(now: date(10, 6), settings: ReminderSettings(enabled: true, hour: 7, minute: 45)).first?.date
-        == date(10, 7, 45))
-}
-
-/// Напоминание в 02:00 при начале дня в 4:00 относится к предыдущему логическому дню: «завтра в 02:00» лежит
-/// в том же логическом дне, что и «сейчас» (12:00), а послезавтра в 02:00 — уже в следующем.
-@Test func reminderBeforeDayStartBelongsToPreviousLogicalDay() {
-    let settings = ReminderSettings(enabled: true, hour: 2, minute: 0)
-    let result = plan(settings: settings, today: .half, minutesLeft: 4)
-    #expect(result.first == PlannedReminder(id: "reminder.d0", date: date(11, 2),
-                                            key: "До полного огня осталось %lld мин", args: [4]))
-    #expect(result.count == 7)
-    #expect(result.dropFirst().allSatisfy { $0.key == generic })
-}
-
-/// Полный огонь в 23:00, напоминание в 02:00: 02:00 следующего календарного дня ещё принадлежит сегодняшнему
-/// (полному) дню и пропускается, но логический день D+1 остаётся с напоминанием на 02:00 через день.
-@Test func earlyHourReminderStillCoversNextLogicalDayAfterFullDay() {
-    let settings = ReminderSettings(enabled: true, hour: 2, minute: 0)
-    let result = plan(now: date(10, 23), settings: settings, today: .full)
-    #expect(result.count == 7)
-    #expect(result.first?.date == date(12, 2))   // логический день 11 марта
-    #expect(result.map(\.date) == (12...18).map { date($0, 2) })
-    #expect(result.allSatisfy { $0.key == generic })
-}
+// MARK: - Настройки
 
 @Test func settingsAreReadFromDefaultsWithOffDefault() {
     let (defaults, name) = makeTestDefaults("test.reminders.")
     defer { removeTestDefaults(name) }
-    #expect(StoredSettings.reminders(defaults) == ReminderSettings(enabled: false, hour: 20, minute: 0))
+    #expect(StoredSettings.reminders(defaults) == ReminderSettings(enabled: false, config: ReminderConfig()))
+    let stored = StoredSettings.reminders(defaults)
+    #expect(stored.config.mode == .once && stored.config.onceMinute == 1200)
+    #expect(stored.config.thriceMinutes == [600, 900, 1200])
+    #expect(stored.config.fromHour == 10 && stored.config.toHour == 21 && stored.config.intervalHours == 3)
+    #expect(stored.config.tone == .mixed && !stored.config.escalating && stored.config.adultHumor)
     defaults.set(true, forKey: SettingsKey.remindersEnabled)
     defaults.set(7, forKey: SettingsKey.reminderHour)
     defaults.set(30, forKey: SettingsKey.reminderMinute)
-    #expect(StoredSettings.reminders(defaults) == ReminderSettings(enabled: true, hour: 7, minute: 30))
+    defaults.set("thrice", forKey: SettingsKey.reminderSchedule)
+    defaults.set(540, forKey: SettingsKey.reminderTime1)
+    defaults.set(800, forKey: SettingsKey.reminderTime2)
+    defaults.set(1100, forKey: SettingsKey.reminderTime3)
+    defaults.set(8, forKey: SettingsKey.reminderFromHour)
+    defaults.set(22, forKey: SettingsKey.reminderToHour)
+    defaults.set(2, forKey: SettingsKey.reminderIntervalHours)
+    defaults.set("funny", forKey: SettingsKey.reminderTone)
+    defaults.set(true, forKey: SettingsKey.reminderEscalating)
+    defaults.set(false, forKey: SettingsKey.adultHumor)
+    #expect(StoredSettings.reminders(defaults) == ReminderSettings(
+        enabled: true,
+        config: ReminderConfig(mode: .thrice, onceMinute: 450, thriceMinutes: [540, 800, 1100], fromHour: 8,
+                               toHour: 22, intervalHours: 2, tone: .funny, escalating: true, adultHumor: false)))
 }
 
-@Test func outOfRangeStoredTimeIsClamped() {
+/// Пользователь, настроивший напоминания до появления расписания, сохраняет включённость и время:
+/// новых ключей у него нет, «Один раз в день» читает прежние `reminderHour` / `reminderMinute`.
+@Test func remindersConfiguredBeforeScheduleKeepTimeAndEnabledState() {
+    let (defaults, name) = makeTestDefaults("test.reminders.")
+    defer { removeTestDefaults(name) }
+    defaults.set(true, forKey: SettingsKey.remindersEnabled)
+    defaults.set(7, forKey: SettingsKey.reminderHour)
+    defaults.set(45, forKey: SettingsKey.reminderMinute)
+    let stored = StoredSettings.reminders(defaults)
+    #expect(stored.enabled)
+    #expect(stored.config.mode == .once)
+    #expect(stored.config.dailyMinutes() == [7 * 60 + 45])
+    let plan = ReminderPlanner.plan(now: noon, config: stored.config,
+                                    situation: ReminderSituation(streak: 5, todayStatus: .none, minutesLeft: 6),
+                                    dayStartHour: 4, calendar: utc())
+    #expect(plan.first?.date == date(11, 7, 45))   // 7:45 сегодня уже прошло
+    #expect(plan.count == 7)
+}
+
+@Test func outOfRangeStoredValuesAreClamped() {
     let (defaults, name) = makeTestDefaults("test.reminders.")
     defer { removeTestDefaults(name) }
     defaults.set(99, forKey: SettingsKey.reminderHour)
     defaults.set(-5, forKey: SettingsKey.reminderMinute)
-    let stored = StoredSettings.reminders(defaults)
-    #expect(stored.hour == 23 && stored.minute == 0)
+    defaults.set(5000, forKey: SettingsKey.reminderTime1)
+    defaults.set(-1, forKey: SettingsKey.reminderTime2)
+    defaults.set(99, forKey: SettingsKey.reminderFromHour)
+    defaults.set(-4, forKey: SettingsKey.reminderToHour)
+    defaults.set(0, forKey: SettingsKey.reminderIntervalHours)
+    var config = StoredSettings.reminders(defaults).config
+    #expect(config.onceMinute == 23 * 60)
+    #expect(config.thriceMinutes == [1439, 0, 1200])
+    #expect(config.fromHour == 23 && config.toHour == 0 && config.intervalHours == 1)
+    defaults.set(100, forKey: SettingsKey.reminderIntervalHours)
+    config = StoredSettings.reminders(defaults).config
+    #expect(config.intervalHours == 4)
 }
 
-// MARK: - Тексты
-
-@Test func messageTextIsFormattedWithArguments() {
-    let ru = Bundle(url: URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("Localization/ru.lproj"))!
-    let en = Bundle(url: ru.bundleURL.deletingLastPathComponent().appendingPathComponent("en.lproj"))!
-    #expect(ReminderMessage.text(key: "Серия %lld дн. под угрозой", args: [5], bundle: ru) == "Серия 5 дн. под угрозой")
-    #expect(ReminderMessage.text(key: "До полного огня осталось %lld мин", args: [7], bundle: en)
-        == "7 min left until a full flame")
-    #expect(ReminderMessage.text(key: "Пора позаниматься: начните новую серию", args: [], bundle: en)
-        == "Time to practice: start a new streak")
+@Test func garbageStoredValuesFallBackToDefaults() {
+    let (defaults, name) = makeTestDefaults("test.reminders.")
+    defer { removeTestDefaults(name) }
+    defaults.set("weekly", forKey: SettingsKey.reminderSchedule)
+    defaults.set("sarcastic", forKey: SettingsKey.reminderTone)
+    defaults.set("поздно", forKey: SettingsKey.reminderTime1)
+    defaults.set(3, forKey: SettingsKey.reminderEscalating)
+    defaults.set("да", forKey: SettingsKey.remindersEnabled)
+    #expect(StoredSettings.reminders(defaults) == ReminderSettings(enabled: false, config: ReminderConfig()))
 }
 
-@Test func everyReminderKeyIsTranslatedInBothLanguages() throws {
-    let root = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    var keys: [String] = []
-    for today in [DayStatus.none, .half] {
-        for streak in [0, 3] { keys.append(ReminderText.content(today: today, streak: streak, minutesLeft: 5)!.key) }
-    }
-    for language in ["ru", "en"] {
-        let url = root.appendingPathComponent("Localization/\(language).lproj/Localizable.strings")
-        let table = try #require(
-            try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
-        for key in keys { #expect(table[key] != nil, "\(language): нет перевода «\(key)»") }
-    }
+@Test func adultHumorSettingGoesIntoReminderConfig() {
+    let (defaults, name) = makeTestDefaults("test.reminders.")
+    defer { removeTestDefaults(name) }
+    #expect(StoredSettings.reminders(defaults).config.adultHumor)
+    defaults.set(false, forKey: SettingsKey.adultHumor)
+    #expect(!StoredSettings.reminders(defaults).config.adultHumor)
 }
 
 // MARK: - Планировщик с подменным центром
@@ -195,27 +148,35 @@ private let generic = "Пора позаниматься — не теряйте
 }
 
 @MainActor private func makeScheduler(center: FakeCenter, enabled: Bool = true,
-                                      inputs: ReminderInputs = ReminderInputs(streak: 5, todayStatus: .none, minutesLeft: 6))
+                                      inputs: ReminderInputs = ReminderInputs(streak: 5, todayStatus: .none, minutesLeft: 6),
+                                      configure: (UserDefaults) -> Void = { _ in })
     -> (scheduler: ReminderScheduler, defaultsName: String) {
     let (defaults, name) = makeTestDefaults("test.reminders.")
     defaults.set(enabled, forKey: SettingsKey.remindersEnabled)
+    configure(defaults)
     return (ReminderScheduler(center: center, defaults: defaults, calendar: utc(),
                               inputs: { _ in inputs }, title: "Десять пальцев",
-                              text: { key, args in "\(key)|\(args.map(String.init).joined(separator: ","))" }),
+                              text: { "\($0.key)|\($0.streak)|\($0.minutes)" }),
             name)
 }
 
-@MainActor @Test func rescheduleReplacesPendingAndAddsBoth() async {
+private let sevenSlots = Set((0..<7).map(ReminderPlanner.slotID))
+
+@MainActor @Test func rescheduleReplacesPendingAndAddsSeven() async {
     let center = FakeCenter()
     let (scheduler, defaultsName) = makeScheduler(center: center)
     defer { removeTestDefaults(defaultsName) }
     await scheduler.reschedule(now: noon)
     #expect(center.removed == [ReminderID.all])
-    #expect(Set(center.pending.keys) == Set((0..<7).map(ReminderID.day)))
-    let today = center.pending[ReminderID.day(0)]
+    #expect(Set(center.pending.keys) == sevenSlots)
+    let today = center.pending[ReminderPlanner.slotID(0)]
     #expect(today?.date == date(10, 20))
     #expect(today?.title == "Десять пальцев")
-    #expect(today?.body == "Серия %lld дн. под угрозой|5")
+    // Сегодня серия 5 дн. под угрозой: в тексте либо серия, либо нет чисел; число всегда настоящее.
+    let parts = (today?.body ?? "").split(separator: "|").map(String.init)
+    #expect(parts.count == 3 && parts[2] == "0")
+    #expect(ReminderCatalog.phrases.contains { $0.key == parts[0] && $0.need != .minutes })
+    #expect(parts[1] == (parts[0].contains("{streak}") ? "5" : "0"))
     // Повторный вызов не плодит дублей.
     await scheduler.reschedule(now: noon)
     #expect(center.pending.count == 7)
@@ -237,8 +198,8 @@ private let generic = "Пора позаниматься — не теряйте
                                                   inputs: ReminderInputs(streak: 5, todayStatus: .full, minutesLeft: 1))
     defer { removeTestDefaults(defaultsName) }
     await scheduler.reschedule(now: noon)
-    #expect(Set(center.pending.keys) == Set((0..<7).map(ReminderID.day)))
-    #expect(center.pending[ReminderID.day(0)]?.date == date(11, 20))
+    #expect(Set(center.pending.keys) == sevenSlots)
+    #expect(center.pending[ReminderPlanner.slotID(0)]?.date == date(11, 20))
 }
 
 @MainActor @Test func deniedAuthorizationSchedulesNothing() async {
@@ -267,7 +228,7 @@ private let generic = "Пора позаниматься — не теряйте
     await scheduler.enable(now: noon)
     #expect(center.requestCount == 1)
     #expect(scheduler.authorization == .authorized)
-    #expect(Set(center.pending.keys) == Set((0..<7).map(ReminderID.day)))
+    #expect(Set(center.pending.keys) == sevenSlots)
 }
 
 @MainActor @Test func refusedAuthorizationIsReportedAndNothingScheduled() async {
@@ -286,7 +247,7 @@ private let generic = "Пора позаниматься — не теряйте
     defer { removeTestDefaults(name) }
     defaults.set(true, forKey: SettingsKey.remindersEnabled)
     let scheduler = ReminderScheduler(center: center, defaults: defaults, calendar: utc(),
-                                      inputs: { _ in throw Boom() }, title: "T", text: { key, _ in key })
+                                      inputs: { _ in throw Boom() }, title: "T", text: { $0.key })
     await scheduler.reschedule(now: noon)
     #expect(center.removed.isEmpty)
     #expect(center.pending.isEmpty)
@@ -338,5 +299,46 @@ private let generic = "Пора позаниматься — не теряйте
 
 @Test func legacyIdentifiersAreAlwaysRemoved() {
     #expect(ReminderID.all.contains("reminder.today") && ReminderID.all.contains("reminder.tomorrow"))
-    #expect(Set(ReminderID.all).count == ReminderID.horizon + 2)
+    // Все слоты прежних версий (d0…d6) и нынешних (d0…d59) удаляются перед постановкой.
+    #expect((0..<60).allSatisfy { ReminderID.all.contains("reminder.d\($0)") })
+    #expect(Set(ReminderID.all).count == ReminderPlanner.maxPending + 2)
+}
+
+@MainActor @Test func thriceScheduleSchedulesAllSlotsWithRenderedText() async {
+    let center = FakeCenter()
+    let (scheduler, defaultsName) = makeScheduler(center: center) {
+        $0.set("thrice", forKey: SettingsKey.reminderSchedule)
+        $0.set(true, forKey: SettingsKey.reminderEscalating)
+    }
+    defer { removeTestDefaults(defaultsName) }
+    await scheduler.reschedule(now: noon)
+    // Сегодня остаются 15:00 и 20:00, дальше три в день: 2 + 3·6 = 20, пока не набралось 7 дней.
+    #expect(center.pending.count == 2 + 3 * 6)
+    #expect(center.pending[ReminderPlanner.slotID(0)]?.date == date(10, 15))
+    #expect(center.pending[ReminderPlanner.slotID(1)]?.date == date(10, 20))
+    #expect(center.removed == [ReminderID.all])
+}
+
+@MainActor @Test func hourlyIntervalStaysWithinPendingLimit() async {
+    let center = FakeCenter()
+    let (scheduler, defaultsName) = makeScheduler(center: center) {
+        $0.set("interval", forKey: SettingsKey.reminderSchedule)
+        $0.set(1, forKey: SettingsKey.reminderIntervalHours)
+    }
+    defer { removeTestDefaults(defaultsName) }
+    await scheduler.reschedule(now: date(10, 8))
+    #expect(center.pending.count == ReminderPlanner.maxPending)
+}
+
+@MainActor @Test func defaultTextClosureRendersCatalogText() async throws {
+    let center = FakeCenter()
+    let (defaults, name) = makeTestDefaults("test.reminders.")
+    defer { removeTestDefaults(name) }
+    defaults.set(true, forKey: SettingsKey.remindersEnabled)
+    let scheduler = ReminderScheduler(center: center, defaults: defaults, calendar: utc(),
+                                      inputs: { _ in ReminderInputs(streak: 5, todayStatus: .none, minutesLeft: 6) },
+                                      title: "T")
+    await scheduler.reschedule(now: noon)
+    let body = try #require(center.pending[ReminderPlanner.slotID(0)]?.body)
+    #expect(!body.contains("{") && !body.isEmpty)
 }

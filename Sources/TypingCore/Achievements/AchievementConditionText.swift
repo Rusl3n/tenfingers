@@ -3,14 +3,30 @@ import Foundation
 /// Условие получения ачивки человеческими словами: его показывают у ещё не полученных ачивок
 /// (у «Теперь вы можете…» — вместо шутки, которая раскрыла бы ответ). Чистая функция условия.
 ///
+/// У условий, которые звучат как просьба («Пройдите первый урок»), есть второй вид — утверждение для уже полученной
+/// ачивки («Пройден первый урок курса»): ключи `achievement.condition.earned.*`, их список — `earnedForms`. У прочих
+/// условий (нейтральные «Дней занятий подряд: 7») вид один.
+///
 /// Тексты без склонения числительных: число стоит после двоеточия («Дней занятий подряд: 7»), поэтому
 /// одна строка подходит любому значению порога. Ключи — `achievement.condition.*` в ресурсах ядра.
 public enum AchievementConditionText {
+    /// Ключи условий, у которых есть вид-утверждение (`achievement.condition.earned.<ключ>`): те, чей обычный
+    /// текст — просьба. Остальные условия нейтральны, и для них `earned` ничего не меняет.
+    public static let earnedForms: Set<String> = [
+        "firstLesson", "firstStage", "course", "polyglot", "finishedBetween",
+        "lettersOne", "lettersMany", "symbols", "alphabet", "dayOfYear", "friday13", "comeback",
+        "ownText", "atMinute", "fridayEvening", "exactSpeed",
+    ]
+
     /// `localization` — `"ru"` или `"en"`; `nil` — язык системы. `display` — буквы условия в естественном порядке
-    /// (слово или команда); без него буквы идут в адаптивном порядке языка.
+    /// (слово или команда); без него буквы идут в адаптивном порядке языка. `earned` — условие как утверждение
+    /// для полученной ачивки («Пройден первый урок курса»), а не просьба («Пройдите первый урок курса»).
     public static func describe(_ condition: AchievementCondition, display: String? = nil,
-                                localization: String? = nil) -> String {
-        func text(_ key: String) -> String { CoreText.localized("achievement.condition." + key, localization: localization) }
+                                localization: String? = nil, earned: Bool = false) -> String {
+        func text(_ key: String) -> String {
+            let name = earned && earnedForms.contains(key) ? "earned." + key : key
+            return CoreText.localized("achievement.condition." + name, localization: localization)
+        }
         func line(_ key: String, _ arguments: CVarArg...) -> String {
             String(format: text(key), arguments: arguments)
         }
@@ -60,6 +76,22 @@ public enum AchievementConditionText {
         case .bilingualDay: return text("bilingual")
         case .marathonDay(let minutes): return line("marathon", minutes)
         case .comeback(let gapDays): return line("comeback", gapDays)
+        case .exercisesCompleted(let count): return line("exercises", integer(count))
+        case let .speedGrowth(factor, minExercises): return line("speedGrowth", number(factor), minExercises)
+        case let .allFingersAccuracy(minimum, presses, days): return line("allFingers", days, percent(minimum), presses)
+        case let .weakSpotsClean(count, minimum): return line("weakSpots", percent(minimum), count)
+        case .booksFinished(let count): return line("books", count)
+        case .ownText: return text("ownText")
+        case .fullFireMonth: return text("fireMonth")
+        case .freezeSavedStreak: return text("freezeSaved")
+        case .exactSpeed(let cpm): return line("exactSpeed", cpm)
+        case .exactSeconds(let seconds): return line("exactSeconds", seconds)
+        case .yoPresses(let count): return line("yoPresses", count)
+        case .totalErrors(let count): return line("totalErrors", integer(count))
+        case let .finishedAtMinute(hour, minute): return line("atMinute", hour, minute)
+        case .fridayEvening(let fromHour): return line("fridayEvening", fromHour)
+        case .weekendStreak(let count): return line("weekends", count)
+        case let .almostPerfect(minChars, minimum): return line("almost", minChars, percent(minimum))
         }
     }
 
@@ -110,5 +142,11 @@ extension Achievement {
     /// Условие получения человеческими словами на языке системы (см. `AchievementConditionText`).
     public var conditionText: String {
         AchievementConditionText.describe(condition, display: lettersDisplay)
+    }
+
+    /// Условие как утверждение для полученной ачивки («Пройден первый урок курса»); у нейтральных условий
+    /// совпадает с `conditionText`.
+    public var earnedConditionText: String {
+        AchievementConditionText.describe(condition, display: lettersDisplay, earned: true)
     }
 }

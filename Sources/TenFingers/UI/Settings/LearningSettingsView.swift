@@ -9,6 +9,7 @@ struct LearningSettingsView: View {
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
     @AppStorage(SettingsKey.spaceThumbHint) private var spaceThumbHint = SettingsDefault.spaceThumbHint
     @Environment(ReminderScheduler.self) private var reminders
+    @Environment(\.modelContext) private var modelContext
 
     private var speedUnitValue: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
 
@@ -18,27 +19,43 @@ struct LearningSettingsView: View {
                 Picker("Подсказки", selection: $hintMode) {
                     ForEach(HintMode.allCases) { Text($0.title).tag($0.rawValue) }
                 }
+                .help(HelpText.hintMode)
                 Toggle("Подсказка для пробела (противоположный большой палец)", isOn: $spaceThumbHint)
+                    .help(HelpText.spaceThumb)
                 Picker("Скорость", selection: $speedUnit) {
                     ForEach(SpeedUnit.allCases) { Text($0.title).tag($0.rawValue) }
                 }
+                .help(HelpText.speedUnits)
                 Picker("Цель тренировки", selection: $adaptiveTarget) {
                     ForEach(SettingsDefault.adaptiveTargetOptions, id: \.self) {
                         Text(speedUnitValue.format(Double($0))).tag($0)
                     }
                 }
+                .help(HelpText.adaptiveTarget)
             }
             Section("День") {
-                Picker("Дневная цель", selection: $dailyGoal) {
-                    ForEach(SettingsDefault.dailyGoalOptions, id: \.self) { Text("\($0) мин").tag($0) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("Дневная цель", selection: $dailyGoal) {
+                        ForEach(SettingsDefault.dailyGoalOptions, id: \.self) { Text("\($0) мин").tag($0) }
+                    }
+                    Text(HelpText.dailyGoalChange)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .help(HelpText.dailyGoal + " " + HelpText.dailyGoalChange)
                 Stepper("Новый день начинается в \(dayStartHour):00", value: $dayStartHour, in: 0...6)
+                    .help(HelpText.dayStart)
             }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        // Цель и начало дня влияют на текст и дни напоминаний.
-        .onChange(of: dailyGoal) { reminders.rescheduleSoon() }
+        // Цель и начало дня влияют на текст и дни напоминаний. Новая цель действует с сегодняшнего дня:
+        // дни без цели получают прежнюю, запись сегодняшнего дня следует новой, прошлые остаются со своей.
+        .onChange(of: dailyGoal) { old, _ in
+            DayGoals.goalChangedLogging(context: modelContext, previousGoalSeconds: Double(old) * 60)
+            reminders.rescheduleSoon()
+        }
         .onChange(of: dayStartHour) { reminders.rescheduleSoon() }
     }
 }

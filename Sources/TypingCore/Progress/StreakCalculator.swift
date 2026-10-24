@@ -7,9 +7,14 @@ public enum DayStatus: String, Codable, Sendable {
 public struct DayActivity: Equatable, Sendable {
     public let activeSeconds: Double
     public let completedExercises: Int
-    public init(activeSeconds: Double, completedExercises: Int) {
+    /// Дневная цель (секунды), действовавшая в этот день (`DayRecord.goalSeconds`); `nil` — неизвестна
+    /// (дни до поколения схемы 5), тогда день считается по текущей цели. Для сегодняшнего дня не используется:
+    /// сегодня всегда действует текущая цель.
+    public let goalSeconds: Double?
+    public init(activeSeconds: Double, completedExercises: Int, goalSeconds: Double? = nil) {
         self.activeSeconds = activeSeconds
         self.completedExercises = completedExercises
+        self.goalSeconds = goalSeconds
     }
 }
 
@@ -51,6 +56,8 @@ public enum StreakCalculator {
         return .none
     }
 
+    /// `goalSeconds` — текущая дневная цель: действует сегодня и для прошлых дней без записанной цели
+    /// (`DayActivity.goalSeconds == nil`).
     public static func summarize(days: [String: DayActivity], today: String, goalSeconds: Double) -> StreakSummary {
         let keys = days.filter { $0.value.completedExercises > 0 }.keys.sorted()
         guard let first = keys.first, first <= today else {
@@ -60,7 +67,9 @@ public enum StreakCalculator {
         var statuses: [String: DayStatus] = [:]
         var streak = 0, fullInRow = 0, fullInCurrent = 0, freezes = 0, longest = 0
         for day in dayKeys(from: first, to: today) {
-            let raw = status(days[day], goalSeconds: goalSeconds)
+            // Прошлый день — по цели того дня (если записана), сегодня — по текущей.
+            let goal = day < today ? days[day]?.goalSeconds ?? goalSeconds : goalSeconds
+            let raw = status(days[day], goalSeconds: goal)
             if day == today && raw == .none {
                 statuses[day] = DayStatus.none   // сегодня ещё можно успеть
                 break

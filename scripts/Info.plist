@@ -4,7 +4,7 @@
 <dict>
     <key>CFBundleIdentifier</key><string>local.tenfingers</string>
     <key>CFBundleName</key><string>TenFingers</string>
-    <key>CFBundleDisplayName</key><string>Десять пальцев</string>
+    <key>CFBundleDisplayName</key><string>TenFingers</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleLocalizations</key><array><string>ru</string><string>en</string></array>
     <key>LSHasLocalizedDisplayName</key><true/>

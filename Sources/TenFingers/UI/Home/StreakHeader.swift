@@ -7,10 +7,11 @@ struct StreakHeader: View {
     let todaySeconds: Double
     let goalMinutes: Int
     @Environment(\.palette) private var palette
-    @State private var share: ShareCard?
+    /// Открывает карточку «Мой прогресс»; `nil` — кнопки «Поделиться» нет.
+    var shareProgress: (() -> Void)?
 
-    /// Поделиться серией можно от трёх дней.
-    nonisolated static func canShare(_ streak: StreakSummary) -> Bool { streak.current >= 3 }
+    /// Поделиться прогрессом можно, как только есть хоть один день занятий.
+    nonisolated static func canShare(_ streak: StreakSummary) -> Bool { !streak.statuses.isEmpty }
 
     var body: some View {
         HStack(alignment: .center, spacing: 20) {
@@ -24,12 +25,10 @@ struct StreakHeader: View {
                     Text(line).font(.subheadline).foregroundStyle(.secondary)
                 }
                 freezes
-                if Self.canShare(streak) {
-                    ShareLinkButton {
-                        share = ShareCard(.streak(days: streak.current, full: streak.fullInCurrent))
-                    }
-                    .font(.callout)
-                    .padding(.top, 2)
+                if let shareProgress, Self.canShare(streak) {
+                    ShareLinkButton(action: shareProgress)
+                        .font(.callout)
+                        .padding(.top, 2)
                 }
             }
             Spacer(minLength: 16)
@@ -39,7 +38,6 @@ struct StreakHeader: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(palette.card, in: RoundedRectangle(cornerRadius: 12))
-        .shareSheet($share)
     }
 
     /// Полный день — яркий огонь, половинный — приглушённый, ещё не занимались — серый.
@@ -50,6 +48,7 @@ struct StreakHeader: View {
             .font(.system(size: 56))
             .foregroundStyle(isFull ? Color.orange : isHalf ? Color.orange.opacity(0.55) : Color.secondary.opacity(0.4))
             .frame(width: 64)
+            .help(HelpText.fire(streak.today))
             .accessibilityHidden(true)
     }
 
@@ -65,14 +64,18 @@ struct StreakHeader: View {
 
     private var freezes: some View {
         HStack(spacing: 4) {
-            ForEach(0..<StreakCalculator.maxFreezes, id: \.self) { index in
-                Image(systemName: "snowflake")
-                    .foregroundStyle(index < streak.freezes ? DayStatusStyle.freezeColor : Color.secondary.opacity(0.3))
+            HStack(spacing: 4) {
+                ForEach(0..<StreakCalculator.maxFreezes, id: \.self) { index in
+                    Image(systemName: "snowflake")
+                        .foregroundStyle(index < streak.freezes ? DayStatusStyle.freezeColor : Color.secondary.opacity(0.3))
+                }
+                Text("Заморозки: \(streak.freezes) из \(StreakCalculator.maxFreezes)")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Text("Заморозки: \(streak.freezes) из \(StreakCalculator.maxFreezes)")
-                .font(.caption).foregroundStyle(.secondary)
+            .help(HelpText.freezes)
+            .accessibilityElement(children: .combine)
+            InfoButton(text: [HelpText.fireFull, HelpText.fireHalf, HelpText.fireNone, HelpText.freezes]
+                .joined(separator: "\n\n"))
         }
-        .help("Заморозка закрывает один пропущенный день. Новая выдаётся за каждые 7 полных дней подряд.")
-        .accessibilityElement(children: .combine)
     }
 }

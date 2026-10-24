@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 import Foundation
 import Testing
 import TypingCore
@@ -76,6 +77,24 @@ private let fixedDate = Date(timeIntervalSince1970: 1_792_843_200)   // 24 ок�
 @Test func formatSizes() {
     #expect(ShareFormat.wide.size == CGSize(width: 1200, height: 630))
     #expect(ShareFormat.square.size == CGSize(width: 1080, height: 1080))
+    #expect(ShareFormat.story.size == CGSize(width: 1080, height: 1920))
+    #expect(ShareFormat.allCases == [.wide, .square, .story])
+}
+
+@Test func storyFormatTitle() {
+    #expect(ShareFormat.story.title == "Сторис 1080×1920")
+}
+
+@Test func qrOptionIsOffByDefaultAndRemembered() {
+    let (defaults, name) = makeTestDefaults("share-qr-")
+    defer { removeTestDefaults(name) }
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    #expect(!ShareOptions.load(defaults, profile: profile).showsQR)
+    let changed = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .story, showsQR: true)
+    changed.save(defaults)
+    #expect(defaults.object(forKey: SettingsKey.shareQR) as? Bool == true)
+    #expect(ShareOptions.load(defaults, profile: profile) == changed)
+    #expect(SettingsKey.shareQR == "shareQR")
 }
 
 // MARK: - События
@@ -127,13 +146,15 @@ private let fixedDate = Date(timeIntervalSince1970: 1_792_843_200)   // 24 ок�
     #expect(SpeedUnit.wpm.format(312.4) == "62 WPM")
 }
 
-@Test func streakShareNeedsThreeDays() {
-    func streak(_ days: Int) -> StreakSummary {
-        StreakSummary(current: days, fullInRow: days, fullInCurrent: days, freezes: 0, longest: days,
-                      today: .full, statuses: [:])
+/// Делиться прогрессом можно, как только есть хоть один день занятий (`statuses` не пуст).
+@Test func progressShareNeedsAnyActivity() {
+    func streak(_ statuses: [String: DayStatus]) -> StreakSummary {
+        StreakSummary(current: 0, fullInRow: 0, fullInCurrent: 0, freezes: 0, longest: 0, today: .none,
+                      statuses: statuses)
     }
-    #expect(!StreakHeader.canShare(streak(2)))
-    #expect(StreakHeader.canShare(streak(3)))
+    #expect(!StreakHeader.canShare(streak([:])))
+    #expect(StreakHeader.canShare(streak(["2026-10-24": DayStatus.none])))
+    #expect(StreakHeader.canShare(streak(["2026-10-23": .half, "2026-10-24": .full])))
 }
 
 @Test func cardDateIsEventDateOrNow() throws {
@@ -165,7 +186,7 @@ private func spaced(_ text: String) -> String {
     #expect(russian.subtitle == "Полных дней: 28")
     #expect(russian.signature == "Руслан · rusl3n")
     #expect(spaced(russian.date) == "24 октября 2026 г.")
-    #expect(russian.watermark == "Десять пальцев · github.com/Rusl3n/tenfingers")
+    #expect(russian.appName == "Десять пальцев" && russian.link == "github.com/Rusl3n/tenfingers")
 
     let english = ShareCardText(card: card, options: options, profile: profile, unit: .cpm,
                                 bundle: localization("en"), locale: en)
@@ -173,7 +194,69 @@ private func spaced(_ text: String) -> String {
     #expect(english.headline == "30 days in a row")
     #expect(english.subtitle == "Full days: 28")
     #expect(spaced(english.date) == "October 24, 2026")
-    #expect(english.watermark == "Ten Fingers · github.com/Rusl3n/tenfingers")
+    #expect(english.appName == "TenFingers" && english.link == "github.com/Rusl3n/tenfingers")
+}
+
+/// У ачивки мелкая строка «За что: …» — условие утверждением («Открыты буквы…»), а не просьбой; у прочих карточек её нет.
+@Test func achievementCardHasEarnedFootnoteOthersNone() throws {
+    let pizza = try #require(AchievementCatalog.all.first { $0.id == "letters.ru.pizza" })
+    var options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .story)
+    options.achievementContent.showsReason = true
+    let profile = ShareProfile(nickname: "", fullName: "")
+    let russian = ShareCardText(card: ShareCard(.achievement(pizza, fixedDate)), options: options, profile: profile,
+                                unit: .cpm, bundle: localization("ru"), locale: ru)
+    #expect(russian.subtitle == pizza.detail)
+    #expect(russian.headline == pizza.title)
+    #expect(russian.footnote?.hasPrefix("За что: Открыты") == true)
+    #expect(russian.footnote == "За что: Открыты буквы: П И Ц А")
+    let english = ShareCardText(card: ShareCard(.achievement(pizza, fixedDate)), options: options, profile: profile,
+                                unit: .cpm, bundle: localization("en"), locale: en)
+    #expect(english.footnote?.hasPrefix("Earned for: ") == true)
+
+    let others: [ShareEvent] = [.streak(days: 7, full: 5), .speedRecord(.ru, cpm: 300, date: fixedDate),
+                                .stage(id: "ru.1", title: "Основной ряд", language: .ru), .course(language: .ru)]
+    for event in others {
+        let text = ShareCardText(card: ShareCard(event, now: fixedDate), options: options, profile: profile, unit: .cpm,
+                                 bundle: localization("ru"), locale: ru)
+        #expect(text.footnote == nil)
+    }
+}
+
+/// Шутка и «За что» у ачивки включаются отдельно: по умолчанию шутка есть, «За что» нет; иконка и название — всегда.
+@Test func achievementCardContentTogglesJokeAndReason() throws {
+    let achievement = try #require(AchievementCatalog.all.first { $0.id == "letters.ru.pizza" })
+    let profile = ShareProfile(nickname: "", fullName: "")
+    func text(_ content: AchievementCardContent) -> ShareCardText {
+        var options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .square)
+        options.achievementContent = content
+        return ShareCardText(card: ShareCard(.achievement(achievement, fixedDate)), options: options, profile: profile,
+                             unit: .cpm, bundle: localization("ru"), locale: ru)
+    }
+    #expect(AchievementCardContent().showsJoke && !AchievementCardContent().showsReason)
+    let byDefault = text(AchievementCardContent())
+    #expect(byDefault.subtitle == achievement.detail && byDefault.footnote == nil)
+    let both = text(AchievementCardContent(showsJoke: true, showsReason: true))
+    #expect(both.subtitle == achievement.detail && both.footnote?.hasPrefix("За что: ") == true)
+    let none = text(AchievementCardContent(showsJoke: false, showsReason: false))
+    #expect(none.subtitle == nil && none.footnote == nil)
+    #expect(none.headline == achievement.title && none.header == "Новая ачивка")
+    let reasonOnly = text(AchievementCardContent(showsJoke: false, showsReason: true))
+    #expect(reasonOnly.subtitle == nil && reasonOnly.footnote != nil)
+}
+
+@Test func achievementContentIsRememberedInDefaults() {
+    let (defaults, name) = makeTestDefaults("share-achievement-content-")
+    defer { removeTestDefaults(name) }
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    #expect(ShareOptions.load(defaults, profile: profile).achievementContent == AchievementCardContent())
+    var changed = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .wide)
+    changed.achievementContent = AchievementCardContent(showsJoke: false, showsReason: true)
+    changed.save(defaults)
+    #expect(defaults.object(forKey: "shareAchievementShowJoke") as? Bool == false)
+    #expect(defaults.object(forKey: "shareAchievementShowReason") as? Bool == true)
+    #expect(SettingsKey.shareAchievementShowJoke == "shareAchievementShowJoke")
+    #expect(SettingsKey.shareAchievementShowReason == "shareAchievementShowReason")
+    #expect(ShareOptions.load(defaults, profile: profile) == changed)
 }
 
 @Test func speedRecordCardShowsNumberAndUnit() {
@@ -194,7 +277,8 @@ private func spaced(_ text: String) -> String {
 
 @Test func achievementStageAndCourseCardTexts() throws {
     let achievement = try #require(AchievementCatalog.all.first { $0.id == "streak.7" })
-    let options = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .wide)
+    var options = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .wide)
+    options.achievementContent.showsReason = true
     let profile = ShareProfile(nickname: "rusl3n", fullName: "")
     let bundle = localization("ru")
     let earned = ShareCardText(card: ShareCard(.achievement(achievement, fixedDate)), options: options,
@@ -203,6 +287,7 @@ private func spaced(_ text: String) -> String {
     #expect(earned.headline == achievement.title)
     #expect(earned.subtitle == achievement.detail)
     #expect(earned.signature == "rusl3n")
+    #expect(earned.footnote?.hasPrefix("За что: ") == true)
 
     let stage = ShareCardText(card: ShareCard(.stage(id: "ru.1", title: "Основной ряд", language: .ru)), options: options,
                               profile: profile, unit: .cpm, bundle: bundle, locale: ru)
@@ -252,6 +337,48 @@ private func cornerAlpha(_ rep: NSBitmapImageRep) throws -> CGFloat {
     #expect(try cornerAlpha(rep) == 0)
 }
 
+@MainActor @Test func storyCardIsRenderedAtDoubleSize() throws {
+    let (defaults, name) = makeTestDefaults("share-render-")
+    defer { removeTestDefaults(name) }
+    let options = ShareOptions(signature: .none, theme: .dark, background: .colored, format: .story, showsQR: true)
+    let view = ShareCardView.make(card: ShareCard(.streak(days: 30, full: 28), now: fixedDate), options: options,
+                                  profile: ShareProfile(nickname: "", fullName: ""), defaults: defaults)
+    let rep = try decode(try ShareCardRenderer.png(view))
+    #expect(rep.pixelsWide == 2160 && rep.pixelsHigh == 3840)
+}
+
+/// QR в карточке: тёмные модули на белой плашке в любой теме и на любом фоне, формат и тема не мешают распознаванию.
+@MainActor @Test func qrOnAchievementCardIsRecognisedInEveryThemeAndBackground() throws {
+    let pizza = try #require(AchievementCatalog.all.first { $0.id == "letters.ru.pizza" })
+    let (defaults, name) = makeTestDefaults("share-qr-render-")
+    defer { removeTestDefaults(name) }
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    let cases: [(ShareTheme, ShareBackground, ShareFormat)] = [
+        (.light, .colored, .square), (.light, .transparent, .square), (.dark, .colored, .story),
+        (.dark, .transparent, .wide), (.light, .colored, .wide), (.dark, .colored, .square),
+    ]
+    for (theme, background, format) in cases {
+        let options = ShareOptions(signature: .nickname, theme: theme, background: background, format: format,
+                                   showsQR: true)
+        let view = ShareCardView.make(card: ShareCard(.achievement(pizza, fixedDate)), options: options,
+                                      profile: profile, defaults: defaults)
+        let png = try ShareCardRenderer.png(view)
+        let image = try #require(CIImage(data: png))
+        #expect(qrMessages(in: image) == [ShareQRCode.url], "\(theme) \(background) \(format)")
+    }
+}
+
+@MainActor @Test func cardWithoutQRHasNoQRCode() throws {
+    let pizza = try #require(AchievementCatalog.all.first { $0.id == "letters.ru.pizza" })
+    let (defaults, name) = makeTestDefaults("share-noqr-")
+    defer { removeTestDefaults(name) }
+    let options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .square)
+    let view = ShareCardView.make(card: ShareCard(.achievement(pizza, fixedDate)), options: options,
+                                  profile: ShareProfile(nickname: "", fullName: ""), defaults: defaults)
+    let image = try #require(CIImage(data: try ShareCardRenderer.png(view)))
+    #expect(qrMessages(in: image).isEmpty)
+}
+
 /// Временная папка «Поделиться…»: каждая карточка в своей подпапке, недавние остаются (их ещё может читать AirDrop),
 /// подпапки старше `lifetime` удаляются при следующей записи.
 @Test func shareTempFolderKeepsRecentCardsAndDropsOldOnes() throws {
@@ -288,4 +415,476 @@ private func cornerAlpha(_ rep: NSBitmapImageRep) throws -> CGFloat {
     #expect(toast.action?.title == "Поделиться")
     toasts.perform(toast)
     #expect(shared == [achievement])
+}
+
+// MARK: - «Мой прогресс»
+
+/// Месяц и год занятий: 24 октября 2026, понедельник — первый день недели.
+private func progressData() -> ProgressCardData {
+    var days: [String: DayActivity] = [:]
+    for offset in -19...0 {
+        let key = StreakCalculator.dayKey("2026-10-24", offset: offset)
+        if offset == -3 { continue }
+        days[key] = DayActivity(activeSeconds: offset == -5 ? 240 : 900, completedExercises: offset == -5 ? 2 : 6)
+    }
+    let start = Date(timeIntervalSince1970: 1_791_000_000)
+    let sessions = [
+        SessionSummary(day: "2026-10-20", endedAt: start, language: .ru, mode: .course, chars: 900, activeSeconds: 180,
+                       accuracy: 0.97, completed: true),
+        SessionSummary(day: "2026-10-21", endedAt: start, language: .en, mode: .course, chars: 600, activeSeconds: 120,
+                       accuracy: 0.94, completed: true),
+        // Проверка урока 90 знаков без ошибок, 300 зн/мин: единственное, что даёт «лучшую скорость».
+        SessionSummary(day: "2026-10-22", endedAt: start, language: .ru, mode: .course, chars: 90, activeSeconds: 18,
+                       accuracy: 1, completed: true, lessonId: "l1", exerciseKind: .check),
+    ]
+    return ProgressCardData.make(days: days, sessions: sessions, today: "2026-10-24", goalSeconds: 600, firstWeekday: 2)
+}
+
+@Test func progressEventIsStreakFlameWithTodayInFileName() {
+    let data = progressData()
+    let card = ShareCard(.progress(data), now: fixedDate)
+    #expect(card.event.date == nil && card.date == fixedDate)
+    #expect(card.event.icon == "flame.fill")
+    #expect(card.event.fileStem == "tenfingers-progress-2026-10-24")
+    #expect(card.fileName == "tenfingers-progress-2026-10-24.png")
+    #expect(NSImage(systemSymbolName: card.event.icon, accessibilityDescription: nil) != nil)
+    #expect(ShareCard(.progress(data), now: fixedDate).event == .progress(data))
+}
+
+@Test func progressContentIsPartOfShareOptions() {
+    let (defaults, name) = makeTestDefaults("share-progress-content-options-")
+    defer { removeTestDefaults(name) }
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    #expect(ShareOptions.load(defaults, profile: profile).progressContent == ProgressCardContent())
+    var changed = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .wide)
+    changed.progressPeriod = .all
+    changed.progressContent.showsTime = false
+    changed.progressContent.showsStreak = false
+    changed.save(defaults)
+    #expect(defaults.string(forKey: SettingsKey.shareProgressPeriod) == "all")
+    #expect(ShareOptions.load(defaults, profile: profile) == changed)
+}
+
+@Test func progressPeriodIsRememberedInDefaults() {
+    let (defaults, name) = makeTestDefaults("share-progress-period-")
+    defer { removeTestDefaults(name) }
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    #expect(ShareOptions.load(defaults, profile: profile).progressPeriod == .month)
+    var changed = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .wide)
+    changed.progressPeriod = .year
+    changed.save(defaults)
+    #expect(defaults.string(forKey: SettingsKey.shareProgressPeriod) == "year")
+    #expect(SettingsKey.shareProgressPeriod == "shareProgressPeriod")
+    #expect(ShareOptions.load(defaults, profile: profile) == changed)
+    defaults.set("decade", forKey: SettingsKey.shareProgressPeriod)
+    #expect(ShareOptions.load(defaults, profile: profile).progressPeriod == .month)
+}
+
+@Test func progressCardTextInRussian() {
+    let card = ShareCard(.progress(progressData()), now: fixedDate)
+    var options = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .square)
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    let month = ShareCardText(card: card, options: options, profile: profile, unit: .cpm,
+                              bundle: localization("ru"), locale: ru)
+    #expect(month.header == "Мой прогресс")
+    #expect(month.headline == "20 дней подряд")
+    #expect(month.subtitle == "Полных дней: 18")
+    #expect(month.footnote == nil)
+    #expect(month.signature == "rusl3n")
+    let progress = month.progress
+    #expect(progress?.periodLabel == "Октябрь 2026")
+    #expect(progress?.weekdays == ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"])
+    #expect(progress?.metrics.map(\.title) == ["Время занятий", "Лучшая скорость", "Средняя точность"])
+    // С 5 по 24 октября: 18 дней по 900 с и один половинный (240); 21-е — заморозка без занятий.
+    #expect(progress?.metrics.map(\.value).first == Formatting.duration(18 * 900 + 240))
+    #expect(progress?.metrics[1].value == SpeedUnit.cpm.format(300))
+    #expect(progress?.metrics[2].value == Formatting.percent((900 * 0.97 + 600 * 0.94 + 90 * 1.0) / 1590, locale: ru))
+
+    options.progressPeriod = .year
+    let year = ShareCardText(card: card, options: options, profile: profile, unit: .wpm,
+                             bundle: localization("ru"), locale: ru)
+    #expect(year.progress?.periodLabel == "За год")
+    #expect(year.progress?.metrics[1].value == SpeedUnit.wpm.format(300))
+    #expect(year.progress?.monthSymbols.count == 12)
+}
+
+@Test func progressCardTextInEnglishAndWithoutData() {
+    let empty = ProgressCardData.make(days: [:], sessions: [], today: "2026-10-24", goalSeconds: 600, firstWeekday: 1)
+    let card = ShareCard(.progress(empty), now: fixedDate)
+    let options = ShareOptions(signature: .none, theme: .dark, background: .colored, format: .wide)
+    let text = ShareCardText(card: card, options: options, profile: ShareProfile(nickname: "", fullName: ""),
+                             unit: .cpm, bundle: localization("en"), locale: en)
+    #expect(text.header == "My Progress")
+    #expect(text.headline == "0 days in a row")
+    #expect(text.subtitle == "Full days: 0")
+    #expect(text.progress?.periodLabel == "October 2026")
+    #expect(text.progress?.weekdays.first == "Sun")
+    #expect(text.progress?.metrics.map(\.title) == ["Practice time", "Best speed", "Average accuracy"])
+    #expect(text.progress?.metrics.map(\.value).dropFirst() == ["none yet", "—"])
+    var year = options
+    year.progressPeriod = .year
+    #expect(ShareCardText(card: card, options: year, profile: ShareProfile(nickname: "", fullName: ""), unit: .cpm,
+                          bundle: localization("en"), locale: en).progress?.periodLabel == "Past year")
+}
+
+/// «Без календаря»: подпись «За всё время», календаря нет, показатели — за всё время (и старше года).
+@Test func progressCardTextWithoutCalendarIsAllTime() {
+    var days: [String: DayActivity] = [:]
+    days["2020-01-01"] = DayActivity(activeSeconds: 3600, completedExercises: 5)
+    let sessions = [SessionSummary(day: "2020-01-01", endedAt: fixedDate, language: .ru, mode: .course, chars: 1200,
+                                   activeSeconds: 60, accuracy: 1, completed: true)]
+    let data = ProgressCardData.make(days: days, sessions: sessions, today: "2026-10-24", goalSeconds: 600,
+                                     firstWeekday: 2)
+    let card = ShareCard(.progress(data), now: fixedDate)
+    var options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .wide)
+    options.progressPeriod = .all
+    let profile = ShareProfile(nickname: "", fullName: "")
+    let ruText = ShareCardText(card: card, options: options, profile: profile, unit: .cpm,
+                               bundle: localization("ru"), locale: ru)
+    #expect(ruText.progress?.periodLabel == "За всё время" && ruText.progress?.showsCalendar == false)
+    #expect(ruText.progress?.metrics.map(\.value) == [Formatting.duration(3600), SpeedUnit.cpm.format(1200),
+                                                      Formatting.percent(1, locale: ru)])
+    let enText = ShareCardText(card: card, options: options, profile: profile, unit: .cpm,
+                               bundle: localization("en"), locale: en)
+    #expect(enText.progress?.periodLabel == "All time")
+    var month = options
+    month.progressPeriod = .month
+    #expect(ShareCardText(card: card, options: month, profile: profile, unit: .cpm, bundle: localization("ru"),
+                          locale: ru).progress?.showsCalendar == true)
+}
+
+/// Выключенный показатель не попадает в метрики, выключенные «Полные дни» убирают подзаголовок.
+@Test func progressCardTextFollowsContentToggles() {
+    let card = ShareCard(.progress(progressData()), now: fixedDate)
+    let profile = ShareProfile(nickname: "", fullName: "")
+    func text(_ content: ProgressCardContent, _ bundle: String = "ru", _ locale: Locale = ru) -> ShareCardText {
+        var options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .wide)
+        options.progressContent = content
+        return ShareCardText(card: card, options: options, profile: profile, unit: .cpm,
+                             bundle: localization(bundle), locale: locale)
+    }
+    let all = ProgressCardContent()
+    #expect(text(all).progress?.metrics.map(\.title) == ["Время занятий", "Лучшая скорость", "Средняя точность"])
+    var content = all
+    content.showsSpeed = false
+    #expect(text(content).progress?.metrics.map(\.title) == ["Время занятий", "Средняя точность"])
+    content.showsTime = false
+    content.showsAccuracy = false
+    #expect(text(content).progress?.metrics.isEmpty == true)
+    #expect(text(content, "en", en).progress?.metrics.isEmpty == true)
+    content.showsFullDays = false
+    #expect(text(content).subtitle == nil)
+    #expect(text(all).subtitle == "Полных дней: 18")
+    #expect(text(content).progress?.showsStreak == true)
+    content.showsStreak = false
+    #expect(text(content).progress?.showsStreak == false)
+}
+
+/// Заморозок нет ни в одном тексте карточки: ни в русском, ни в английском, ни при каких переключателях и периодах.
+@Test func progressCardTextsNeverMentionFreezes() {
+    let card = ShareCard(.progress(progressData()), now: fixedDate)
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "Руслан")
+    for (bundle, locale) in [("ru", ru), ("en", en)] {
+        for period in ProgressPeriod.allCases {
+            var options = ShareOptions(signature: .both, theme: .light, background: .colored, format: .square)
+            options.progressPeriod = period
+            let text = ShareCardText(card: card, options: options, profile: profile, unit: .cpm,
+                                     bundle: localization(bundle), locale: locale)
+            var strings = [text.header, text.headline, text.subtitle ?? "", text.footnote ?? "", text.date,
+                           text.appName, text.link, text.signature ?? ""]
+            if let progress = text.progress {
+                strings += [progress.periodLabel] + progress.weekdays + progress.monthSymbols
+                strings += progress.metrics.flatMap { [$0.title, $0.value] }
+            }
+            for string in strings {
+                #expect(!string.localizedCaseInsensitiveContains("заморож"), "\(bundle) \(period): \(string)")
+                #expect(!string.localizedCaseInsensitiveContains("freez"), "\(bundle) \(period): \(string)")
+            }
+        }
+    }
+}
+
+/// Раскладка и показатели берутся вместе: у карточки прогресса есть и данные, и текст, у остальных нет ни того ни другого.
+@MainActor @Test func progressDataAndTextAreAlwaysPaired() {
+    let (defaults, name) = makeTestDefaults("share-progress-parts-")
+    defer { removeTestDefaults(name) }
+    let options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .wide)
+    let profile = ShareProfile(nickname: "", fullName: "")
+    let progress = ShareCardView.make(card: ShareCard(.progress(progressData()), now: fixedDate), options: options,
+                                      profile: profile, defaults: defaults)
+    #expect(progress.progress != nil && progress.text.progress != nil && progress.progressParts != nil)
+    for event in [ShareEvent.streak(days: 3, full: 2), .course(language: .ru)] {
+        let other = ShareCardView.make(card: ShareCard(event, now: fixedDate), options: options, profile: profile,
+                                       defaults: defaults)
+        #expect(other.progress == nil && other.text.progress == nil && other.progressParts == nil)
+    }
+    // Рассогласованные данные и текст не дают «половинной» карточки прогресса: рисуется обычная раскладка.
+    var broken = progress
+    broken.progress = nil
+    #expect(broken.progressParts == nil)
+}
+
+@Test func otherCardsHaveNoProgressText() {
+    let options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .wide)
+    let text = ShareCardText(card: ShareCard(.streak(days: 3, full: 2), now: fixedDate), options: options,
+                             profile: ShareProfile(nickname: "", fullName: ""), unit: .cpm,
+                             bundle: localization("ru"), locale: ru)
+    #expect(text.progress == nil)
+}
+
+/// Карточка «Мой прогресс» (месяц и год, цветная и прозрачная) рисуется во всех форматах в двойном размере;
+/// у цветной фон — палитра темы, а не огонь.
+@MainActor @Test func progressCardRendersInEveryFormatAndPeriod() throws {
+    let (defaults, name) = makeTestDefaults("share-progress-render-")
+    defer { removeTestDefaults(name) }
+    let sizes: [ShareFormat: (Int, Int)] = [.wide: (2400, 1260), .square: (2160, 2160), .story: (2160, 3840)]
+    let card = ShareCard(.progress(progressData()), now: fixedDate)
+    for period in ProgressPeriod.allCases {
+        for format in ShareFormat.allCases {
+            var options = ShareOptions(signature: .nickname, theme: .dark, background: .colored, format: format,
+                                       showsQR: true)
+            options.progressPeriod = period
+            let view = ShareCardView.make(card: card, options: options,
+                                          profile: ShareProfile(nickname: "rusl3n", fullName: ""), defaults: defaults)
+            let rep = try decode(try ShareCardRenderer.png(view))
+            let expected = try #require(sizes[format])
+            #expect(rep.pixelsWide == expected.0 && rep.pixelsHigh == expected.1, "\(period) \(format)")
+        }
+    }
+    var transparent = ShareOptions(signature: .none, theme: .light, background: .transparent, format: .square)
+    transparent.progressPeriod = .year
+    let view = ShareCardView.make(card: card, options: transparent, profile: ShareProfile(nickname: "", fullName: ""),
+                                  defaults: defaults)
+    let rep = try decode(try ShareCardRenderer.png(view))
+    #expect(rep.hasAlpha)
+    #expect(try cornerAlpha(rep) == 0)
+}
+
+/// Содержимое карточки без календаря и без показателей: только огонь, только календарь и всё сразу. Все форматы и обе
+/// темы — картинка точного размера (2× от формата).
+@MainActor @Test func progressCardRendersCustomContentInEveryFormat() throws {
+    let (defaults, name) = makeTestDefaults("share-progress-content-render-")
+    defer { removeTestDefaults(name) }
+    let sizes: [ShareFormat: (Int, Int)] = [.wide: (2400, 1260), .square: (2160, 2160), .story: (2160, 3840)]
+    let card = ShareCard(.progress(progressData()), now: fixedDate)
+    func content(streak: Bool = false, fullDays: Bool = false, time: Bool = false, speed: Bool = false,
+                 accuracy: Bool = false) -> ProgressCardContent {
+        ProgressCardContent(showsStreak: streak, showsFullDays: fullDays, showsTime: time, showsSpeed: speed,
+                            showsAccuracy: accuracy)
+    }
+    let variants: [(String, ProgressCardContent, ProgressPeriod)] = [
+        ("только огонь", content(streak: true), .all),
+        ("огонь и полные дни", content(streak: true, fullDays: true), .all),
+        ("только точность", content(accuracy: true), .all),
+        ("календарь без показателей", content(), .month),
+        ("год без показателей", content(), .year),
+        ("календарь и огонь", content(streak: true), .month),
+        ("всё включено, без календаря", ProgressCardContent(), .all),
+        ("пусто", content(), .all),
+    ]
+    for (label, progressContent, period) in variants {
+        for format in ShareFormat.allCases {
+            for theme in ShareTheme.allCases {
+                var options = ShareOptions(signature: .both, theme: theme, background: .colored, format: format,
+                                           showsQR: format == .square)
+                options.progressPeriod = period
+                options.progressContent = progressContent
+                let view = ShareCardView.make(card: card, options: options,
+                                              profile: ShareProfile(nickname: "rusl3n", fullName: "Руслан"),
+                                              defaults: defaults)
+                let rep = try decode(try ShareCardRenderer.png(view, scale: 1))
+                let expected = try #require(sizes[format])
+                #expect(rep.pixelsWide == expected.0 / 2 && rep.pixelsHigh == expected.1 / 2, "\(label) \(format) \(theme)")
+            }
+        }
+    }
+    // Один полноразмерный рендер: только огонь на прозрачном фоне.
+    var transparent = ShareOptions(signature: .none, theme: .light, background: .transparent, format: .story)
+    transparent.progressPeriod = .all
+    transparent.progressContent = content(streak: true)
+    let rep = try decode(try ShareCardRenderer.png(ShareCardView.make(card: card, options: transparent,
+        profile: ShareProfile(nickname: "", fullName: ""), defaults: defaults)))
+    #expect(rep.pixelsWide == 2160 && rep.pixelsHigh == 3840 && rep.hasAlpha)
+    #expect(try cornerAlpha(rep) == 0)
+}
+
+/// Пиксели «чернил» (текста) в боковых полосах шириной `margin` слева и справа: в тёмной теме светлые, в светлой тёмные.
+/// Фон карточки в полосах гладкий, а водяной символ события лежит правее и ниже, так что в полях текста быть не должно.
+/// `whiteOnly` — карточка серии: фон «огонь» цветной, весь текст на нём белый, ищется только почти белое.
+private func inkInSideMargins(_ rep: NSBitmapImageRep, margin: Int, dark: Bool, whiteOnly: Bool = false) -> Int {
+    var count = 0
+    for y in stride(from: 0, to: rep.pixelsHigh, by: 2) {
+        for x in Array(stride(from: 0, to: margin, by: 2)) + Array(stride(from: rep.pixelsWide - margin, to: rep.pixelsWide, by: 2)) {
+            guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+            if whiteOnly {
+                if color.redComponent > 0.92 && color.greenComponent > 0.85 && color.blueComponent > 0.8 { count += 1 }
+            } else if dark ? color.brightnessComponent > 0.5 : color.brightnessComponent < 0.5 { count += 1 }
+        }
+    }
+    return count
+}
+
+private let cardPadding: [ShareFormat: Int] = [.wide: 72, .square: 80, .story: 96]
+
+/// Самая длинная сноска «За что: …» и самое длинное название укладываются в поля карточки во всех форматах и обеих темах:
+/// в полосах полей нет пикселей текста (раньше текст не переносился, вылезал за карточку и обрезался по краям).
+@MainActor @Test func longestFootnoteStaysInsideCardMargins() throws {
+    let (defaults, name) = makeTestDefaults("share-footnote-render-")
+    defer { removeTestDefaults(name) }
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    var base = ShareOptions(signature: .nickname, theme: .dark, background: .colored, format: .square)
+    base.achievementContent = AchievementCardContent(showsJoke: true, showsReason: true)
+    let longest = try #require(AchievementCatalog.all.max { lhs, rhs in
+        func length(_ achievement: Achievement) -> Int {
+            ShareCardText(card: ShareCard(.achievement(achievement, fixedDate)), options: base, profile: profile,
+                          unit: .cpm, bundle: localization("en"), locale: en).footnote?.count ?? 0
+        }
+        return length(lhs) < length(rhs)
+    })
+    let longestTitle = try #require(AchievementCatalog.all.max { $0.title.count < $1.title.count })
+    for format in ShareFormat.allCases {
+        for achievement in [longest, longestTitle] {
+            for theme in ShareTheme.allCases {
+                var options = base
+                options.format = format
+                options.theme = theme
+                let view = ShareCardView.make(card: ShareCard(.achievement(achievement, fixedDate)), options: options,
+                                              profile: profile, defaults: defaults, bundle: localization("en"), locale: en)
+                let rep = try decode(try ShareCardRenderer.png(view, scale: 1))
+                let ink = inkInSideMargins(rep, margin: try #require(cardPadding[format]) - 16, dark: theme == .dark)
+                #expect(ink == 0, "\(format) \(theme) \(achievement.id): текст в полях карточки (\(ink) пикселей)")
+            }
+        }
+    }
+}
+
+/// Водяной знак (иконка и две строки) с QR и без него не выходит за поля ни у одной карточки ни в одном формате, в обеих
+/// темах; блок «QR + водяной знак» в вертикальных форматах центрирован как единое целое (допуск ±2% ширины).
+@MainActor @Test func watermarkStaysInsideMarginsOnEveryCard() throws {
+    let (defaults, name) = makeTestDefaults("share-watermark-render-")
+    defer { removeTestDefaults(name) }
+    let achievement = try #require(AchievementCatalog.all.first { $0.id == "speed.ru.100" })
+    let events: [ShareEvent] = [.achievement(achievement, fixedDate), .streak(days: 30, full: 28),
+                                .speedRecord(.ru, cpm: 312, date: fixedDate),
+                                .stage(id: "ru.1", title: "Основной ряд", language: .ru), .course(language: .en),
+                                .progress(progressData())]
+    for event in events {
+        for format in ShareFormat.allCases {
+            for qr in [false, true] {
+                for theme in ShareTheme.allCases {
+                    let options = ShareOptions(signature: .both, theme: theme, background: .colored, format: format,
+                                               showsQR: qr)
+                    let view = ShareCardView.make(card: ShareCard(event, now: fixedDate), options: options,
+                                                  profile: ShareProfile(nickname: "rusl3n", fullName: "Руслан"),
+                                                  defaults: defaults, bundle: localization("en"), locale: en)
+                    let rep = try decode(try ShareCardRenderer.png(view, scale: 1))
+                    var isStreak = false
+                    if case .streak = event { isStreak = true }
+                    let ink = inkInSideMargins(rep, margin: try #require(cardPadding[format]) - 16, dark: theme == .dark,
+                                               whiteOnly: isStreak)
+                    #expect(ink == 0, "\(event.fileStem) \(format) qr=\(qr) \(theme): \(ink) пикселей в полях")
+                }
+            }
+        }
+    }
+}
+
+/// Серия из 365 дней («365 дней подряд» — самый широкий заголовок) во всех форматах, с календарём и без, с огнём и с
+/// полным набором блоков: заголовок не выходит за поля (в том числе у правого края строки «иконка + заголовок»).
+@MainActor @Test func progressHeadlineStaysInsideMarginsFor365DayStreak() throws {
+    let (defaults, name) = makeTestDefaults("share-progress-365-")
+    defer { removeTestDefaults(name) }
+    var days: [String: DayActivity] = [:]
+    for offset in -364...0 {
+        days[StreakCalculator.dayKey("2026-10-24", offset: offset)] = DayActivity(activeSeconds: 900, completedExercises: 4)
+    }
+    let data = ProgressCardData.make(days: days, sessions: [], today: "2026-10-24", goalSeconds: 600, firstWeekday: 2)
+    #expect(data.streak == 365)
+    let card = ShareCard(.progress(data), now: fixedDate)
+    let flameOnly = ProgressCardContent(showsStreak: true, showsFullDays: false, showsTime: false, showsSpeed: false,
+                                        showsAccuracy: false)
+    for format in ShareFormat.allCases {
+        for period in ProgressPeriod.allCases {
+            for content in [ProgressCardContent(), flameOnly] {
+                for theme in ShareTheme.allCases {
+                    var options = ShareOptions(signature: .both, theme: theme, background: .colored, format: format)
+                    options.progressPeriod = period
+                    options.progressContent = content
+                    let view = ShareCardView.make(card: card, options: options,
+                                                  profile: ShareProfile(nickname: "rusl3n", fullName: "Руслан"),
+                                                  defaults: defaults)
+                    let rep = try decode(try ShareCardRenderer.png(view, scale: 1))
+                    let ink = inkInSideMargins(rep, margin: try #require(cardPadding[format]) - 16, dark: theme == .dark)
+                    #expect(ink == 0, "\(format) \(period) \(theme) flameOnly=\(content == flameOnly): \(ink) пикселей в полях")
+                }
+            }
+        }
+    }
+}
+
+/// Границы непрозрачных пикселей в строках `rows` (слева направо); `nil` — ничего нет.
+private func inkBounds(_ rep: NSBitmapImageRep, rows: Range<Int>) throws -> (min: Int, max: Int)? {
+    let data = try #require(rep.bitmapData)
+    #expect(rep.samplesPerPixel == 4 && rep.hasAlpha)
+    var bounds: (min: Int, max: Int)?
+    for y in rows {
+        let row = data + y * rep.bytesPerRow
+        for x in 0..<rep.pixelsWide where row[x * 4 + 3] > 12 {
+            bounds = (min(bounds?.min ?? x, x), max(bounds?.max ?? x, x))
+        }
+    }
+    return bounds
+}
+
+/// «Только огонь, без календаря» центрирован по горизонтали (допуск ±2% ширины) во всех форматах: и вся карточка, и блок
+/// содержимого выше подписи. Прозрачный фон — чтобы сдвинутый водяной символ фона не искажал границы.
+@MainActor @Test func flameOnlyCardIsHorizontallyCentered() throws {
+    let (defaults, name) = makeTestDefaults("share-progress-centered-")
+    defer { removeTestDefaults(name) }
+    let card = ShareCard(.progress(progressData()), now: fixedDate)
+    let flameOnly = ProgressCardContent(showsStreak: true, showsFullDays: false, showsTime: false, showsSpeed: false,
+                                        showsAccuracy: false)
+    for format in ShareFormat.allCases {
+        for theme in ShareTheme.allCases {
+            var options = ShareOptions(signature: .none, theme: theme, background: .transparent, format: format)
+            options.progressPeriod = .all
+            options.progressContent = flameOnly
+            let view = ShareCardView.make(card: card, options: options, profile: ShareProfile(nickname: "", fullName: ""),
+                                          defaults: defaults)
+            let rep = try decode(try ShareCardRenderer.png(view))
+            let width = rep.pixelsWide, height = rep.pixelsHigh
+            #expect(width == Int(format.size.width) * 2 && height == Int(format.size.height) * 2)
+            // Содержимое: у вертикальных форматов — всё выше подписи и водяного знака, у широкого — левая часть строки
+            // «иконка + заголовок» (низ карточки занимают водяной знак слева и дата справа).
+            let contentRows = 0..<(format == .wide ? height * 70 / 100 : height * 70 / 100)
+            for (label, rows) in [("вся карточка", 0..<height), ("содержимое", contentRows)] {
+                guard let bounds = try inkBounds(rep, rows: rows) else {
+                    Issue.record("\(format) \(theme) \(label): пусто")
+                    continue
+                }
+                let center = Double(bounds.min + bounds.max) / 2
+                let offset = abs(center - Double(width) / 2) / Double(width)
+                #expect(offset <= 0.02, "\(format) \(theme) \(label): смещение центра \(offset * 100)% ширины")
+            }
+        }
+    }
+}
+
+@Test func progressCardStyleUsesPaletteAndOrangeAccent() {
+    let options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .wide)
+    let style = ShareCardStyle.make(event: .progress(progressData()), options: options,
+                                    light: LightPalette.white.palette, dark: DarkPalette.graphite.palette)
+    guard case .palette = style.fill else {
+        Issue.record("у карточки прогресса фон — палитра, а не огонь")
+        return
+    }
+    #expect(style.accent == .orange)
+    var transparent = options
+    transparent.background = .transparent
+    guard case .none = ShareCardStyle.make(event: .progress(progressData()), options: transparent,
+                                           light: LightPalette.white.palette, dark: DarkPalette.graphite.palette).fill
+    else {
+        Issue.record("на прозрачном фоне заливки нет")
+        return
+    }
 }

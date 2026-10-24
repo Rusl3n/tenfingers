@@ -3,11 +3,28 @@ import TypingCore
 
 /// Раздел «Звуки»: по строке на каждое событие.
 struct SoundSettingsView: View {
+    @State private var isDefault = SoundSettingsDefaults.isDefault(in: .standard)
+    @State private var confirmReset = false
+
     var body: some View {
         Form {
             Section {
                 ForEach(SoundSettings.activeEvents, id: \.self) { SoundRow(event: $0) }
             }
+            Section {
+                Button("Звуки по умолчанию") { confirmReset = true }
+                    .disabled(isDefault)
+                    .help(HelpText.soundsReset)
+            }
+        }
+        // Строки пишут в `UserDefaults` сами (`@AppStorage`), поэтому «всё по умолчанию» перечитываем по уведомлению.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: RunLoop.main)) { _ in
+            let value = SoundSettingsDefaults.isDefault(in: .standard)
+            if value != isDefault { isDefault = value }
+        }
+        .confirmationDialog("Вернуть звуки по умолчанию?", isPresented: $confirmReset) {
+            Button("Вернуть") { SoundSettingsDefaults.reset(in: .standard) }
+            Button("Отмена", role: .cancel) {}
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)

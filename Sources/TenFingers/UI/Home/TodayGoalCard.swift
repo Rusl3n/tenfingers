@@ -10,7 +10,10 @@ struct TodayGoalCard: View {
         let done = Int(minutes)
         let fraction = min(max(minutes / Double(max(goalMinutes, 1)), 0), 1)
         VStack(alignment: .leading, spacing: 8) {
-            Text("Сегодня \(done) из \(goalMinutes) мин").font(.headline)
+            HStack(spacing: 6) {
+                Text("Сегодня \(done) из \(goalMinutes) мин").font(.headline)
+                InfoButton(text: HelpText.dailyGoal + "\n\n" + HelpText.activeTime)
+            }
             Capsule()
                 .fill(Color.secondary.opacity(0.2))
                 .frame(height: 8)

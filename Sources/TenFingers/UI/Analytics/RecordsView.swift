@@ -24,11 +24,11 @@ struct RecordsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             if Self.showsEmptyHint(records) {
-                Text("Рекорды появятся после упражнения от \(Analytics.recordMinimumChars) знаков (практика или тренировка)")
+                Text("Рекорды появятся после проверки урока без ошибок или упражнения от \(Analytics.recordMinimumChars) знаков")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text("Скорость и точность считаются по завершённым упражнениям от \(Analytics.recordMinimumChars) знаков")
+            Text("Лучшая скорость — на проверке урока или тексте от \(Analytics.recordMinimumChars) знаков, без единой ошибки. Точность — по завершённым упражнениям от \(Analytics.recordMinimumChars) знаков")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -42,7 +42,7 @@ struct RecordsView: View {
             Text(title).font(.caption).foregroundStyle(.secondary)
             let present = Language.allCases.compactMap { values[$0] }
             if present.isEmpty {
-                Text(verbatim: "—").font(.title3.weight(.semibold))
+                Text("пока нет").font(.title3.weight(.semibold)).foregroundStyle(.secondary)
             }
             ForEach(present, id: \.language) { record in
                 VStack(alignment: .leading, spacing: 0) {

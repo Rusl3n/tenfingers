@@ -6,10 +6,8 @@ import TypingCore
 /// а после — сжимается обратно (`KeyboardMorph`).
 struct SettingsView: View {
     @AppStorage(SettingsKey.settingsSection) private var sectionRaw = SettingsSection.general.rawValue
-    @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
-    @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
-    @Environment(KeyboardLayoutService.self) private var layout
     @State private var preview = KeyboardPreviewState()
+    @State private var miniature = KeyboardMiniatureFrame()
 
     private var section: SettingsSection { SettingsSection(rawValue: sectionRaw) ?? .general }
     private var wantsFullSize: Bool { preview.showsFullSize && section == .keyboard }
@@ -26,15 +24,14 @@ struct SettingsView: View {
         }
         .overlay(alignment: .bottom) {
             if preview.isOverlayShown {
-                KeyboardLivePreview(snapshot: layout.snapshot, unit: KeyboardSizing.clampedUnit(keyboardUnit),
-                                    offset: keyboardOffset, miniatureFrame: preview.miniatureFrame,
-                                    isPresented: wantsFullSize,
-                                    // Ползунок снова схвачен во время сжатия: оверлей остаётся и растёт заново.
-                                    onDismissed: { if !wantsFullSize { preview.isOverlayShown = false } })
+                KeyboardPreviewOverlay(miniature: miniature, isPresented: wantsFullSize,
+                                       // Ползунок снова схвачен во время сжатия: оверлей остаётся и растёт заново.
+                                       onDismissed: { if !wantsFullSize { preview.isOverlayShown = false } })
             }
         }
         .coordinateSpace(.named(KeyboardMorph.space))
         .onChange(of: wantsFullSize) { _, show in if show { preview.isOverlayShown = true } }
+        // Прямоугольник миниатюры не сбрасываем: раздел «Клавиатура» меряет его заново, как только появляется.
         .onChange(of: sectionRaw) { preview = KeyboardPreviewState() }
         .navigationTitle("Настройки")
     }
@@ -43,7 +40,7 @@ struct SettingsView: View {
         switch section {
         case .general: GeneralSettingsView()
         case .learning: LearningSettingsView()
-        case .keyboard: KeyboardSettingsView(preview: $preview)
+        case .keyboard: KeyboardSettingsView(preview: $preview, miniature: miniature)
         case .sounds: SoundSettingsView()
         case .reminders: ReminderSettingsView()
         case .profile: ProfileSettingsView()
@@ -74,5 +71,22 @@ struct SettingsView: View {
         .padding(.top, 12)
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Оверлей с клавиатурой реального размера. Размер, сдвиг и прямоугольник миниатюры читает сам: шаг ползунка
+/// пересчитывает только его, а не весь экран настроек с панелью разделов.
+private struct KeyboardPreviewOverlay: View {
+    let miniature: KeyboardMiniatureFrame
+    let isPresented: Bool
+    let onDismissed: () -> Void
+    @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
+    @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
+    @Environment(KeyboardLayoutService.self) private var layout
+
+    var body: some View {
+        KeyboardLivePreview(snapshot: layout.snapshot, unit: KeyboardSizing.clampedUnit(keyboardUnit),
+                            offset: keyboardOffset, miniatureFrame: miniature.rect, isPresented: isPresented,
+                            onDismissed: onDismissed)
     }
 }

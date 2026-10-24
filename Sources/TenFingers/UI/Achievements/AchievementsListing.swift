@@ -30,23 +30,62 @@ struct AchievementEntry: Identifiable, Equatable {
 
     /// Условие получения: у неполученной показывается вместо описания, у «Теперь вы можете…» описание —
     /// шутка, которая раскрыла бы ответ. Считается один раз при создании записи (строка собирается из ресурсов и
-    /// форматируется), а не при каждой отрисовке значка. `lockedText` и `title` задают только тесты вёрстки и картинки README (язык).
+    /// форматируется), а не при каждой отрисовке значка. `lockedText`, `title` и `earnedText` задают только тесты
+    /// вёрстки и картинки README (язык).
     let lockedText: String
     /// Название на языке системы, как `lockedText` — один раз.
     let title: String
+    /// Описание полученной (у «Теперь вы можете…» — шутка), как `lockedText` — один раз.
+    let earnedText: String
+    /// Условие как утверждение («Открыты буквы: П И Ц А») для «За что» у полученной; у нейтральных условий
+    /// совпадает с `lockedText`. «Как получить» у неполученной остаётся просьбой (`lockedText`).
+    let reasonText: String
 
-    init(achievement: Achievement, unlockedAt: Date?, seen: Bool, lockedText: String? = nil, title: String? = nil) {
+    init(achievement: Achievement, unlockedAt: Date?, seen: Bool, lockedText: String? = nil, title: String? = nil,
+         earnedText: String? = nil, reasonText: String? = nil) {
         self.achievement = achievement
         self.title = title ?? achievement.title
         self.unlockedAt = unlockedAt
         self.seen = seen
         self.lockedText = lockedText ?? achievement.conditionText
+        self.earnedText = earnedText ?? achievement.detail
+        self.reasonText = reasonText ?? achievement.earnedConditionText
     }
 
     var id: String { achievement.id }
     var isEarned: Bool { unlockedAt != nil }
-    /// Описание полученной (у «Теперь вы можете…» — шутка).
-    var earnedText: String { achievement.detail }
+}
+
+extension AchievementEntry {
+    /// Секретная и ещё не получена: ничего не раскрываем (ни название, ни значок, ни условие).
+    var isConcealed: Bool { achievement.secret && !isEarned }
+    /// «???» у скрытой (без перевода), иначе название.
+    var displayTitle: String { isConcealed ? "???" : title }
+    /// Замок у скрытой, иначе значок ачивки.
+    var displayIcon: String { isConcealed ? "lock.fill" : achievement.icon }
+    /// Строка под названием на значке: полученная — шутка; скрытая — «Секретная ачивка»; иначе «Как получить: …».
+    var badgeCaption: String {
+        if isEarned { return earnedText }
+        if isConcealed { return String(localized: "Секретная ачивка") }
+        return String(localized: "Как получить: \(lockedText)")
+    }
+    /// «За что: <условие как утверждение>» — в подробностях полученной.
+    var reasonLine: String { String(localized: "За что: \(reasonText)") }
+}
+
+/// Фильтр экрана «Ачивки» по состоянию; сочетается с категорией.
+enum AchievementsFilter: String, CaseIterable, Identifiable {
+    case all, earned, locked
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: String(localized: "Все")
+        case .earned: String(localized: "Полученные")
+        case .locked: String(localized: "Не полученные")
+        }
+    }
 }
 
 /// Список экрана «Ачивки», карточка на главной и счётчик в боковой панели: чистые функции над каталогом и записями.
@@ -69,9 +108,17 @@ enum AchievementsListing {
         return category
     }
 
-    static func filtered(_ entries: [AchievementEntry], category: AchievementCategory?) -> [AchievementEntry] {
-        guard let category else { return entries }
-        return entries.filter { $0.achievement.category == category }
+    /// Записи выбранной категории (`nil` — любой), прошедшие фильтр по состоянию.
+    static func filtered(_ entries: [AchievementEntry], category: AchievementCategory?,
+                         filter: AchievementsFilter) -> [AchievementEntry] {
+        entries.filter { entry in
+            if let category, entry.achievement.category != category { return false }
+            switch filter {
+            case .all: return true
+            case .earned: return entry.isEarned
+            case .locked: return !entry.isEarned
+            }
+        }
     }
 
     /// Категории, в которых есть что показать, в порядке `AchievementCategory`.

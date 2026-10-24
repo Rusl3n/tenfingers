@@ -24,6 +24,12 @@ private let samples: [AchievementCondition] = [
     .errorStreak(10), .errorsInExercise(50), .lessonReplays(10), .abandonsInDay(3),
     .dayOfYear(month: 1, day: 1), .fridayThe13th, .bilingualDay, .marathonDay(minutes: 60),
     .comeback(gapDays: 7),
+    // Фаза 5.
+    .exercisesCompleted(1000), .speedGrowth(factor: 1.5, minExercises: 5),
+    .allFingersAccuracy(minimum: 0.97, presses: 30, days: 7), .weakSpotsClean(count: 10, minimum: 0.98),
+    .booksFinished(5), .ownText, .fullFireMonth, .freezeSavedStreak, .exactSpeed(cpm: 314), .exactSeconds(42),
+    .yoPresses(100), .totalErrors(1000), .finishedAtMinute(hour: 0, minute: 0), .fridayEvening(fromHour: 21),
+    .weekendStreak(4), .almostPerfect(minChars: 300, minimum: 0.999),
 ]
 
 @Test func everyConditionKindHasATextInBothLanguages() {
@@ -179,5 +185,73 @@ private let samples: [AchievementCondition] = [
     for achievement in AchievementCatalog.all {
         let text = achievement.conditionText
         #expect(!text.isEmpty && !text.contains("achievement."), "«\(achievement.id)»: «\(text)»")
+    }
+}
+
+@Test func phaseFiveConditionsInRussian() {
+    // Разделитель разрядов зависит от ICU (неразрывный или узкий пробел).
+    func spaced(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{202F}", with: " ")
+    }
+    #expect(spaced(ru(.exercisesCompleted(1000))) == "Завершённых упражнений: 1 000")
+    #expect(ru(.speedGrowth(factor: 1.5, minExercises: 5))
+            == "Средняя скорость за 7 дней в 1,5 раза выше, чем в первую неделю языка (от 5 упражнений)")
+    #expect(ru(.speedGrowth(factor: 2, minExercises: 5)).contains("в 2 раза выше"))
+    #expect(ru(.allFingersAccuracy(minimum: 0.97, presses: 30, days: 7))
+            == "Точность каждого пальца за 7 дн. — от 97%, не меньше 30 нажатий на палец")
+    #expect(ru(.weakSpotsClean(count: 10, minimum: 0.98)) == "Упражнений «Слабые места» с точностью от 98%: 10")
+    #expect(ru(.booksFinished(5)) == "Отрывков из книг набрано до конца: 5")
+    #expect(ru(.ownText) == "Завершите упражнение со своим текстом")
+    #expect(ru(.fullFireMonth) == "Все дни календарного месяца — полный огонь, без заморозок")
+    #expect(ru(.freezeSavedStreak) == "Заморозка спасла серию: после пропуска вы вернулись к занятиям")
+    #expect(ru(.exactSpeed(cpm: 314)) == "Итоговая скорость упражнения — ровно 314 зн/мин")
+    #expect(ru(.exactSeconds(42)) == "Чистое время упражнения — ровно 42 с")
+    #expect(ru(.yoPresses(100)) == "Буква «Ё» без ошибки, раз: 100")
+    #expect(spaced(ru(.totalErrors(1000))) == "Ошибок за всё время: 1 000")
+    #expect(ru(.finishedAtMinute(hour: 0, minute: 0)) == "Завершите упражнение ровно в 0:00")
+    #expect(ru(.fridayEvening(fromHour: 21)) == "Завершите упражнение в пятницу после 21:00")
+    #expect(ru(.weekendStreak(4)) == "Выходных подряд с занятиями и в субботу, и в воскресенье: 4")
+    let almost = ru(.almostPerfect(minChars: 300, minimum: 0.999))
+    #expect(almost == "Упражнение от 300 знаков с точностью от 99,9%, но не 100%")
+    #expect(!almost.contains("%%"))
+}
+
+@Test func phaseFiveConditionsInEnglish() {
+    #expect(en(.exercisesCompleted(1000)) == "Exercises finished: 1,000")
+    #expect(en(.speedGrowth(factor: 1.5, minExercises: 5))
+            == "7-day average speed is 1.5× your first week on a language (at least 5 exercises)")
+    #expect(en(.allFingersAccuracy(minimum: 0.97, presses: 30, days: 7))
+            == "Every finger at 97%+ accuracy over 7 days, at least 30 presses each")
+    #expect(en(.weakSpotsClean(count: 1, minimum: 0.98)) == "Weak spots exercises at 98%+ accuracy: 1")
+    #expect(en(.booksFinished(25)) == "Book excerpts typed to the end: 25")
+    #expect(en(.ownText) == "Finish an exercise with your own text")
+    #expect(en(.fullFireMonth) == "Every day of a calendar month at full flame, no freezes")
+    #expect(en(.freezeSavedStreak) == "A freeze saved your streak: you came back after a missed day")
+    #expect(en(.exactSpeed(cpm: 314)) == "Finish an exercise at exactly 314 characters per minute")
+    #expect(en(.exactSeconds(42)) == "An exercise with exactly 42 s of active time")
+    #expect(en(.yoPresses(100)) == "Letter Ё typed without errors, times: 100")
+    #expect(en(.totalErrors(1000)) == "Typos in total: 1,000")
+    #expect(en(.finishedAtMinute(hour: 0, minute: 0)) == "Finish an exercise at exactly 0:00")
+    #expect(en(.fridayEvening(fromHour: 21)) == "Finish an exercise on a Friday after 21:00")
+    #expect(en(.weekendStreak(4)) == "Weekends in a row with practice on both Saturday and Sunday: 4")
+    #expect(en(.almostPerfect(minChars: 300, minimum: 0.999))
+            == "An exercise of 300+ characters at 99.9%+ accuracy, but not 100%")
+}
+
+/// Новые условия-просьбы у полученной ачивки читаются утверждением.
+@Test func phaseFiveImperativeConditionsHaveEarnedForms() {
+    func earned(_ condition: AchievementCondition, _ language: String) -> String {
+        AchievementConditionText.describe(condition, localization: language, earned: true)
+    }
+    #expect(earned(.ownText, "ru") == "Завершено упражнение со своим текстом")
+    #expect(earned(.finishedAtMinute(hour: 0, minute: 0), "ru") == "Упражнение завершено ровно в 0:00")
+    #expect(earned(.fridayEvening(fromHour: 21), "ru") == "Упражнение завершено в пятницу после 21:00")
+    #expect(earned(.exactSpeed(cpm: 314), "ru") == "Упражнение завершено со скоростью ровно 314 зн/мин")
+    #expect(earned(.ownText, "en") == "An exercise with your own text finished")
+    #expect(earned(.finishedAtMinute(hour: 0, minute: 0), "en") == "An exercise finished at exactly 0:00")
+    #expect(earned(.fridayEvening(fromHour: 21), "en") == "An exercise finished on a Friday after 21:00")
+    #expect(earned(.exactSpeed(cpm: 314), "en") == "An exercise finished at exactly 314 characters per minute")
+    for key in ["ownText", "atMinute", "fridayEvening", "exactSpeed"] {
+        #expect(AchievementConditionText.earnedForms.contains(key), "\(key)")
     }
 }

@@ -7,11 +7,14 @@ import TypingCore
 struct WeakSpotsSessionTotals: Equatable {
     private(set) var seconds = 0.0
     private(set) var chars = 0
+    /// Знаки со своим временем: первый знак каждой порции запускает отсчёт и времени не имеет (как у `TypingEngine.cpm`).
+    private var timedChars = 0
     private(set) var errors = 0
 
     mutating func add(seconds: Double, chars: Int, errors: Int) {
         self.seconds += seconds
         self.chars += chars
+        timedChars += max(chars - 1, 0)
         self.errors += errors
     }
 
@@ -19,7 +22,7 @@ struct WeakSpotsSessionTotals: Equatable {
         add(seconds: result.activeSeconds, chars: result.chars, errors: result.errorCount)
     }
 
-    var cpm: Double { seconds > 0 ? Double(chars) / seconds * 60 : 0 }
+    var cpm: Double { seconds > 0 ? Double(timedChars) / seconds * 60 : 0 }
     var accuracy: Double { chars > 0 ? 1 - Double(errors) / Double(chars) : 1 }
     var isComplete: Bool { seconds >= WeakSpots.sessionSeconds }
 }

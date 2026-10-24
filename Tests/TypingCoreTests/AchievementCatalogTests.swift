@@ -30,7 +30,7 @@ private func cyrillicWords(_ s: String) -> [String] {
     }
 }
 
-/// Все 68 id как есть в базах пользователей: переименование или удаление должно ронять тест
+/// Все 89 id как есть в базах пользователей: переименование или удаление должно ронять тест
 /// (новая ачивка — осознанное дополнение этого списка).
 private let goldenIds: [String] = [
     "streak.3", "streak.7", "streak.14", "streak.30",
@@ -50,11 +50,18 @@ private let goldenIds: [String] = [
     "fun.ghbdtn", "fun.sausage_fingers", "fun.ctrl_z", "fun.oy_vsyo",
     "fun.perfectionist", "fun.not_today", "fun.no_coffee", "fun.new_year",
     "fun.friday13", "fun.bilingual", "fun.marathon", "fun.comeback",
+    // Фаза 5 (21).
+    "streak.fire_month", "streak.insurance", "speed.growth.150", "speed.growth.200",
+    "accuracy.all_fingers", "volume.exercises.100", "volume.exercises.500", "volume.exercises.1000",
+    "volume.books.5", "volume.books.25", "special.weak_spot", "special.weak_spot.10",
+    "special.own_words", "fun.pi", "fun.answer42", "fun.yo_master",
+    "fun.learning_from_mistakes", "fun.cinderella", "fun.friday_night", "fun.weekend_warrior",
+    "fun.almost",
 ]
 
 @Test func catalogIdsMatchTheGoldenList() {
     let ids = AchievementCatalog.all.map(\.id)
-    #expect(goldenIds.count == 68 && Set(goldenIds).count == 68)
+    #expect(goldenIds.count == 89 && Set(goldenIds).count == 89)
     #expect(Set(ids) == Set(goldenIds),
             "пропали: \(Set(goldenIds).subtracting(ids).sorted()); лишние: \(Set(ids).subtracting(goldenIds).sorted())")
     #expect(ids.count == goldenIds.count)
@@ -79,23 +86,44 @@ private let goldenIds: [String] = [
             #expect(id == "course.\(language.rawValue)")
         case .allThreeStars(let language):
             #expect(id == "course.stars.\(language.rawValue)")
+        case .speedGrowth(let factor, _):
+            #expect(id == "speed.growth.\(Int((factor * 100).rounded()))", "«\(id)»: \(factor)")
+        case .exercisesCompleted(let count):
+            #expect(id == "volume.exercises.\(count)")
+        case .booksFinished(let count):
+            #expect(id == "volume.books.\(count)")
+        case .weakSpotsClean(let count, _):
+            // Первое чистое упражнение — `special.weak_spot` без числа, дальше — `special.weak_spot.<число>`.
+            #expect(id == (count == 1 ? "special.weak_spot" : "special.weak_spot.\(count)"), "«\(id)»: \(count)")
         default: break
         }
     }
     // Обратное направление: id с числом не должен остаться без условия-пары.
     for achievement in AchievementCatalog.all {
         let id = achievement.id
-        if id.hasPrefix("streak.") && id != "streak.iron_will" {
+        // У серии числовые id — только `streak.<дни>` (`streak.iron_will`, `streak.fire_month` — по названию).
+        if id.hasPrefix("streak."), Int(id.dropFirst("streak.".count)) != nil {
             guard case .streak = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
         }
-        if id.hasPrefix("speed.") {
+        if id.hasPrefix("speed.growth.") {
+            guard case .speedGrowth = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
+        } else if id.hasPrefix("speed.") {
             guard case .speed = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
         }
         if id.hasPrefix("volume.chars.") {
             guard case .volumeChars = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
         }
+        if id.hasPrefix("volume.exercises.") {
+            guard case .exercisesCompleted = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
+        }
+        if id.hasPrefix("volume.books.") {
+            guard case .booksFinished = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
+        }
         if id.hasPrefix("volume.hours.") {
             guard case .volumeHours = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
+        }
+        if id == "special.weak_spot" || id.hasPrefix("special.weak_spot.") {
+            guard case .weakSpotsClean = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
         }
     }
 }
@@ -123,20 +151,47 @@ private let goldenIds: [String] = [
     #expect(try text("letters.en.vim") == "Откройте символы: : Q !")
     #expect(try text("letters.en.hello_world") == "Откройте буквы: H E L O W R D")
     #expect(try text("letters.ru.yo") == "Откройте букву: Ё")
+    // Ругательства: буквы на экране по алфавиту, а не по слову.
+    #expect(try text("letters.ru.three_letters") == "Откройте буквы: Й У Х")
+    #expect(try text("letters.ru.b_word") == "Откройте буквы: Б Л Я")
+    // en-ачивки — localization "ru" тоже годится: проверяем порядок.
+    #expect(try text("letters.en.fluent_f") == "Откройте буквы: C F K U")
+    #expect(try text("letters.en.shit_happens") == "Откройте буквы: H I S T")
+}
+
+@Test func swearWordConditionsKeepTheirLetterSets() throws {
+    func condition(_ id: String) throws -> AchievementCondition {
+        try #require(AchievementCatalog.all.first { $0.id == id }).condition
+    }
+    #expect(try condition("letters.ru.three_letters") == .lettersUnlocked(.ru, Set("хуй")))
+    #expect(try condition("letters.ru.b_word") == .lettersUnlocked(.ru, Set("бля")))
+    #expect(try condition("letters.ru.deadline") == .lettersUnlocked(.ru, Set("жопа")))
+    #expect(try condition("letters.en.fluent_f") == .lettersUnlocked(.en, Set("fuck")))
+    #expect(try condition("letters.en.shit_happens") == .lettersUnlocked(.en, Set("shit")))
+    #expect(try condition("letters.en.wtf") == .lettersUnlocked(.en, Set("wtf")))
+}
+
+@Test func secretAchievementsAreFunAdultAndNightOwlEarlyBird() {
+    let secret = Set(AchievementCatalog.all.filter(\.secret).map(\.id))
+    let expected = Set(AchievementCatalog.all.filter { $0.category == .fun || $0.adult }.map(\.id))
+        .union(["special.night_owl", "special.early_bird"])
+    #expect(secret == expected)
+    #expect(secret.count == 28)
 }
 
 @Test func catalogMatchesSectionTwelveCounts() {
     func count(_ category: AchievementCategory) -> Int {
         AchievementCatalog.all.filter { $0.category == category }.count
     }
-    #expect(count(.streak) == 9)
-    #expect(count(.speed) == 10)
-    #expect(count(.accuracy) == 3)
+    #expect(count(.streak) == 11)
+    #expect(count(.speed) == 12)
+    #expect(count(.accuracy) == 4)
     #expect(count(.course) == 7)
-    #expect(count(.volume) == 7)
-    #expect(count(.special) == 4)
+    #expect(count(.volume) == 12)
+    #expect(count(.special) == 7)
     #expect(count(.letters) == 16)
-    #expect(count(.fun) == 12)
+    #expect(count(.fun) == 20)
+    #expect(AchievementCatalog.all.count == 89)
 }
 
 @Test func everyAchievementHasRussianAndEnglishTexts() throws {
@@ -160,28 +215,47 @@ private let goldenIds: [String] = [
     #expect(CoreText.localized("achievement.letters.ru.pizza.title", localization: "ru") == "Пиццерия")
     #expect(CoreText.localized("achievement.letters.ru.pizza.title", localization: "en") == "Pizzeria")
     let sniper = try #require(AchievementCatalog.all.first { $0.id == "accuracy.sniper" })
-    #expect(sniper.detail.contains("100%"), "знак процента не должен ломаться: «\(sniper.detail)»")
+    #expect(!sniper.detail.isEmpty)
+    // Знак процента в условии не ломает форматирование.
+    let condition = AchievementConditionText.describe(sniper.condition, localization: "ru")
+    #expect(!condition.contains("%%") && !condition.contains("%@"), "«\(condition)»")
 }
 
-/// Описания скорости, «Снайпера» и «Без подглядывания» (подробности ачивки и подзаголовок карточки) говорят
-/// о текущем правиле: засчитывается и проверка урока, а скорость — только без ошибок.
-@Test func qualifyingExerciseDetailsMentionLessonChecks() throws {
+/// Описание — шутка, а не пересказ условия (условие показывают «За что» и «Как получить»).
+@Test func detailsAreJokesNotConditions() throws {
     let ru = try strings("ru"), en = try strings("en")
-    let ids = AchievementCatalog.all.filter {
+    for achievement in AchievementCatalog.all {
+        let key = achievement.detailKey
+        for (language, table) in [("ru", ru), ("en", en)] {
+            let detail = try #require(table[key])
+            let condition = AchievementConditionText.describe(achievement.condition, display: achievement.lettersDisplay,
+                                                              localization: language)
+            #expect(detail != condition, "\(language): «\(key)» повторяет условие")
+            #expect(detail.count <= 90, "\(language): «\(key)» длиннее 90 знаков")
+        }
+    }
+    #expect(ru["achievement.streak.3.detail"] == "Три дня подряд — это уже не случайность")
+}
+
+/// Условия скорости, «Снайпера» и «Без подглядывания» (строки «Как получить» и «За что») говорят о текущем
+/// правиле: засчитывается и проверка урока, а скорость — только без ошибок.
+@Test func qualifyingExerciseConditionsMentionLessonChecks() throws {
+    let achievements = AchievementCatalog.all.filter {
         switch $0.condition {
         case .speed, .perfectAccuracy, .noKeyboard: true
         default: false
         }
-    }.map(\.id)
-    #expect(ids.count == 12)
-    for id in ids {
-        let key = "achievement.\(id).detail"
-        let ruValue = try #require(ru[key]), enValue = try #require(en[key])
-        #expect(ruValue.lowercased().contains("проверк"), "ru: «\(key)» → «\(ruValue)»")
-        #expect(enValue.lowercased().contains("lesson check"), "en: «\(key)» → «\(enValue)»")
+    }
+    #expect(achievements.count == 12)
+    for achievement in achievements {
+        let id = achievement.id
+        let ruValue = AchievementConditionText.describe(achievement.condition, localization: "ru")
+        let enValue = AchievementConditionText.describe(achievement.condition, localization: "en")
+        #expect(ruValue.lowercased().contains("проверк"), "ru: «\(id)» → «\(ruValue)»")
+        #expect(enValue.lowercased().contains("lesson check"), "en: «\(id)» → «\(enValue)»")
         if id.hasPrefix("speed.") {
-            #expect(ruValue.contains("без единой ошибки"), "ru: «\(key)» → «\(ruValue)»")
-            #expect(enValue.contains("no errors"), "en: «\(key)» → «\(enValue)»")
+            #expect(ruValue.contains("без единой ошибки"), "ru: «\(id)» → «\(ruValue)»")
+            #expect(enValue.contains("no errors"), "en: «\(id)» → «\(enValue)»")
         }
     }
 }
@@ -234,4 +308,92 @@ private let goldenIds: [String] = [
     #expect(try condition("letters.ru.alphabet") == .wholeAlphabet(.ru))
     #expect(try condition("special.night_owl") == .finishedBetween(startHour: 0, endHour: 4))
     #expect(try condition("fun.comeback") == .comeback(gapDays: 7))
+    // Фаза 5.
+    #expect(try condition("streak.fire_month") == .fullFireMonth)
+    #expect(try condition("streak.insurance") == .freezeSavedStreak)
+    #expect(try condition("speed.growth.150") == .speedGrowth(factor: 1.5, minExercises: 5))
+    #expect(try condition("speed.growth.200") == .speedGrowth(factor: 2, minExercises: 5))
+    #expect(try condition("accuracy.all_fingers") == .allFingersAccuracy(minimum: 0.97, presses: 30, days: 7))
+    #expect(try condition("volume.exercises.100") == .exercisesCompleted(100))
+    #expect(try condition("volume.exercises.500") == .exercisesCompleted(500))
+    #expect(try condition("volume.exercises.1000") == .exercisesCompleted(1000))
+    #expect(try condition("volume.books.5") == .booksFinished(5))
+    #expect(try condition("volume.books.25") == .booksFinished(25))
+    #expect(try condition("special.weak_spot") == .weakSpotsClean(count: 1, minimum: 0.98))
+    #expect(try condition("special.weak_spot.10") == .weakSpotsClean(count: 10, minimum: 0.98))
+    #expect(try condition("special.own_words") == .ownText)
+    #expect(try condition("fun.pi") == .exactSpeed(cpm: 314))
+    #expect(try condition("fun.answer42") == .exactSeconds(42))
+    #expect(try condition("fun.yo_master") == .yoPresses(100))
+    #expect(try condition("fun.learning_from_mistakes") == .totalErrors(1000))
+    #expect(try condition("fun.cinderella") == .finishedAtMinute(hour: 0, minute: 0))
+    #expect(try condition("fun.friday_night") == .fridayEvening(fromHour: 21))
+    #expect(try condition("fun.weekend_warrior") == .weekendStreak(4))
+    #expect(try condition("fun.almost") == .almostPerfect(minChars: 300, minimum: 0.999))
+}
+
+/// Новые ачивки фазы 5 — в конце своей категории, в порядке плана, со значками из плана.
+@Test func phaseFiveAchievementsAreAppendedWithPlannedIcons() {
+    let planned: [(id: String, category: AchievementCategory, icon: String)] = [
+        ("streak.fire_month", .streak, "flame.circle.fill"), ("streak.insurance", .streak, "umbrella.fill"),
+        ("speed.growth.150", .speed, "chart.line.uptrend.xyaxis"),
+        ("speed.growth.200", .speed, "arrow.up.right.circle.fill"),
+        ("accuracy.all_fingers", .accuracy, "hand.raised.fill"),
+        ("volume.exercises.100", .volume, "checklist"), ("volume.exercises.500", .volume, "list.bullet.clipboard"),
+        ("volume.exercises.1000", .volume, "list.star"), ("volume.books.5", .volume, "book"),
+        ("volume.books.25", .volume, "books.vertical"),
+        ("special.weak_spot", .special, "bandage"), ("special.weak_spot.10", .special, "cross.case.fill"),
+        ("special.own_words", .special, "text.quote"),
+        ("fun.pi", .fun, "function"), ("fun.answer42", .fun, "number.circle"), ("fun.yo_master", .fun, "textformat"),
+        ("fun.learning_from_mistakes", .fun, "xmark.circle"), ("fun.cinderella", .fun, "wand.and.stars"),
+        ("fun.friday_night", .fun, "music.note"), ("fun.weekend_warrior", .fun, "figure.strengthtraining.traditional"),
+        ("fun.almost", .fun, "smallcircle.filled.circle"),
+    ]
+    for category in AchievementCategory.allCases {
+        let added = planned.filter { $0.category == category }
+        let inCategory = AchievementCatalog.all.filter { $0.category == category }
+        let tail = inCategory.suffix(added.count)
+        #expect(tail.map(\.id) == added.map(\.id), "\(category)")
+        #expect(tail.map(\.icon) == added.map(\.icon), "\(category)")
+    }
+    let secret = Set(AchievementCatalog.all.filter(\.secret).map(\.id))
+    for item in planned { #expect(secret.contains(item.id) == (item.category == .fun), "\(item.id)") }
+}
+
+/// Условия-просьбы («Откройте буквы…») у полученной ачивки читаются утверждением («Открыты буквы…»).
+@Test func earnedConditionTextIsAStatementForImperativeConditions() throws {
+    func text(_ id: String, _ language: String, earned: Bool) throws -> String {
+        let achievement = try #require(AchievementCatalog.all.first { $0.id == id })
+        return AchievementConditionText.describe(achievement.condition, display: achievement.lettersDisplay,
+                                                 localization: language, earned: earned)
+    }
+    #expect(try text("letters.ru.pizza", "ru", earned: true).hasPrefix("Открыты буквы"))
+    #expect(try text("letters.ru.pizza", "ru", earned: true) == "Открыты буквы: П И Ц А")
+    #expect(try text("letters.ru.pizza", "ru", earned: false) == "Откройте буквы: П И Ц А")
+    #expect(try text("letters.en.pizza", "en", earned: true).hasPrefix("Letters opened"))
+    #expect(try text("course.first_lesson", "ru", earned: true) == "Пройден первый урок курса")
+    // Нейтральные условия вид не меняют.
+    for id in ["streak.7", "speed.ru.150", "volume.hours.10", "fun.ctrl_z", "accuracy.sniper"] {
+        for language in ["ru", "en"] {
+            #expect(try text(id, language, earned: true) == text(id, language, earned: false), "\(language) \(id)")
+        }
+    }
+}
+
+/// У каждого условия-просьбы есть утверждение в обоих языках, и других `earned`-ключей в ресурсах нет.
+@Test func everyEarnedFormExistsInBothLanguages() throws {
+    let prefix = "achievement.condition."
+    for language in ["ru", "en"] {
+        let table = try strings(language)
+        for key in AchievementConditionText.earnedForms {
+            let plain = try #require(table[prefix + key], "\(language): нет «\(prefix + key)»")
+            let earned = try #require(table[prefix + "earned." + key], "\(language): нет «\(prefix)earned.\(key)»")
+            #expect(!earned.isEmpty && earned != plain, "\(language): «\(key)» не отличается от просьбы")
+            #expect(earned.components(separatedBy: "%").count == plain.components(separatedBy: "%").count,
+                    "\(language): «\(key)» — другое число подстановок")
+            #expect(cyrillicWords(earned).allSatisfy { language == "ru" || $0.count == 1 }, "\(language): «\(earned)»")
+        }
+        let stored = Set(table.keys.filter { $0.hasPrefix(prefix + "earned.") }.map { String($0.dropFirst((prefix + "earned.").count)) })
+        #expect(stored == AchievementConditionText.earnedForms, "\(language): \(stored.symmetricDifference(AchievementConditionText.earnedForms))")
+    }
 }

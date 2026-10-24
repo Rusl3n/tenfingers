@@ -113,3 +113,41 @@ private func finishedEngine() -> TypingEngine {
                                 startedAt: .now, endedAt: .now, hintLevel: .full)
     #expect(KeyStats.bigramSamples(from: result).keys.contains("ав"))
 }
+
+@Test func fingerCountsIncludeSpaceAndErrors() {
+    // ф (0) без ошибки, а (3) с ошибкой, пробел (49), ё (50) без ошибки, Ё (50) с ошибкой
+    var engine = TypingEngine(text: "фа ёЁ")
+    let keys: [(Character, UInt16, Double)] = [
+        ("ф", 0, 0), ("x", 7, 0.1), ("а", 3, 0.2), (" ", 49, 0.3), ("ё", 50, 0.4), ("x", 7, 0.5), ("Ё", 50, 0.6),
+    ]
+    for (c, code, t) in keys { _ = engine.handle(Keystroke(character: c, keyCode: code, timestamp: t)) }
+    let result = ExerciseResult(engine: engine, mode: .practice, language: .ru, lessonId: nil,
+                                startedAt: .now, endedAt: .now, hintLevel: .full)
+    let counts = KeyStats.fingerCounts(from: result)
+    let a = FingerMap.finger(for: 3)!, f = FingerMap.finger(for: 0)!, yo = FingerMap.finger(for: 50)!
+    #expect(FingerMap.finger(for: 49) == .thumb)
+    var presses: [Finger: Int] = [:], errors: [Finger: Int] = [:]
+    for (finger, press, error) in [(f, 1, 0), (a, 1, 1), (Finger.thumb, 1, 0), (yo, 2, 1)] {
+        presses[finger, default: 0] += press
+        errors[finger, default: 0] += error
+    }
+    #expect(counts.presses == presses)
+    #expect(counts.errors == errors)
+    // Палец с нажатиями есть в обоих словарях, даже без ошибок.
+    #expect(counts.errors[.thumb] == 0)
+    #expect(Set(counts.presses.keys) == Set(counts.errors.keys))
+}
+
+@Test func yoCorrectCountsBothCasesWithoutErrors() {
+    var engine = TypingEngine(text: "ёЁёа")
+    let keys: [(Character, UInt16, Double)] = [
+        ("ё", 50, 0), ("Ё", 50, 0.1), ("x", 7, 0.2), ("ё", 50, 0.3), ("а", 3, 0.4),
+    ]
+    for (c, code, t) in keys { _ = engine.handle(Keystroke(character: c, keyCode: code, timestamp: t)) }
+    let result = ExerciseResult(engine: engine, mode: .practice, language: .ru, lessonId: nil,
+                                startedAt: .now, endedAt: .now, hintLevel: .full)
+    #expect(KeyStats.yoCorrect(from: result) == 2)
+    let english = ExerciseResult(engine: finishedEngine(), mode: .practice, language: .en, lessonId: nil,
+                                 startedAt: .now, endedAt: .now, hintLevel: .full)
+    #expect(KeyStats.yoCorrect(from: english) == 0)
+}
