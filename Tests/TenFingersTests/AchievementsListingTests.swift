@@ -72,12 +72,24 @@ private let catalog = AchievementCatalog.all
 
 @Test func latestIsTheMostRecentlyEarnedVisibleOne() {
     let records = [earned("streak.3", 1), earned("accuracy.sniper", 5), earned("letters.ru.b_word", 9)]
-    let on = AchievementsListing.entries(catalog: catalog, earned: records, adultHumor: true)
-    #expect(AchievementsListing.latest(on)?.achievement.id == "letters.ru.b_word")
+    let on = AchievementsListing.latest(catalog: catalog, earned: records, adultHumor: true)
+    #expect(on?.achievement.id == "letters.ru.b_word")
+    #expect(on?.unlockedAt == day(9))
     // Скрытая «взрослая» не показывается и в «Последней ачивке».
-    let off = AchievementsListing.entries(catalog: catalog, earned: records, adultHumor: false)
-    #expect(AchievementsListing.latest(off)?.achievement.id == "accuracy.sniper")
-    #expect(AchievementsListing.latest(AchievementsListing.entries(catalog: catalog, earned: [], adultHumor: true)) == nil)
+    let off = AchievementsListing.latest(catalog: catalog, earned: records, adultHumor: false)
+    #expect(off?.achievement.id == "accuracy.sniper")
+    #expect(AchievementsListing.latest(catalog: catalog, earned: [], adultHumor: true) == nil)
+    #expect(AchievementsListing.latest(catalog: catalog, earned: [earned("future.thing", 20)], adultHumor: true) == nil)
+}
+
+/// При равных датах «Последняя ачивка» — более поздняя в каталоге, как в порядке экрана «Ачивки».
+@Test func latestBreaksDateTiesByCatalogOrder() throws {
+    let first = try #require(catalog.first { !$0.adult })
+    let last = try #require(catalog.last { !$0.adult })
+    let records = [earned(last.id, 3, seen: false), earned(first.id, 3)]
+    let latest = AchievementsListing.latest(catalog: catalog, earned: records, adultHumor: false)
+    #expect(latest?.achievement.id == last.id)
+    #expect(latest?.seen == false)
 }
 
 @Test func unseenIdsCountOnlyVisibleCatalogAchievements() {

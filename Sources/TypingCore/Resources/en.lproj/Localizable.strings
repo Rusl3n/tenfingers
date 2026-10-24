@@ -115,29 +115,29 @@
 
 /* Ачивки: Скорость */
 "achievement.speed.ru.100.title" = "Picking Up Speed (RU)";
-"achievement.speed.ru.100.detail" = "100 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.100.detail" = "100 characters per minute in Russian with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.ru.150.title" = "Confident (RU)";
-"achievement.speed.ru.150.detail" = "150 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.150.detail" = "150 characters per minute in Russian with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.ru.200.title" = "Pro (RU)";
-"achievement.speed.ru.200.detail" = "200 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.200.detail" = "200 characters per minute in Russian with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.ru.250.title" = "Faster Than Subway Wi-Fi (RU)";
-"achievement.speed.ru.250.detail" = "250 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.250.detail" = "250 characters per minute in Russian with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.ru.300.title" = "Pianist (RU)";
-"achievement.speed.ru.300.detail" = "300 characters per minute in Russian on a text of at least 300 characters";
+"achievement.speed.ru.300.detail" = "300 characters per minute in Russian with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.en.100.title" = "Picking Up Speed (EN)";
-"achievement.speed.en.100.detail" = "100 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.100.detail" = "100 characters per minute in English with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.en.150.title" = "Confident (EN)";
-"achievement.speed.en.150.detail" = "150 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.150.detail" = "150 characters per minute in English with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.en.200.title" = "Pro (EN)";
-"achievement.speed.en.200.detail" = "200 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.200.detail" = "200 characters per minute in English with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.en.250.title" = "Faster Than Subway Wi-Fi (EN)";
-"achievement.speed.en.250.detail" = "250 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.250.detail" = "250 characters per minute in English with no errors on a lesson check or a text of at least 300 characters";
 "achievement.speed.en.300.title" = "Pianist (EN)";
-"achievement.speed.en.300.detail" = "300 characters per minute in English on a text of at least 300 characters";
+"achievement.speed.en.300.detail" = "300 characters per minute in English with no errors on a lesson check or a text of at least 300 characters";
 
 /* Ачивки: Точность */
 "achievement.accuracy.sniper.title" = "Sniper";
-"achievement.accuracy.sniper.detail" = "100% accuracy on a text of at least 300 characters";
+"achievement.accuracy.sniper.detail" = "100% accuracy on a lesson check or a text of at least 300 characters";
 "achievement.accuracy.surgeon.title" = "Surgeon";
 "achievement.accuracy.surgeon.detail" = "10 exercises in a row with at least 98% accuracy";
 "achievement.accuracy.clean_day.title" = "Neat Freak";
@@ -181,7 +181,7 @@
 "achievement.special.early_bird.title" = "Early Bird";
 "achievement.special.early_bird.detail" = "Finish an exercise between 6:00 and 8:00";
 "achievement.special.no_peeking.title" = "No Peeking";
-"achievement.special.no_peeking.detail" = "An exercise of at least 300 characters without the on-screen keyboard";
+"achievement.special.no_peeking.detail" = "A lesson check or an exercise of at least 300 characters without the on-screen keyboard";
 "achievement.special.steel_pinkies.title" = "Steel Pinkies";
 "achievement.special.steel_pinkies.detail" = "An exercise with at least 30 pinky presses and not a single pinky mistake";
 
@@ -248,8 +248,8 @@
 /* Ачивки: условия получения (AchievementConditionText) */
 "achievement.condition.streak" = "Practice streak, days: %lld";
 "achievement.condition.fullStreak" = "Full days in a row without freezes: %lld";
-"achievement.condition.speed" = "Speed, %@: %lld cpm on a text of at least %lld characters";
-"achievement.condition.perfectAccuracy" = "100%% accuracy on a text of at least %lld characters";
+"achievement.condition.speed" = "%1$@: a lesson check or an exercise of at least %3$lld characters with no errors at %2$lld cpm or faster";
+"achievement.condition.perfectAccuracy" = "A lesson check or an exercise of at least %lld characters with no errors";
 "achievement.condition.accuracyRun" = "Exercises in a row with accuracy of %@ or more: %lld";
 "achievement.condition.cleanDay" = "Exercises in a day: at least %lld, all with accuracy of %@ or more";
 "achievement.condition.firstLesson" = "Complete the first lesson of the course";
@@ -260,7 +260,7 @@
 "achievement.condition.volumeChars" = "Characters typed: %@";
 "achievement.condition.volumeHours" = "Hours of pure practice: %@";
 "achievement.condition.finishedBetween" = "Finish an exercise between %lld:00 and %lld:00";
-"achievement.condition.noKeyboard" = "An exercise of at least %lld characters without the on-screen keyboard";
+"achievement.condition.noKeyboard" = "A lesson check or an exercise of at least %lld characters without the on-screen keyboard";
 "achievement.condition.steelPinkies" = "An exercise with no pinky errors; pinky presses, at least: %lld";
 "achievement.condition.lettersOne" = "Open the letter: %@";
 "achievement.condition.lettersMany" = "Open the letters: %@";

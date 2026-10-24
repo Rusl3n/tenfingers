@@ -172,6 +172,7 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
         ex("2026-10-01 11:00", chars: 300, cpm: 400, completed: false),     // брошено
         ex("2026-10-01 12:00", language: .en, chars: 300, cpm: 400),        // другой язык
         ex("2026-10-01 13:00", chars: 300, cpm: 149.9),                     // медленно
+        ex("2026-10-01 13:30", chars: 300, accuracy: 0.997, cpm: 400),      // одна ошибка
         ex("2026-10-01 14:00", chars: 300, cpm: 150),                       // подходит
         ex("2026-10-01 15:00", chars: 500, cpm: 180),
     ]
@@ -179,6 +180,35 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
     #expect(earned(.speed(.ru, cpm: 150), f) == at("2026-10-01 14:00"))
     #expect(earned(.speed(.ru, cpm: 200), f) == nil)
     #expect(earned(.speed(.en, cpm: 300), f) == at("2026-10-01 12:00"))
+}
+
+/// Проверка урока засчитывается при любой длине (шаги курса ~90 знаков), но только без единой ошибки;
+/// остальные шаги урока короче 300 знаков не засчитываются.
+@Test func engineSpeedAndSniperCountLessonChecksWithoutErrors() {
+    let check = ex("2026-10-01 10:00", mode: .course, lessonId: "ru.1.3", kind: .check, chars: 90,
+                   accuracy: 1, cpm: 224, wrong: 0)
+    let f = facts([check])
+    #expect(earned(.speed(.ru, cpm: 100), f) == at("2026-10-01 10:00"))
+    #expect(earned(.speed(.ru, cpm: 150), f) == at("2026-10-01 10:00"))
+    #expect(earned(.speed(.ru, cpm: 200), f) == at("2026-10-01 10:00"))
+    #expect(earned(.speed(.ru, cpm: 250), f) == nil)
+    #expect(earned(.speed(.en, cpm: 100), f) == nil)
+    #expect(earned(.perfectAccuracy, f) == at("2026-10-01 10:00"))
+
+    let oneError = facts([ex("2026-10-01 10:00", mode: .course, lessonId: "ru.1.3", kind: .check, chars: 90,
+                             accuracy: 89.0 / 90, cpm: 224, wrong: 1)])
+    #expect(earned(.speed(.ru, cpm: 100), oneError) == nil)
+    #expect(earned(.perfectAccuracy, oneError) == nil)
+
+    let drill = facts([ex("2026-10-01 10:00", mode: .course, lessonId: "ru.1.3", kind: .drill, chars: 90,
+                          accuracy: 1, cpm: 224)])
+    #expect(earned(.speed(.ru, cpm: 100), drill) == nil)
+    #expect(earned(.perfectAccuracy, drill) == nil)
+
+    let abandoned = facts([ex("2026-10-01 10:00", mode: .course, lessonId: "ru.1.3", kind: .check, chars: 90,
+                              accuracy: 1, cpm: 224, completed: false)])
+    #expect(earned(.speed(.ru, cpm: 100), abandoned) == nil)
+    #expect(earned(.perfectAccuracy, abandoned) == nil)
 }
 
 @Test func enginePerfectAccuracyNeedsCompletedLongExercise() {
@@ -332,6 +362,16 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
     ]
     #expect(earned(.noKeyboard, facts(list)) == at("2026-10-01 13:00"))
     #expect(earned(.noKeyboard, facts(Array(list.prefix(3)))) == nil)
+}
+
+/// «Без подглядывания» засчитывается и на проверке урока любой длины, но не на других шагах урока.
+@Test func engineNoKeyboardCountsLessonChecks() {
+    let check = ex("2026-10-01 10:00", mode: .course, lessonId: "ru.1.3", kind: .check, chars: 90, hint: .hidden)
+    #expect(earned(.noKeyboard, facts([check])) == at("2026-10-01 10:00"))
+    let words = ex("2026-10-01 10:00", mode: .course, lessonId: "ru.1.3", kind: .words, chars: 90, hint: .hidden)
+    #expect(earned(.noKeyboard, facts([words])) == nil)
+    let shown = ex("2026-10-01 10:00", mode: .course, lessonId: "ru.1.3", kind: .check, chars: 90, hint: .onError)
+    #expect(earned(.noKeyboard, facts([shown])) == nil)
 }
 
 @Test func engineSteelPinkiesNeedsPressesWithoutPinkyErrors() {

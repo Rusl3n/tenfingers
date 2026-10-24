@@ -11,9 +11,10 @@ public enum AchievementCondition: Equatable, Sendable {
     case streak(days: Int)
     /// N полных дней подряд без заморозок.
     case fullStreakNoFreeze(days: Int)
-    /// Завершённое упражнение ≥ 300 знаков на языке с cpm ≥ N.
+    /// Подходящее упражнение (завершённая проверка урока или завершённое упражнение ≥ 300 знаков) на языке
+    /// без единой ошибки (точность 100%) с cpm ≥ N.
     case speed(Language, cpm: Int)
-    /// 100% на завершённом упражнении ≥ 300 знаков.
+    /// 100% на подходящем упражнении (завершённая проверка урока или завершённое упражнение ≥ 300 знаков).
     case perfectAccuracy
     /// N завершённых упражнений подряд с точностью ≥ minimum.
     case accuracyRun(count: Int, minimum: Double)
@@ -26,7 +27,8 @@ public enum AchievementCondition: Equatable, Sendable {
     case volumeChars(Int), volumeHours(Double)
     /// Локальное время завершения упражнения в [startHour, endHour).
     case finishedBetween(startHour: Int, endHour: Int)
-    /// Упражнение ≥ 300 знаков с `HintLevel.hidden`.
+    /// Подходящее упражнение (завершённая проверка урока или завершённое упражнение ≥ 300 знаков)
+    /// с `HintLevel.hidden`.
     case noKeyboard
     /// ≥ N нажатий мизинцами и ни одной ошибки мизинцами в одном упражнении.
     case steelPinkies(presses: Int)

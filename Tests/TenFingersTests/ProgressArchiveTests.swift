@@ -500,6 +500,30 @@ private func archiveJSON(_ fields: String) -> Data {
     #expect(defaults.object(forKey: SettingsKey.dayStartHour) == nil)
 }
 
+/// В архиве поколения 2 нет настроек фазы 4 («Взрослый юмор», опции карточки): текущие значения сохраняются,
+/// а не сбрасываются к значениям по умолчанию. В архиве поколения 3 отсутствие ключа — значение по умолчанию.
+@Test func settingsNewerThanArchiveGenerationKeepCurrentValues() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    defaults.set(false, forKey: SettingsKey.adultHumor)
+    defaults.set("dark", forKey: SettingsKey.shareTheme)
+    defaults.set(15, forKey: SettingsKey.dailyGoalMinutes)
+    let old = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 2, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: old, to: defaults)
+    #expect(defaults.object(forKey: SettingsKey.adultHumor) as? Bool == false)
+    #expect(defaults.string(forKey: SettingsKey.shareTheme) == "dark")
+    #expect(defaults.object(forKey: SettingsKey.dailyGoalMinutes) == nil)
+
+    let current = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 1, "schemaGeneration": 3, "settings": {}
+        """#))
+    ProgressArchive.applyPreferences(of: current, to: defaults)
+    #expect(defaults.object(forKey: SettingsKey.adultHumor) == nil)
+    #expect(defaults.object(forKey: SettingsKey.shareTheme) == nil)
+}
+
 @Test func settingNumbersOutsideValidRangesAreClampedOnApply() throws {
     let (defaults, name) = makeDefaults()
     defer { removeTestDefaults(name) }

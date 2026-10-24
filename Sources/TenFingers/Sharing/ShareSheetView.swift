@@ -159,14 +159,15 @@ struct ShareSheetView: View {
         }
     }
 
+    /// Окно сохранения — листом на окне «Поделиться» (если его нет — отдельным окном). PNG рисуется после выбора
+    /// файла. Отмена ничего не рисует.
     private func save() {
-        guard let data = png() else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.nameFieldStringValue = card.fileName
         panel.canCreateDirectories = true
-        panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
+        let completion: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url, let data = png() else { return }
             do {
                 try data.write(to: url, options: .atomic)
                 status = .saved
@@ -174,6 +175,11 @@ struct ShareSheetView: View {
                 shareLog.error("Saving share card failed: \(String(describing: error), privacy: .public)")
                 status = .failed
             }
+        }
+        if let window = anchor.view?.window ?? NSApp.keyWindow {
+            panel.beginSheetModal(for: window, completionHandler: completion)
+        } else {
+            panel.begin(completionHandler: completion)
         }
     }
 
@@ -189,19 +195,41 @@ struct ShareSheetView: View {
     }
 }
 
-/// Временный PNG для меню «Поделиться…»: папка `$TMPDIR/TenFingers-share` очищается перед каждой записью,
-/// чтобы прежние карточки не копились.
+/// Временный PNG для меню «Поделиться…»: каждая карточка — в своей подпапке `$TMPDIR/TenFingers-share/<UUID>`.
+/// Прежняя карточка не удаляется сразу (AirDrop или Почта могут ещё читать её, если отправить снова), а подпапки
+/// старше `lifetime` удаляются при следующей записи, чтобы карточки не копились.
 enum ShareTempFile {
     static let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("TenFingers-share", isDirectory: true)
 
-    static func write(_ data: Data, name: String, in directory: URL = directory) throws -> URL {
-        let manager = FileManager.default
-        if manager.fileExists(atPath: directory.path) { try manager.removeItem(at: directory) }
-        try manager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let url = directory.appendingPathComponent(name)
+    /// Сколько живёт временная карточка.
+    static let lifetime: TimeInterval = 10 * 60
+
+    static func write(_ data: Data, name: String, in directory: URL = directory, now: Date = .now) throws -> URL {
+        removeExpired(in: directory, now: now)
+        let folder = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent(name)
         try data.write(to: url, options: .atomic)
         return url
+    }
+
+    /// Удаляет всё в папке, созданное раньше `now - lifetime` (и подпапки, и файлы прежнего устройства папки).
+    /// Ошибки только в журнал: из-за мусора во временной папке отправка не должна срываться.
+    static func removeExpired(in directory: URL, now: Date) {
+        let manager = FileManager.default
+        guard let items = try? manager.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.creationDateKey]) else {
+            return
+        }
+        for item in items {
+            let created = (try? item.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+            guard now.timeIntervalSince(created) > lifetime else { continue }
+            do {
+                try manager.removeItem(at: item)
+            } catch {
+                shareLog.error("Removing old share card failed: \(String(describing: error), privacy: .public)")
+            }
+        }
     }
 }
 

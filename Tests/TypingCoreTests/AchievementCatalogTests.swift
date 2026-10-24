@@ -163,6 +163,29 @@ private let goldenIds: [String] = [
     #expect(sniper.detail.contains("100%"), "знак процента не должен ломаться: «\(sniper.detail)»")
 }
 
+/// Описания скорости, «Снайпера» и «Без подглядывания» (подробности ачивки и подзаголовок карточки) говорят
+/// о текущем правиле: засчитывается и проверка урока, а скорость — только без ошибок.
+@Test func qualifyingExerciseDetailsMentionLessonChecks() throws {
+    let ru = try strings("ru"), en = try strings("en")
+    let ids = AchievementCatalog.all.filter {
+        switch $0.condition {
+        case .speed, .perfectAccuracy, .noKeyboard: true
+        default: false
+        }
+    }.map(\.id)
+    #expect(ids.count == 12)
+    for id in ids {
+        let key = "achievement.\(id).detail"
+        let ruValue = try #require(ru[key]), enValue = try #require(en[key])
+        #expect(ruValue.lowercased().contains("проверк"), "ru: «\(key)» → «\(ruValue)»")
+        #expect(enValue.lowercased().contains("lesson check"), "en: «\(key)» → «\(enValue)»")
+        if id.hasPrefix("speed.") {
+            #expect(ruValue.contains("без единой ошибки"), "ru: «\(key)» → «\(ruValue)»")
+            #expect(enValue.contains("no errors"), "en: «\(key)» → «\(enValue)»")
+        }
+    }
+}
+
 @Test func adultAchievementsAreExactlyTheSixFromSectionTwelve() {
     let adult = Set(AchievementCatalog.all.filter(\.adult).map(\.id))
     #expect(adult == [

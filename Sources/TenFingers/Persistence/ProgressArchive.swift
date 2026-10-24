@@ -411,7 +411,7 @@ enum ProgressArchive {
 
     /// Настройки, профиль и продолжения уроков из архива (после успешной замены базы).
     static func applyPreferences(of archive: Archive, to defaults: UserDefaults = .standard) {
-        ArchivedSettings.apply(archive.settings, to: defaults)
+        ArchivedSettings.apply(archive.settings, generation: archive.schemaGeneration, to: defaults)
         archive.profile.apply(to: defaults)
         ArchivedSettings.applyLessonResume(archive.lessonResume, to: defaults)
     }
@@ -971,13 +971,24 @@ enum ArchivedSettings {
         return result
     }
 
-    /// Ключа нет в архиве — настройка возвращается к значению по умолчанию; значение не того типа пропускается.
+    /// Поколение схемы, с которого настройка попадает в архив. В файле более старого поколения такого ключа
+    /// не может быть, и его отсутствие не значит «по умолчанию»: текущее значение сохраняется.
+    /// Не указанные здесь ключи были в архиве с первой версии формата.
+    static let introducedIn: [String: Int] = [
+        SettingsKey.adultHumor: 3,
+        SettingsKey.shareSignature: 3, SettingsKey.shareTheme: 3,
+        SettingsKey.shareBackground: 3, SettingsKey.shareFormat: 3,
+    ]
+
+    /// Ключа нет в архиве — настройка возвращается к значению по умолчанию (кроме ключей новее поколения файла,
+    /// `introducedIn`: их текущее значение сохраняется); значение не того типа пропускается.
     /// Числа приводятся к допустимым пределам (`bounded`): файл можно править руками, а значение вне диапазона
     /// ломало бы экраны (клавиатура за пределами окна, час 99, цель вне списка).
-    static func apply(_ values: [String: SettingValue], to defaults: UserDefaults) {
+    static func apply(_ values: [String: SettingValue], generation: Int = SchemaGeneration.current,
+                      to defaults: UserDefaults) {
         for (key, kind) in entries {
             guard let value = values[key] else {
-                defaults.removeObject(forKey: key)
+                if generation >= introducedIn[key, default: 0] { defaults.removeObject(forKey: key) }
                 continue
             }
             switch (kind, value) {

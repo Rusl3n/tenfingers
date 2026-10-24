@@ -53,13 +53,15 @@ private let samples: [AchievementCondition] = [
 }
 
 @Test func speedNamesLanguageAndMinimumLength() {
-    #expect(ru(.speed(.ru, cpm: 150)) == "Скорость, Русский: 150 зн/мин на тексте от 300 знаков")
-    #expect(en(.speed(.en, cpm: 250)) == "Speed, English: 250 cpm on a text of at least 300 characters")
+    #expect(ru(.speed(.ru, cpm: 150))
+            == "Русский: от 150 зн/мин без единой ошибки на проверке урока или тексте от 300 знаков")
+    #expect(en(.speed(.en, cpm: 250))
+            == "English: a lesson check or an exercise of at least 300 characters with no errors at 250 cpm or faster")
 }
 
 @Test func accuracyConditions() {
-    #expect(ru(.perfectAccuracy) == "100% точности на тексте от 300 знаков")
-    #expect(en(.perfectAccuracy) == "100% accuracy on a text of at least 300 characters")
+    #expect(ru(.perfectAccuracy) == "Проверка урока или упражнение от 300 знаков без единой ошибки")
+    #expect(en(.perfectAccuracy) == "A lesson check or an exercise of at least 300 characters with no errors")
     #expect(ru(.accuracyRun(count: 10, minimum: 0.98)) == "Упражнений подряд с точностью от 98%: 10")
     #expect(en(.accuracyRun(count: 10, minimum: 0.98)) == "Exercises in a row with accuracy of 98% or more: 10")
     #expect(ru(.cleanDay(exercises: 5, minimum: 0.97)) == "Упражнений за день: не меньше 5, все с точностью от 97%")
@@ -95,8 +97,8 @@ private let samples: [AchievementCondition] = [
 @Test func specialConditions() {
     #expect(ru(.finishedBetween(startHour: 0, endHour: 4)) == "Завершите упражнение между 0:00 и 4:00")
     #expect(en(.finishedBetween(startHour: 6, endHour: 8)) == "Finish an exercise between 6:00 and 8:00")
-    #expect(ru(.noKeyboard) == "Упражнение от 300 знаков без экранной клавиатуры")
-    #expect(en(.noKeyboard) == "An exercise of at least 300 characters without the on-screen keyboard")
+    #expect(ru(.noKeyboard) == "Проверка урока или упражнение от 300 знаков без экранной клавиатуры")
+    #expect(en(.noKeyboard) == "A lesson check or an exercise of at least 300 characters without the on-screen keyboard")
     #expect(ru(.steelPinkies(presses: 30)) == "Упражнение без единой ошибки мизинцами; нажатий мизинцами не меньше: 30")
     #expect(en(.steelPinkies(presses: 30)) == "An exercise with no pinky errors; pinky presses, at least: 30")
 }

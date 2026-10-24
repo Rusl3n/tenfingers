@@ -85,10 +85,16 @@ enum AchievementsListing {
         (entries.filter(\.isEarned).count, entries.count)
     }
 
-    /// Самая недавно полученная видимая ачивка (при равных датах — более поздняя в каталоге).
-    static func latest(_ entries: [AchievementEntry]) -> AchievementEntry? {
-        entries.filter(\.isEarned).enumerated()
-            .max { ($0.element.unlockedAt!, $0.offset) < ($1.element.unlockedAt!, $1.offset) }?.element
+    /// Самая недавно полученная видимая ачивка (при равных датах — более поздняя в каталоге). Сначала выбирается
+    /// запись, потом строится одна `AchievementEntry`, а не весь список. Повтор id — первая запись, как в `entries`.
+    static func latest(catalog: [Achievement], earned: [StoredAchievement], adultHumor: Bool) -> AchievementEntry? {
+        let visible = AchievementVisibility.visible(catalog, adultHumor: adultHumor)
+        let position = Dictionary(visible.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let stored = Dictionary(earned.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let best = stored.values.compactMap { record in position[record.id].map { (record, $0) } }
+            .max { ($0.0.unlockedAt, $0.1) < ($1.0.unlockedAt, $1.1) }
+        guard let (record, index) = best else { return nil }
+        return AchievementEntry(achievement: visible[index], unlockedAt: record.unlockedAt, seen: record.seen)
     }
 
     /// Id видимых ачивок каталога, которые пользователь ещё не видел (точки на значках и счётчик в боковой панели).

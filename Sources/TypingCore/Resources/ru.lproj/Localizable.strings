@@ -115,29 +115,29 @@
 
 /* Ачивки: Скорость */
 "achievement.speed.ru.100.title" = "Разогнался (RU)";
-"achievement.speed.ru.100.detail" = "100 знаков в минуту на русском на тексте от 300 знаков";
+"achievement.speed.ru.100.detail" = "100 знаков в минуту на русском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.ru.150.title" = "Уверенный (RU)";
-"achievement.speed.ru.150.detail" = "150 знаков в минуту на русском на тексте от 300 знаков";
+"achievement.speed.ru.150.detail" = "150 знаков в минуту на русском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.ru.200.title" = "Профи (RU)";
-"achievement.speed.ru.200.detail" = "200 знаков в минуту на русском на тексте от 300 знаков";
+"achievement.speed.ru.200.detail" = "200 знаков в минуту на русском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.ru.250.title" = "Быстрее Wi-Fi в метро (RU)";
-"achievement.speed.ru.250.detail" = "250 знаков в минуту на русском на тексте от 300 знаков";
+"achievement.speed.ru.250.detail" = "250 знаков в минуту на русском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.ru.300.title" = "Пианист (RU)";
-"achievement.speed.ru.300.detail" = "300 знаков в минуту на русском на тексте от 300 знаков";
+"achievement.speed.ru.300.detail" = "300 знаков в минуту на русском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.en.100.title" = "Разогнался (EN)";
-"achievement.speed.en.100.detail" = "100 знаков в минуту на английском на тексте от 300 знаков";
+"achievement.speed.en.100.detail" = "100 знаков в минуту на английском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.en.150.title" = "Уверенный (EN)";
-"achievement.speed.en.150.detail" = "150 знаков в минуту на английском на тексте от 300 знаков";
+"achievement.speed.en.150.detail" = "150 знаков в минуту на английском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.en.200.title" = "Профи (EN)";
-"achievement.speed.en.200.detail" = "200 знаков в минуту на английском на тексте от 300 знаков";
+"achievement.speed.en.200.detail" = "200 знаков в минуту на английском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.en.250.title" = "Быстрее Wi-Fi в метро (EN)";
-"achievement.speed.en.250.detail" = "250 знаков в минуту на английском на тексте от 300 знаков";
+"achievement.speed.en.250.detail" = "250 знаков в минуту на английском без единой ошибки на проверке урока или тексте от 300 знаков";
 "achievement.speed.en.300.title" = "Пианист (EN)";
-"achievement.speed.en.300.detail" = "300 знаков в минуту на английском на тексте от 300 знаков";
+"achievement.speed.en.300.detail" = "300 знаков в минуту на английском без единой ошибки на проверке урока или тексте от 300 знаков";
 
 /* Ачивки: Точность */
 "achievement.accuracy.sniper.title" = "Снайпер";
-"achievement.accuracy.sniper.detail" = "100% точности на тексте от 300 знаков";
+"achievement.accuracy.sniper.detail" = "100% точности на проверке урока или тексте от 300 знаков";
 "achievement.accuracy.surgeon.title" = "Хирург";
 "achievement.accuracy.surgeon.detail" = "10 упражнений подряд с точностью от 98%";
 "achievement.accuracy.clean_day.title" = "Чистюля";
@@ -181,7 +181,7 @@
 "achievement.special.early_bird.title" = "Ранняя пташка";
 "achievement.special.early_bird.detail" = "Завершите упражнение между 6:00 и 8:00";
 "achievement.special.no_peeking.title" = "Без подглядывания";
-"achievement.special.no_peeking.detail" = "Упражнение от 300 знаков без экранной клавиатуры";
+"achievement.special.no_peeking.detail" = "Проверка урока или упражнение от 300 знаков без экранной клавиатуры";
 "achievement.special.steel_pinkies.title" = "Стальные мизинцы";
 "achievement.special.steel_pinkies.detail" = "Упражнение, где мизинцы нажали клавиши не меньше 30 раз и ни разу не ошиблись";
 
@@ -248,8 +248,8 @@
 /* Ачивки: условия получения (AchievementConditionText) */
 "achievement.condition.streak" = "Дней занятий подряд: %lld";
 "achievement.condition.fullStreak" = "Полных дней подряд без заморозок: %lld";
-"achievement.condition.speed" = "Скорость, %@: %lld зн/мин на тексте от %lld знаков";
-"achievement.condition.perfectAccuracy" = "100%% точности на тексте от %lld знаков";
+"achievement.condition.speed" = "%1$@: от %2$lld зн/мин без единой ошибки на проверке урока или тексте от %3$lld знаков";
+"achievement.condition.perfectAccuracy" = "Проверка урока или упражнение от %lld знаков без единой ошибки";
 "achievement.condition.accuracyRun" = "Упражнений подряд с точностью от %@: %lld";
 "achievement.condition.cleanDay" = "Упражнений за день: не меньше %lld, все с точностью от %@";
 "achievement.condition.firstLesson" = "Пройдите первый урок курса";
@@ -260,7 +260,7 @@
 "achievement.condition.volumeChars" = "Напечатано знаков: %@";
 "achievement.condition.volumeHours" = "Часов чистой практики: %@";
 "achievement.condition.finishedBetween" = "Завершите упражнение между %lld:00 и %lld:00";
-"achievement.condition.noKeyboard" = "Упражнение от %lld знаков без экранной клавиатуры";
+"achievement.condition.noKeyboard" = "Проверка урока или упражнение от %lld знаков без экранной клавиатуры";
 "achievement.condition.steelPinkies" = "Упражнение без единой ошибки мизинцами; нажатий мизинцами не меньше: %lld";
 "achievement.condition.lettersOne" = "Откройте букву: %@";
 "achievement.condition.lettersMany" = "Откройте буквы: %@";

@@ -39,6 +39,8 @@ private struct LocalTime {
 private struct Evaluator {
     let facts: AchievementFacts
     let calendar: Calendar
+    /// Григорианский календарь в UTC для `dayNumber`: создаётся один раз, а не на каждый день.
+    let utcCalendar: Calendar
     /// Все упражнения по возрастанию `endedAt`.
     let exercises: [ExerciseFact]
     let completed: [ExerciseFact]
@@ -52,6 +54,9 @@ private struct Evaluator {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = facts.timeZone
         self.calendar = calendar
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        utcCalendar = utc
         exercises = facts.exercises.sorted { $0.endedAt < $1.endedAt }
         completed = exercises.filter(\.completed)
         completedLocal = completed.map { fact in
@@ -68,11 +73,9 @@ private struct Evaluator {
         case .fullStreakNoFreeze(let days):
             return streakDate(days) { $0 == .full }
         case let .speed(language, cpm):
-            return firstCompleted {
-                $0.language == language && $0.chars >= Analytics.recordMinimumChars && $0.cpm >= Double(cpm)
-            }
+            return firstQualifying { $0.language == language && $0.accuracy >= 1 && $0.cpm >= Double(cpm) }
         case .perfectAccuracy:
-            return firstCompleted { $0.chars >= Analytics.recordMinimumChars && $0.accuracy >= 1 }
+            return firstQualifying { $0.accuracy >= 1 }
         case let .accuracyRun(count, minimum):
             return accuracyRunDate(count: count, minimum: minimum)
         case let .cleanDay(count, minimum):
@@ -99,7 +102,7 @@ private struct Evaluator {
         case let .finishedBetween(startHour, endHour):
             return firstLocal { $0.hour >= startHour && $0.hour < endHour }
         case .noKeyboard:
-            return firstCompleted { $0.chars >= Analytics.recordMinimumChars && $0.hintLevel == .hidden }
+            return firstQualifying { $0.hintLevel == .hidden }
         case .steelPinkies(let presses):
             return firstCompleted { $0.pinkyPresses >= presses && $0.pinkyErrors == 0 }
         case let .lettersUnlocked(language, letters):
@@ -133,6 +136,13 @@ private struct Evaluator {
 
     private func firstCompleted(_ matches: (ExerciseFact) -> Bool) -> Date? {
         completed.first(where: matches)?.endedAt
+    }
+
+    /// Подходящее упражнение для скорости, «Снайпера» и «Без подглядывания»: завершённая проверка урока или
+    /// завершённое упражнение от `Analytics.recordMinimumChars` знаков. Шаги курса короче рекордного порога,
+    /// поэтому проверка урока засчитывается при любой длине; рекорды аналитики по-прежнему только от порога.
+    private func firstQualifying(_ matches: (ExerciseFact) -> Bool) -> Date? {
+        firstCompleted { ($0.exerciseKind == .check || $0.chars >= Analytics.recordMinimumChars) && matches($0) }
     }
 
     private func firstLocal(_ matches: (LocalTime) -> Bool) -> Date? {
@@ -307,9 +317,7 @@ private struct Evaluator {
     /// Порядковый номер дня (дни от эпохи), чтобы считать разницу между ключами.
     private func dayNumber(_ day: String) -> Int? {
         guard let parts = dayParts(day) else { return nil }
-        var utc = Calendar(identifier: .gregorian)
-        utc.timeZone = TimeZone(identifier: "UTC")!
-        guard let date = utc.date(from: DateComponents(year: parts.year, month: parts.month, day: parts.day)) else {
+        guard let date = utcCalendar.date(from: DateComponents(year: parts.year, month: parts.month, day: parts.day)) else {
             return nil
         }
         return Int((date.timeIntervalSince1970 / 86_400).rounded(.down))

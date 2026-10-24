@@ -252,14 +252,23 @@ private func cornerAlpha(_ rep: NSBitmapImageRep) throws -> CGFloat {
     #expect(try cornerAlpha(rep) == 0)
 }
 
-/// Временная папка «Поделиться…» очищается: после второй карточки в ней только она.
-@Test func shareTempFolderKeepsOnlyLatestCard() throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("share-temp-\(UUID().uuidString)")
-    defer { try? FileManager.default.removeItem(at: directory) }
-    _ = try ShareTempFile.write(Data([1]), name: "a.png", in: directory)
-    let url = try ShareTempFile.write(Data([2]), name: "b.png", in: directory)
-    #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["b.png"])
-    #expect(try Data(contentsOf: url) == Data([2]))
+/// Временная папка «Поделиться…»: каждая карточка в своей подпапке, недавние остаются (их ещё может читать AirDrop),
+/// подпапки старше `lifetime` удаляются при следующей записи.
+@Test func shareTempFolderKeepsRecentCardsAndDropsOldOnes() throws {
+    let manager = FileManager.default
+    let directory = manager.temporaryDirectory.appendingPathComponent("share-temp-\(UUID().uuidString)")
+    defer { try? manager.removeItem(at: directory) }
+    let a = try ShareTempFile.write(Data([1]), name: "card.png", in: directory)
+    let b = try ShareTempFile.write(Data([2]), name: "card.png", in: directory)
+    #expect(a != b && a.lastPathComponent == "card.png")
+    #expect(try Data(contentsOf: a) == Data([1]))
+    #expect(try Data(contentsOf: b) == Data([2]))
+    #expect(try manager.contentsOfDirectory(atPath: directory.path).count == 2)
+
+    let later = Date.now.addingTimeInterval(ShareTempFile.lifetime + 60)
+    let c = try ShareTempFile.write(Data([3]), name: "card.png", in: directory, now: later)
+    #expect(try manager.contentsOfDirectory(atPath: directory.path) == [c.deletingLastPathComponent().lastPathComponent])
+    #expect(try Data(contentsOf: c) == Data([3]))
 }
 
 // MARK: - Тост ачивки

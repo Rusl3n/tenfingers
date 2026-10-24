@@ -67,9 +67,8 @@ struct HomeView: View {
 
     /// Последняя полученная видимая ачивка (скрытые «взрослые» при выключенном юморе не в счёт).
     private var latestAchievement: AchievementEntry? {
-        AchievementsListing.latest(AchievementsListing.entries(
-            catalog: AchievementCatalog.all, earned: achievementRecords.map(StoredAchievement.init),
-            adultHumor: adultHumor))
+        AchievementsListing.latest(catalog: AchievementCatalog.all,
+                                   earned: achievementRecords.map(StoredAchievement.init), adultHumor: adultHumor)
     }
 
     private var continueInfo: ContinueInfo? {
