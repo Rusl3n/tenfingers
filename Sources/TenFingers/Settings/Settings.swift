@@ -48,6 +48,12 @@ enum SettingsKey {
     static let reminderTone = "reminderTone"
     /// Нарастающие напоминания: каждое следующее за день настойчивее предыдущего.
     static let reminderEscalating = "reminderEscalating"
+    /// Служебный (не в архиве): одноразовая очистка очереди уведомлений при первом запуске 1.2.1 уже сделана.
+    static let remindersResetDone = "remindersResetDone"
+    /// Служебные (не в архиве): сколько ожидающих напоминаний система на деле держит у приложения и когда это
+    /// последний раз проверялось (секунды с 1970).
+    static let reminderSystemLimit = "reminderSystemLimit"
+    static let reminderSystemLimitProbedAt = "reminderSystemLimitProbedAt"
     /// Профиль: никнейм и имя (для карточек «Поделиться» фазы 4).
     static let profileNickname = "profileNickname"
     static let profileFullName = "profileFullName"

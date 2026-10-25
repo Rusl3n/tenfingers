@@ -982,7 +982,9 @@ struct LenientSetting: Decodable {
 }
 
 /// Какие настройки попадают в архив. Только известные ключи; профиль — отдельным разделом `profile`.
-/// Не попадают: открытый раздел настроек (состояние окна) и прежний ключ темы.
+/// Не попадают: открытый раздел настроек (состояние окна), прежний ключ темы и служебный флаг
+/// одноразовой очистки уведомлений (`remindersResetDone`), предел очереди уведомлений этого Mac
+/// (`reminderSystemLimit`, `reminderSystemLimitProbedAt`).
 enum ArchivedSettings {
     enum Kind { case bool, int, double, string }
 

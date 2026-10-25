@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.settingsSection) private var sectionRaw = SettingsSection.general.rawValue
     @State private var preview = KeyboardPreviewState()
     @State private var miniature = KeyboardMiniatureFrame()
+    @Environment(ReminderDraftStore.self) private var reminderDraft
 
     private var section: SettingsSection { SettingsSection(rawValue: sectionRaw) ?? .general }
     private var wantsFullSize: Bool { preview.showsFullSize && section == .keyboard }
@@ -15,6 +16,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             sectionBar
+            unsavedReminders
             content
             Text(AppVersion.settingsLine(info: AppVersion.current))
                 .font(.caption2)
@@ -45,6 +47,19 @@ struct SettingsView: View {
         case .reminders: ReminderSettingsView()
         case .profile: ProfileSettingsView()
         case .data: DataSettingsView()
+        }
+    }
+
+    /// В другом разделе, а в «Напоминаниях» остался несохранённый черновик: напоминаем (нажатие ведёт туда).
+    @ViewBuilder private var unsavedReminders: some View {
+        if section != .reminders, reminderDraft.isDirty {
+            Button { sectionRaw = SettingsSection.reminders.rawValue } label: {
+                Label("Есть несохранённые изменения", systemImage: SettingsSection.reminders.icon)
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .padding(.top, 4)
         }
     }
 

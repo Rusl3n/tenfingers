@@ -994,10 +994,13 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let keys = Set(pattern.matches(in: body, range: NSRange(body.startIndex..., in: body))
         .map { String(body[Range($0.range(at: 1), in: body)!]) })
     #expect(keys.count > 15)
-    // Не настройки: состояние окна или устройства (язык интерфейса), прежний ключ темы; профиль — отдельным разделом архива.
+    // Не настройки: состояние окна или устройства (язык интерфейса), прежний ключ темы, служебные флаг очистки
+    // уведомлений и предел очереди уведомлений этого Mac; профиль — отдельным разделом архива.
     let excluded: Set<String> = [SettingsKey.settingsSection, SettingsKey.legacyTheme, SettingsKey.interfaceLanguage,
                                  SettingsKey.onboardingCompleted, SettingsKey.achievementsFilter,
-                                 SettingsKey.profileNickname, SettingsKey.profileFullName]
+                                 SettingsKey.profileNickname, SettingsKey.profileFullName,
+                                 SettingsKey.remindersResetDone, SettingsKey.reminderSystemLimit,
+                                 SettingsKey.reminderSystemLimitProbedAt]
     let archived = Set(ArchivedSettings.entries.map(\.key))
     #expect(keys.subtracting(excluded).subtracting(archived).isEmpty,
             "не в архиве: \(keys.subtracting(excluded).subtracting(archived).sorted())")

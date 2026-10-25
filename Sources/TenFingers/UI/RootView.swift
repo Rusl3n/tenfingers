@@ -95,6 +95,8 @@ struct RootView: View {
     @State private var activeRun: RunKind?
     @State private var presence = RunPresence()
     @State private var toasts = ToastCenter()
+    /// Черновик настроек напоминаний живёт, пока открыто окно (`ReminderSettingsView`).
+    @State private var reminderDraft = ReminderDraftStore()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var visibilityBeforeLesson: NavigationSplitViewVisibility?
     @State private var escapeMonitor: Any?
@@ -154,6 +156,7 @@ struct RootView: View {
         }
         .environment(presence)
         .environment(toasts)
+        .environment(reminderDraft)
         .overlay { ToastOverlay(toasts: toasts) }
         .onChange(of: activeRun?.id) { _, runId in
             presence.hasRun = runId != nil

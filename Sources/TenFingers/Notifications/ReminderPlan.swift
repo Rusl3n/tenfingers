@@ -12,12 +12,19 @@ enum ReminderID {
     /// `reminder.today`, `reminder.tomorrow`), начинаются так; чужих ожидающих уведомлений нет.
     static let prefix = "reminder."
 
+    /// Пробное напоминание («Проверить напоминание»): в план не входит, пересчёт его не трогает.
+    static let test = "reminder.test"
+
     static func isReminder(_ id: String) -> Bool { id.hasPrefix(prefix) }
+
+    /// Напоминание из плана (нынешнего или прежних версий), а не пробное.
+    static func isPlanned(_ id: String) -> Bool { isReminder(id) && id != test }
 }
 
 /// Что изменить в ожидающих уведомлениях, чтобы они совпали с планом: удалить напоминания, которых в плане нет
 /// (в том числе с идентификаторами прежних версий), и поставить новые или изменившиеся (время, заголовок, текст;
-/// уведомление с тем же идентификатором система заменяет). Совпадающие не трогаются: каждый запрос к системе
+/// уведомление с тем же идентификатором система заменяет). Пробное (`ReminderID.test`) не трогается.
+/// Совпадающие не трогаются: каждый запрос к системе
 /// расходует её лимит частоты, а лишние она отбрасывает («Too many requests»).
 struct ReminderDiff: Equatable {
     let remove: [String]
@@ -26,7 +33,7 @@ struct ReminderDiff: Equatable {
     var isEmpty: Bool { remove.isEmpty && add.isEmpty }
 
     static func make(pending: [ReminderNotification], planned: [ReminderNotification]) -> ReminderDiff {
-        let current = Dictionary(pending.filter { ReminderID.isReminder($0.id) }.map { ($0.id, $0) },
+        let current = Dictionary(pending.filter { ReminderID.isPlanned($0.id) }.map { ($0.id, $0) },
                                  uniquingKeysWith: { first, _ in first })
         let wanted = Set(planned.map(\.id))
         return ReminderDiff(remove: current.keys.filter { !wanted.contains($0) }.sorted(),

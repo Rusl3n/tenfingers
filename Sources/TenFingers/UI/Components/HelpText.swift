@@ -89,6 +89,9 @@ enum HelpText {
         String(localized: "Каждое следующее напоминание за день настойчивее: первое мягкое, второе настойчивое, третье и дальше — драма. Чаще они не приходят: сколько и когда — задаёт расписание, а единственное напоминание в день всегда мягкое. Когда день стал полным огнём, оставшиеся на сегодня отменяются.")
     }
     /// Первое предложение подсказки — подпись под переключателем (полный текст — в «?» и во всплывающей подсказке).
+    static var reminderTest: String {
+        String(localized: "Через несколько секунд придёт пробное уведомление: так будут выглядеть напоминания.")
+    }
     static var reminderEscalatingSummary: String {
         String(localized: "Каждое следующее напоминание за день настойчивее: первое мягкое, второе настойчивое, третье и дальше — драма.")
     }
@@ -107,6 +110,6 @@ enum HelpText {
     static var all: [String] {
         [fireFull, fireHalf, fireNone, freezes, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots,
          speedUnits, dayStart, hintMode, spaceThumb, adaptiveTarget, keyboardSize, keyboardOffset, quitOnClose, interfaceLanguage,
-         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, visitDays, goalDays, futureDay, firstWeekday]
+         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, visitDays, goalDays, futureDay, firstWeekday, reminderTest]
     }
 }

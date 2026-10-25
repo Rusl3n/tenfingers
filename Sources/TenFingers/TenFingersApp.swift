@@ -39,7 +39,9 @@ struct TenFingersApp: App {
         if let container { DayGoals.backfillLogging(context: container.mainContext) }
         let scheduler = ReminderScheduler.live(context: container?.mainContext)
         _reminders = State(initialValue: scheduler)
-        // Запуск: пересчёт напоминаний. Разрешение здесь не запрашивается, только читается.
+        // Запуск: один раз (1.2.1) очистка хвостов прошлых версий в очереди уведомлений, затем пересчёт напоминаний.
+        // Разрешение здесь не запрашивается, только читается.
+        scheduler.resetOnceIfNeeded()
         scheduler.rescheduleSoon()
     }
 

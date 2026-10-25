@@ -82,5 +82,21 @@
 			<string>%lld errors</string>
 		</dict>
 	</dict>
+	<key>reminders.limit %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>The system accepts only %lld reminder — scheduling the nearest</string>
+			<key>other</key>
+			<string>The system accepts only %lld reminders — scheduling the nearest ones</string>
+		</dict>
+	</dict>
 </dict>
 </plist>
