@@ -29,11 +29,13 @@ public struct ExerciseResult: Sendable {
     public let errorsByCharacter: [Character: Int]
     /// Номер шага в плане урока (`ExerciseSpec.id`); `nil` вне курса.
     public let stepIndex: Int?
-    /// Свойства целевого текста упражнения (весь текст, даже если упражнение брошено); связность добавляет запись.
+    /// Свойства целевого текста упражнения (весь текст, даже если упражнение брошено) и связность от планировщика
+    /// (`ExerciseSpec.connected`); связность по источнику добавляет запись.
     public let textTraits: TextTraits
 
     public init(engine: TypingEngine, mode: ExerciseMode, language: Language, lessonId: String?,
-                startedAt: Date, endedAt: Date, hintLevel: HintLevel, exerciseKind: ExerciseKind? = nil, stepIndex: Int? = nil) {
+                startedAt: Date, endedAt: Date, hintLevel: HintLevel, exerciseKind: ExerciseKind? = nil, stepIndex: Int? = nil,
+                connected: Bool = false) {
         self.mode = mode
         self.exerciseKind = exerciseKind
         self.language = language
@@ -52,6 +54,6 @@ public struct ExerciseResult: Sendable {
         timings = engine.timings
         errorsByCharacter = engine.errorsByCharacter
         self.stepIndex = stepIndex
-        textTraits = TextTraits.of(engine.target)
+        textTraits = TextTraits.of(engine.target).union(connected ? .connected : [])
     }
 }

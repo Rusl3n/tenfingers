@@ -18,10 +18,13 @@ public struct SessionSummary: Equatable, Sendable {
     public let cpm: Double?
     /// Ошибок в упражнении.
     public let errorCount: Int
+    /// Номер шага в плане урока; `nil` вне курса и у записей до 6a.
+    public let stepIndex: Int?
 
     public init(day: String, endedAt: Date, language: Language, mode: ExerciseMode, chars: Int,
                 activeSeconds: Double, accuracy: Double, completed: Bool,
-                lessonId: String? = nil, exerciseKind: ExerciseKind? = nil, cpm: Double? = nil, errorCount: Int = 0) {
+                lessonId: String? = nil, exerciseKind: ExerciseKind? = nil, cpm: Double? = nil, errorCount: Int = 0,
+                stepIndex: Int? = nil) {
         self.day = day
         self.endedAt = endedAt
         self.language = language
@@ -34,6 +37,7 @@ public struct SessionSummary: Equatable, Sendable {
         self.exerciseKind = exerciseKind
         self.cpm = cpm
         self.errorCount = errorCount
+        self.stepIndex = stepIndex
     }
 
     /// Скорость упражнения: сохранённая или знаки за минуту чистого времени.

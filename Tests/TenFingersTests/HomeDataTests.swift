@@ -166,3 +166,57 @@ private func make(days: [String: DayActivity] = [:], sessions: [SessionSummary] 
 @Test func futureDayIconExists() {
     #expect(NSImage(systemSymbolName: WeekStrip.futureIcon, accessibilityDescription: nil) != nil)
 }
+
+// MARK: - «Продолжить курс»
+
+/// «Продолжить» ведёт по `continueTarget`: следующий урок, «Пересдать проверку» при проверке ниже порога,
+/// экстерн — в открытый этап, «Курс пройден».
+@Test func continueInfoFollowsTheGate() throws {
+    let course = try CourseFixtureApp.ruMini()
+    let stageOne = Set(course.stages[0].lessons.map(\.id))
+    let all = Set(course.lessons.map(\.id))
+
+    // Начало: первый урок этапа 1.
+    let start = try #require(ContinueInfo.make(course: course, language: .ru, passed: [], checkStars: [:]))
+    #expect(start.lessonRun?.lessonId == "ru2.s1.01")
+    #expect(!start.retakeCheck && start.percent == 0 && start.stageTitle == "Этап 1")
+
+    // Этап пройден, а проверка набрала ★ при пороге ★★ — «Пересдать проверку» того же этапа.
+    let retake = try #require(ContinueInfo.make(course: course, language: .ru, passed: stageOne,
+                                                checkStars: ["ru2.s1.check": 1]))
+    #expect(retake.retakeCheck)
+    #expect(retake.lessonRun?.lessonId == "ru2.s1.check")
+    #expect(retake.stageTitle == "Этап 1" && retake.lessonTitle == course.lessons[4].localizedTitle && retake.percent == 50)
+
+    // Порог взят: этап 2.
+    let next = try #require(ContinueInfo.make(course: course, language: .ru, passed: stageOne,
+                                              checkStars: ["ru2.s1.check": 2]))
+    #expect(!next.retakeCheck && next.stageTitle == "Этап 2")
+    #expect(next.lessonRun?.lessonId == "ru2.s2.01")
+
+    // Экстерн: засчитана только проверка этапа 1 — главная ведёт в этап 2, а не в начало курса.
+    let extern = try #require(ContinueInfo.make(course: course, language: .ru, passed: ["ru2.s1.check"],
+                                                checkStars: ["ru2.s1.check": 2]))
+    #expect(extern.stageTitle == "Этап 2" && extern.lessonRun?.lessonId == "ru2.s2.01" && !extern.retakeCheck)
+
+    // Курс пройден: все уроки засчитаны и итоговая проверка набрала порог.
+    let done = try #require(ContinueInfo.make(course: course, language: .ru, passed: all,
+                                              checkStars: ["ru2.s1.check": 2, "ru2.s2.check": 3]))
+    #expect(done.lessonTitle == nil && done.lessonRun == nil && !done.retakeCheck && done.percent == 100)
+
+    // Итоговая проверка ниже порога — пересдать её.
+    let last = try #require(ContinueInfo.make(course: course, language: .ru, passed: all,
+                                              checkStars: ["ru2.s1.check": 2, "ru2.s2.check": 2]))
+    #expect(last.retakeCheck && last.lessonRun?.lessonId == "ru2.s2.check")
+}
+
+/// Издание 1: следующий урок, без порога.
+@Test func continueInfoInEditionOneIsTheNextLesson() throws {
+    let course = try #require(try CourseCatalog.legacy(.ru))
+    let first = course.lessons[0], second = course.lessons[1]
+    let info = try #require(ContinueInfo.make(course: course, language: .ru, passed: [first.id], checkStars: [:]))
+    #expect(info.lessonRun?.lessonId == second.id && !info.retakeCheck)
+    let done = try #require(ContinueInfo.make(course: course, language: .ru, passed: Set(course.lessons.map(\.id)),
+                                              checkStars: [:]))
+    #expect(done.lessonTitle == nil && done.percent == 100)
+}

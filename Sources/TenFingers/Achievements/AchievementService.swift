@@ -27,12 +27,15 @@ struct AchievementService {
     let now: () -> Date
     let catalog: [Achievement]
     let courses: [Language: Course]
+    /// Курсы издания 1 (архив): прежние уроки по-прежнему дают курсовые ачивки, звёзды и открытые буквы (решение 17).
+    let legacyCourses: [Language: Course]
     /// Упражнения истории как факты: строятся один раз и дальше только дополняются новыми сессиями.
     let cache: AchievementFactsCache
 
     init(recorder: ResultRecorder, goalSeconds: @escaping () -> Double, timeZone: TimeZone = .current,
          now: @escaping () -> Date = { Date() }, catalog: [Achievement] = AchievementCatalog.all,
          courses: [Language: Course] = AchievementService.bundledCourses,
+         legacyCourses: [Language: Course] = AchievementService.bundledLegacyCourses,
          cache: AchievementFactsCache = AchievementFactsCache()) {
         self.recorder = recorder
         self.goalSeconds = goalSeconds
@@ -40,6 +43,7 @@ struct AchievementService {
         self.now = now
         self.catalog = catalog
         self.courses = courses
+        self.legacyCourses = legacyCourses
         self.cache = cache
     }
 
@@ -55,6 +59,17 @@ struct AchievementService {
         for language in Language.allCases {
             do { result[language] = try CourseCatalog.load(language) } catch {
                 achievementLog.error("Course \(language.rawValue, privacy: .public) not loaded: \(String(describing: error), privacy: .public)")
+            }
+        }
+        return result
+    }()
+
+    /// Курсы издания 1 из ресурсов ядра (`course-<lang>-v1.json`); нет файла — нет ключа, ошибка чтения — в журнал.
+    static let bundledLegacyCourses: [Language: Course] = {
+        var result: [Language: Course] = [:]
+        for language in Language.allCases {
+            do { result[language] = try CourseCatalog.legacy(language) } catch {
+                achievementLog.error("Legacy course \(language.rawValue, privacy: .public) not loaded: \(String(describing: error), privacy: .public)")
             }
         }
         return result
@@ -138,6 +153,7 @@ struct AchievementService {
             exercises: exercises, days: days, abandonedByDay: abandoned, languagesByDay: languages,
             streakStatuses: streak.statuses, lessonPasses: passes, lessonAttempts: attempts,
             starsByLesson: stars(progress: progress, exercises: exercises), courses: courses,
+            legacyCourses: legacyCourses,
             openLetterDates: try openLetterDates(passes: passes, exercises: exercises, now: now),
             counters: counters, yoKeyStatCorrect: yoKeyStatCorrect, timeZone: timeZone, now: now)
     }
@@ -154,11 +170,13 @@ struct AchievementService {
             maxErrorStreak: record.maxErrorStreak, wrongKeystrokes: record.wrongKeystrokes,
             pinkyPresses: record.pinkyPresses, pinkyErrors: record.pinkyErrors, source: record.source,
             fingerPresses: FingerCounts.counts(record.fingerPresses),
-            fingerErrors: FingerCounts.counts(record.fingerErrors), yoCorrect: record.yoPresses)
+            fingerErrors: FingerCounts.counts(record.fingerErrors), yoCorrect: record.yoPresses,
+            stepIndex: record.stepIndex)
     }
 
-    /// Звёзды уроков — только `LessonScoring.effectiveStars` (как карта курса и аналитика): история —
-    /// завершённые шаги урока (проверки дают звёзды, остальные шаги — чистоту урока для ★★★★★).
+    /// Звёзды уроков обоих изданий — только `LessonScoring.effectiveStars` с целью урока `Course.targetCpm(for:)`
+    /// (как карта курса и аналитика): история — завершённые шаги урока (проверки дают звёзды, остальные шаги —
+    /// чистоту урока для ★★★★★, шаги — по номеру в плане).
     private func stars(progress: [LessonProgress], exercises: [ExerciseFact]) -> [String: Int] {
         let stored = Dictionary(progress.map { ($0.lessonId, $0) }, uniquingKeysWith: { first, _ in first })
         var lessonSessions: [String: [SessionSummary]] = [:]
@@ -169,18 +187,17 @@ struct AchievementService {
                 day: fact.logicalDay, endedAt: fact.endedAt, language: fact.language, mode: fact.mode,
                 chars: fact.chars, activeSeconds: fact.activeSeconds, accuracy: fact.accuracy, completed: true,
                 lessonId: lessonId, exerciseKind: fact.exerciseKind, cpm: fact.cpm,
-                errorCount: Int((Double(fact.chars) * (1 - fact.accuracy)).rounded())))
+                errorCount: Int((Double(fact.chars) * (1 - fact.accuracy)).rounded()), stepIndex: fact.stepIndex))
         }
         var result: [String: Int] = [:]
-        for course in courses.values {
-            for stage in course.stages {
-                for lesson in stage.lessons
-                where stored[lesson.id] != nil || lessonSessions[lesson.id]?.contains(where: { $0.exerciseKind == .check }) == true {
-                    let record = stored[lesson.id]
-                    result[lesson.id] = LessonScoring.effectiveStars(
-                        sessions: lessonSessions[lesson.id] ?? [], lessonId: lesson.id, targetCpm: stage.targetCpm,
-                        passed: record?.passedAt != nil, storedStars: record?.bestStars ?? 0)
-                }
+        for course in Array(courses.values) + Array(legacyCourses.values) {
+            for lesson in course.lessons
+            where stored[lesson.id] != nil || lessonSessions[lesson.id]?.contains(where: { $0.exerciseKind == .check }) == true {
+                guard let target = course.targetCpm(for: lesson.id) else { continue }
+                let record = stored[lesson.id]
+                result[lesson.id] = LessonScoring.effectiveStars(
+                    sessions: lessonSessions[lesson.id] ?? [], lessonId: lesson.id, targetCpm: target,
+                    passed: record?.passedAt != nil, storedStars: record?.bestStars ?? 0)
             }
         }
         return result
@@ -204,7 +221,7 @@ struct AchievementService {
             // Строка `AdaptiveState` появляется после первой завершённой порции.
             let firstAdaptive = adaptive.first(where: \.completed)?.endedAt ?? adaptive.first?.endedAt
             let dates = Self.openLetterDates(
-                language: language, course: courses[language], passes: passes,
+                language: language, course: courses[language], legacy: legacyCourses[language], passes: passes,
                 adaptiveCount: states.first { $0.language == code }?.unlockedCount,
                 unlocks: opened, firstAdaptive: firstAdaptive, now: now)
             if !dates.isEmpty { result[language] = dates }
@@ -214,12 +231,14 @@ struct AchievementService {
 
     /// Открытые символы языка с датой открытия (§21):
     /// - курс — все символы уроков до засчитанного урока включительно, дата — самый ранний `passedAt`
-    ///   засчитанного урока, в котором символ уже есть (как `OpenLetters`, но со знаками: «:q!»);
+    ///   засчитанного урока, в котором символ уже есть (как `OpenLetters`, но со знаками: «:q!»); курсы обоих
+    ///   изданий (текущий и архив `legacy`) — объединение: буквы, открытые в прежнем курсе, остаются открытыми;
     /// - адаптивный режим — только если есть строка `AdaptiveState` (`adaptiveCount`): буквы с `AdaptiveUnlock`
     ///   получают его дату, стартовые — конец первой адаптивной тренировки, прочие — `now`.
     /// Буквы в нижнем регистре; если символ открыт и там и там — более ранняя дата.
-    nonisolated static func openLetterDates(language: Language, course: Course?, passes: [String: Date], adaptiveCount: Int?,
-                                unlocks: [Character: Date], firstAdaptive: Date?, now: Date) -> [Character: Date] {
+    nonisolated static func openLetterDates(language: Language, course: Course?, legacy: Course? = nil,
+                                            passes: [String: Date], adaptiveCount: Int?, unlocks: [Character: Date],
+                                            firstAdaptive: Date?, now: Date) -> [Character: Date] {
         var result: [Character: Date] = [:]
         func open(_ character: Character, _ date: Date) {
             let lowered = String(character).lowercased()
@@ -227,7 +246,7 @@ struct AchievementService {
             guard key != " " else { return }
             result[key] = min(result[key] ?? date, date)
         }
-        if let course {
+        for course in [course, legacy].compactMap({ $0 }) {
             var introduced: [Character] = []
             for lesson in course.lessons {
                 introduced.append(contentsOf: lesson.newCharacters)

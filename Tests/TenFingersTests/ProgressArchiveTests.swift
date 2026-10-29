@@ -995,12 +995,13 @@ private func fillPreferences(_ defaults: UserDefaults) {
         .map { String(body[Range($0.range(at: 1), in: body)!]) })
     #expect(keys.count > 15)
     // Не настройки: состояние окна или устройства (язык интерфейса), прежний ключ темы, служебные флаг очистки
-    // уведомлений и предел очереди уведомлений этого Mac; профиль — отдельным разделом архива.
+    // уведомлений и предел очереди уведомлений этого Mac, лист «Новый курс» показан (состояние устройства);
+    // профиль — отдельным разделом архива.
     let excluded: Set<String> = [SettingsKey.settingsSection, SettingsKey.legacyTheme, SettingsKey.interfaceLanguage,
                                  SettingsKey.onboardingCompleted, SettingsKey.achievementsFilter,
                                  SettingsKey.profileNickname, SettingsKey.profileFullName,
                                  SettingsKey.remindersResetDone, SettingsKey.reminderSystemLimit,
-                                 SettingsKey.reminderSystemLimitProbedAt]
+                                 SettingsKey.reminderSystemLimitProbedAt, SettingsKey.newCourseIntroShown]
     let archived = Set(ArchivedSettings.entries.map(\.key))
     #expect(keys.subtracting(excluded).subtracting(archived).isEmpty,
             "не в архиве: \(keys.subtracting(excluded).subtracting(archived).sorted())")

@@ -3,7 +3,7 @@ import Testing
 
 @Test(arguments: Language.allCases)
 func everyLessonProducesValidExercises(language: Language) throws {
-    let course = try CourseCatalog.load(language)
+    let course = try CourseFixtures.editionOne(language)
     let planner = LessonPlanner(generator: TextGenerator(wordList: try WordList.load(language)))
     for lesson in course.lessons {
         let ctx = try #require(course.context(for: lesson.id))
@@ -24,7 +24,7 @@ func everyLessonProducesValidExercises(language: Language) throws {
 }
 
 @Test func lessonWithNewKeysHasFourSteps() throws {
-    let course = try CourseCatalog.load(.ru)
+    let course = try CourseFixtures.editionOne(.ru)
     let planner = LessonPlanner(generator: TextGenerator(wordList: try WordList.load(.ru)))
     var rng = SeededGenerator(seed: 1)
     let kinds = planner.exercises(for: try #require(course.context(for: "ru.1.1")), rng: &rng).map(\.kind)
@@ -32,7 +32,7 @@ func everyLessonProducesValidExercises(language: Language) throws {
 }
 
 @Test func checkLessonHasOnlyCheck() throws {
-    let course = try CourseCatalog.load(.ru)
+    let course = try CourseFixtures.editionOne(.ru)
     let planner = LessonPlanner(generator: TextGenerator(wordList: try WordList.load(.ru)))
     var rng = SeededGenerator(seed: 1)
     let kinds = planner.exercises(for: try #require(course.context(for: "ru.1.check")), rng: &rng).map(\.kind)
@@ -47,7 +47,7 @@ func everyLessonProducesValidExercises(language: Language) throws {
 
 @Test(arguments: [(Language.ru, "ru.2.6"), (Language.ru, "ru.5.4"), (Language.en, "en.5.5"), (Language.en, "en.4.4")])
 func newKeysAppearInCheckTextForManySeeds(language: Language, lessonId: String) throws {
-    let course = try CourseCatalog.load(language)
+    let course = try CourseFixtures.editionOne(language)
     let planner = LessonPlanner(generator: TextGenerator(wordList: try WordList.load(language)))
     let ctx = try #require(course.context(for: lessonId))
     for seed in UInt64(1)...30 {

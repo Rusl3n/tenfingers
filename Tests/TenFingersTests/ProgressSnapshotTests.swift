@@ -84,6 +84,71 @@ private func session(day: String, language: Language = .ru, mode: ExerciseMode =
     #expect(try ProgressSnapshot(context: context).lessonSessions(lessonId: "ru.1.2").isEmpty)
 }
 
+/// Запись шага курса для проверок гейта и ориентира «Ускорения».
+private func courseStep(_ lessonId: String, kind: ExerciseKind, language: Language = .ru, cpm: Double,
+                        accuracy: Double = 0.99, completed: Bool = true, endedAt: Date = noon) -> SessionRecord {
+    let record = session(day: "2026-03-10", language: language, chars: 100, seconds: 60, accuracy: accuracy,
+                         completed: completed, endedAt: endedAt)
+    record.lessonId = lessonId
+    record.exerciseKind = kind.rawValue
+    record.cpm = cpm
+    return record
+}
+
+/// Звёзды проверок этапов: лучшая завершённая проверка этапа своего языка; шаги других видов, брошенные попытки и
+/// чужой язык не в счёт. Цель проверки этапа 1 — «до» (80 зн/мин): 70 зн/мин при точности 99% — ★★.
+@MainActor @Test func stageCheckStarsComeFromTheBestCompletedCheck() throws {
+    let container = try makeContainer()
+    defer { withExtendedLifetime(container) {} }
+    let context = container.mainContext
+    let course = try CourseFixtureApp.ruMini()
+    context.insert(courseStep("ru2.s1.check", kind: .check, cpm: 70))
+    context.insert(courseStep("ru2.s1.check", kind: .check, cpm: 50))
+    // Ни звёзд, ни зачёта: брошенная проверка, быстрый шаг не-проверка, чужой язык.
+    context.insert(courseStep("ru2.s1.check", kind: .check, cpm: 200, completed: false))
+    context.insert(courseStep("ru2.s1.check", kind: .words, cpm: 200))
+    context.insert(courseStep("ru2.s1.check", kind: .check, language: .en, cpm: 200))
+    let stars = try ProgressSnapshot(context: context).stageCheckStars(course: course)
+    #expect(stars == ["ru2.s1.check": 2])
+}
+
+@MainActor @Test func stageCheckStarsAreEmptyWithoutAttempts() throws {
+    let container = try makeContainer()
+    defer { withExtendedLifetime(container) {} }
+    let course = try CourseFixtureApp.ruMini()
+    #expect(try ProgressSnapshot(context: container.mainContext).stageCheckStars(course: course).isEmpty)
+}
+
+/// Выборка по языку: сессии другого языка не читаются.
+@MainActor @Test func sessionSummariesByLanguageSkipOtherLanguages() throws {
+    let container = try makeContainer()
+    defer { withExtendedLifetime(container) {} }
+    let context = container.mainContext
+    context.insert(courseStep("ru2.s1.01", kind: .check, cpm: 100))
+    context.insert(courseStep("en2.s1.01", kind: .check, language: .en, cpm: 300))
+    let snapshot = ProgressSnapshot(context: context)
+    #expect(try snapshot.sessionSummaries(language: .ru).map(\.language) == [.ru])
+    #expect(try snapshot.sessionSummaries(language: .en).map(\.language) == [.en])
+}
+
+/// Ориентир «Ускорения» русского курса не зависит от проверок английского: без «Ускорения» это средняя
+/// последних проверок курса, и быстрые английские проверки её не сдвигают.
+@MainActor @Test func englishChecksDoNotChangeTheRussianSpeedupReference() throws {
+    let container = try makeContainer()
+    defer { withExtendedLifetime(container) {} }
+    let context = container.mainContext
+    let course = try CourseFixtureApp.ruMini()
+    let snapshot = ProgressSnapshot(context: context)
+    #expect(try snapshot.speedupReference(course: course) == nil)
+    context.insert(courseStep("ru2.s1.check", kind: .check, cpm: 100, endedAt: noon))
+    context.insert(courseStep("ru2.s1.01", kind: .check, cpm: 120, endedAt: noon.addingTimeInterval(60)))
+    let before = try snapshot.speedupReference(course: course)
+    #expect(before == 110)
+    context.insert(courseStep("en2.s1.check", kind: .check, language: .en, cpm: 400, endedAt: noon.addingTimeInterval(120)))
+    context.insert(courseStep("en2.s2.02", kind: .check, language: .en, cpm: 500, endedAt: noon.addingTimeInterval(180)))
+    #expect(try snapshot.speedupReference(course: course) == before)
+}
+
 @MainActor @Test func keyStatsAreFilteredByLanguage() throws {
     let container = try makeContainer()
     defer { withExtendedLifetime(container) {} }

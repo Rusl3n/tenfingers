@@ -10,6 +10,8 @@ struct ExerciseView: View {
     var targetCpm: Double?
     /// Урок продолжен с этого шага (с единицы): над текстом плашка с кнопкой «Начать урок заново».
     var resumedStep: Int?
+    /// Строка над текстом упражнения («Обгоните себя: 142 зн/мин → цель 149 зн/мин» у шагов «Ускорения»).
+    var banner: String? = nil
     var onRestart: (() -> Void)?
     let onExit: () -> Void
 
@@ -46,6 +48,12 @@ struct ExerciseView: View {
                       systemImage: "exclamationmark.triangle")
                     .font(.callout)
                     .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if let banner {
+                Text(banner)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             ProgressView(value: Double(session.engine.position), total: Double(max(session.engine.target.count, 1)))

@@ -203,7 +203,7 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
 // MARK: - Прогресс курса
 
 @Test func courseProgressCountsPassedLessonsAndHistoryStars() throws {
-    let course = try CourseCatalog.load(.ru)
+    let course = try #require(try CourseCatalog.legacy(.ru))   // хранимые звёзды издания 1 — прежняя шкала
     let lessons = course.lessons
     let check = SessionSummary(day: "2026-03-10", endedAt: noon, language: .ru, mode: .course, chars: 200,
                                activeSeconds: 60, accuracy: 0.97, completed: true,
@@ -222,7 +222,7 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
 }
 
 @Test func courseProgressStarsOfPassedLessonWithoutHistoryAreAtLeastOneLikeOnTheMap() throws {
-    let course = try CourseCatalog.load(.ru)
+    let course = try #require(try CourseCatalog.legacy(.ru))   // хранимые звёзды издания 1 — прежняя шкала
     let lesson = course.lessons[0]
     let row = CourseProgressRow.make(course: course,
                                      lessons: [StoredLesson(lessonId: lesson.id, passed: true, storedStars: 0)],
@@ -230,6 +230,102 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
     #expect(row.stars == 1)
     #expect(row.stars == LessonOverview.make(lessonId: lesson.id, targetCpm: course.stages[0].targetCpm, sessions: [],
                                               storedStars: 0, isPassed: true).stars)
+}
+
+/// Звёзды издания 2 — по цели урока `Course.targetCpm(for:)`, а не по «от» этапа: «Закрепление основного ряда» (80)
+/// на скорости 96 зн/мин — ★★★ (при цели этапа 60 было бы ★★★★★).
+@Test func courseProgressStarsUseThePerLessonTarget() throws {
+    let course = try CourseCatalog.load(.ru)
+    let lesson = try #require(course.lessons.first { $0.id == "ru2.s1.06" })
+    #expect(course.targetCpm(for: lesson.id) == 80)
+    let check = SessionSummary(day: "2026-03-10", endedAt: noon, language: .ru, mode: .course, chars: 60,
+                               activeSeconds: 60 * 60 / 96, accuracy: 1, completed: true,
+                               lessonId: lesson.id, exerciseKind: .check, cpm: 96)
+    let row = CourseProgressRow.make(course: course,
+                                     lessons: [StoredLesson(lessonId: lesson.id, passed: true, storedStars: 0)],
+                                     sessions: [check])
+    #expect(row.stars == 3)
+    #expect(row.stars == LessonOverview.make(lessonId: lesson.id, targetCpm: 80, sessions: [check],
+                                              storedStars: 0, isPassed: true).stars)
+    #expect(!row.isArchive)
+}
+
+@Test func courseProgressRowTitleAndIdSeparateTheArchive() throws {
+    let current = CourseProgressRow(language: .ru, passed: 1, total: 98, stars: 0, isArchive: false)
+    let archive = CourseProgressRow(language: .ru, passed: 1, total: 30, stars: 0, isArchive: true)
+    #expect(current.title == Language.ru.displayName)
+    #expect(archive.title == "Курс 1.x (архив) · \(Language.ru.displayName)")
+    #expect(current.id != archive.id)
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    #expect(CourseProgressRow.make(course: legacy, lessons: [], sessions: []).isArchive)
+}
+
+/// «Сертификат» у строки курса издания 2: только если курс пройден и средняя скорость лучших проверок этапов,
+/// взявших порог, не ниже 120 зн/мин; у строки архива (издание 1) — никогда.
+@Test func courseProgressRowOffersTheCertificateOnlyWhenEligible() throws {
+    let course = try CourseFixtureApp.ruMini()
+    let all = course.lessons.map { StoredLesson(lessonId: $0.id, passed: true, storedStars: 5) }
+    func check(_ id: String, _ cpm: Double) -> SessionSummary {
+        SessionSummary(day: "2026-03-10", endedAt: noon, language: .ru, mode: .course, chars: 60, activeSeconds: 60,
+                       accuracy: 1, completed: true, lessonId: id, exerciseKind: .check, cpm: cpm)
+    }
+    let fast = [check("ru2.s1.check", 100), check("ru2.s2.check", 150)]
+    let slow = [check("ru2.s1.check", 100), check("ru2.s2.check", 130)]
+    #expect(CourseProgressRow.make(course: course, lessons: all, sessions: fast).certificateAverage == 125)
+    #expect(CourseProgressRow.make(course: course, lessons: all, sessions: slow).certificateAverage == nil)
+    #expect(CourseProgressRow.make(course: course, lessons: Array(all.dropLast(2)), sessions: fast)
+        .certificateAverage == nil)
+    #expect(CourseProgressRow.make(course: course, lessons: [], sessions: []).certificateAverage == nil)
+    #expect(CourseProgressRow(language: .ru, passed: 1, total: 98, stars: 0, isArchive: false).certificateAverage == nil)
+
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    let oldRow = CourseProgressRow.make(
+        course: legacy, lessons: legacy.lessons.map { StoredLesson(lessonId: $0.id, passed: true, storedStars: 3) },
+        sessions: [])
+    #expect(oldRow.isArchive && oldRow.certificateAverage == nil)
+}
+
+/// Загрузчик отдаёт сертификат у строки курса издания 2 и не отдаёт у архива, даже если все уроки прежнего курса засчитаны.
+@MainActor @Test func loaderOffersTheCertificateOnlyOnTheCurrentCourseRow() throws {
+    let container = try makeContainer()
+    let context = container.mainContext
+    let course = try CourseFixtureApp.ruMini()
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    for lesson in course.lessons + legacy.lessons {
+        let row = LessonProgress(lessonId: lesson.id, language: "ru")
+        row.passedAt = noon
+        context.insert(row)
+    }
+    func check(_ id: String, _ cpm: Double) -> SessionRecord {
+        session(day: "2026-03-10", chars: 60, seconds: 60 * 60 / cpm, accuracy: 1, lessonId: id, kind: .check)
+    }
+    context.insert(check("ru2.s1.check", 100))
+    context.insert(check("ru2.s2.check", 150))
+    try context.save()
+    let rows = try AnalyticsLoader(context: context).courseProgress(courses: [.ru: course], legacy: [.ru: legacy])
+    #expect(rows.count == 2)
+    #expect(rows[0].certificateAverage == 125)
+    #expect(rows[1].isArchive && rows[1].certificateAverage == nil)
+}
+
+// MARK: - Названия уроков в истории
+
+/// Названия уроков и шагов локализует ядро (язык интерфейса), поэтому ожидания собраны из них; пометка — из приложения
+/// (в тестах без перевода — исходный русский текст).
+@Test func historyTitleMarksEditionOneLessons() throws {
+    let current = try CourseCatalog.load(.ru)
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    let old = try #require(legacy.lessons.first { $0.id == "ru.1.1" })
+    let new = try #require(current.lessons.first { $0.id == "ru2.s1.01" })
+    let words = ExerciseKind.words.localizedTitle
+    #expect(SessionHistory.lessonTitle(lessonId: "ru.1.1", kind: nil, course: current, legacy: legacy)
+            == "\(old.localizedTitle) (курс 1.x)")
+    #expect(SessionHistory.lessonTitle(lessonId: "ru.1.1", kind: "words", course: current, legacy: legacy)
+            == "\(old.localizedTitle) · \(words) (курс 1.x)")
+    #expect(SessionHistory.lessonTitle(lessonId: "ru2.s1.01", kind: "words", course: current, legacy: legacy)
+            == "\(new.localizedTitle) · \(words)")
+    #expect(SessionHistory.lessonTitle(lessonId: "ru.1.1", kind: nil, course: current, legacy: nil) == nil)
+    #expect(SessionHistory.lessonTitle(lessonId: "nope", kind: nil, course: current, legacy: legacy) == nil)
 }
 
 // MARK: - Чтение из базы
@@ -296,6 +392,50 @@ private func session(day: String, language: Language = .ru, mode: ExerciseMode =
     #expect(rows[1].modeTitle == "Практика")
     #expect(rows[1].title == "Частотные слова")
     #expect(!rows[1].abandoned)
+}
+
+/// Курс издания 2 — одна строка на язык; строка архива — только если у языка есть `LessonProgress` урока издания 1.
+@MainActor @Test func loaderCourseProgressAddsAnArchiveRowOnlyForEditionOneProgress() throws {
+    let container = try makeContainer()
+    let context = container.mainContext
+    let current = try CourseCatalog.load(.ru)
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    let new = LessonProgress(lessonId: "ru2.s1.01", language: "ru")
+    new.passedAt = noon
+    context.insert(new)
+    try context.save()
+    let loader = AnalyticsLoader(context: context)
+    let single = try loader.courseProgress(courses: [.ru: current], legacy: [.ru: legacy])
+    #expect(single.count == 1)
+    #expect(single[0].total == 98)
+    #expect(single[0].passed == 1)
+    #expect(!single[0].isArchive)
+
+    let old = LessonProgress(lessonId: "ru.1.1", language: "ru")
+    old.passedAt = noon
+    context.insert(old)
+    try context.save()
+    let rows = try loader.courseProgress(courses: [.ru: current], legacy: [.ru: legacy])
+    #expect(rows.count == 2)
+    #expect(rows[0].language == .ru && !rows[0].isArchive)
+    #expect(rows[0].total == 98 && rows[0].passed == 1)
+    #expect(rows[1].language == .ru && rows[1].isArchive)
+    #expect(rows[1].total == 30 && rows[1].passed == 1)
+    #expect(rows[1].title.hasPrefix("Курс 1.x (архив)"))
+    #expect(Set(rows.map(\.id)).count == 2)
+}
+
+@MainActor @Test func loaderHistoryRowMarksEditionOneLessons() throws {
+    let container = try makeContainer()
+    let context = container.mainContext
+    let current = try CourseCatalog.load(.ru)
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    context.insert(session(day: "2026-03-10", lessonId: "ru.1.1", kind: .words))
+    try context.save()
+    let rows = try AnalyticsLoader(context: context)
+        .history(courses: [.ru: current], legacyCourses: [.ru: legacy], texts: [:])
+    let old = try #require(legacy.lessons.first { $0.id == "ru.1.1" })
+    #expect(rows[0].title == "\(old.localizedTitle) · \(ExerciseKind.words.localizedTitle) (курс 1.x)")
 }
 
 /// Лучшая скорость: чистая проверка урока в 90 знаков (224 зн/мин) — рекорд; та же с ошибкой, тренировка и шаг «слова» — нет;

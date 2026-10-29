@@ -71,18 +71,30 @@ import TypingCore
 
 // MARK: - ★★★★★ — только за чистый урок
 
+private func stepStat(_ kind: ExerciseKind, index: Int? = nil) -> StepStat {
+    StepStat(kind: kind, bestAccuracy: 0.9, errorsInBest: 12, cpmInBest: 80, bestCpm: 80, stepIndex: index)
+}
+
 /// Подсказка называет мешающий шаг и порог в ошибках на 100 знаков (язык интерфейса — по умолчанию).
 @Test func cleanStepRuleNamesTheStepAndErrorLimit() {
     let words = ExerciseKind.words.localizedTitle
-    #expect(StarHintText.cleanStep(.words) == "пройдите шаг «\(words)» не больше чем с 2 ошибками на 100 знаков")
-    #expect(StarHintText.requirements(needCpm: nil, maxErrors: nil, cpm: 100, errors: 0, unit: .cpm, blockingStep: .words)
-            == StarHintText.cleanStep(.words))
+    let wordsStep = stepStat(.words), combosStep = stepStat(.combos)
+    #expect(StarHintText.cleanStep(wordsStep) == "пройдите шаг «\(words)» не больше чем с 2 ошибками на 100 знаков")
+    #expect(StarHintText.requirements(needCpm: nil, maxErrors: nil, cpm: 100, errors: 0, unit: .cpm,
+                                      blockingStep: wordsStep) == StarHintText.cleanStep(wordsStep))
     // Скорость и шаг вместе.
-    #expect(StarHintText.requirements(needCpm: 90, maxErrors: nil, cpm: 80, errors: 0, unit: .cpm, blockingStep: .words)
-            == "скорость от 90 зн/мин (у вас 80 зн/мин) и \(StarHintText.cleanStep(.words))")
+    #expect(StarHintText.requirements(needCpm: 90, maxErrors: nil, cpm: 80, errors: 0, unit: .cpm, blockingStep: wordsStep)
+            == "скорость от 90 зн/мин (у вас 80 зн/мин) и \(StarHintText.cleanStep(wordsStep))")
     // Скорость, ошибки и шаг: через запятую и «и».
-    #expect(StarHintText.requirements(needCpm: 90, maxErrors: 0, cpm: 80, errors: 1, unit: .cpm, blockingStep: .combos)
-            == "скорость от 90 зн/мин (у вас 80 зн/мин), без ошибок (у вас 1) и \(StarHintText.cleanStep(.combos))")
+    #expect(StarHintText.requirements(needCpm: 90, maxErrors: 0, cpm: 80, errors: 1, unit: .cpm, blockingStep: combosStep)
+            == "скорость от 90 зн/мин (у вас 80 зн/мин), без ошибок (у вас 1) и \(StarHintText.cleanStep(combosStep))")
+}
+
+/// Шаги издания 2 одного вида различаются номером: «пройдите шаг 4 «Слова» …» (номер — с единицы).
+@Test func cleanStepRuleNamesTheStepNumber() {
+    let words = ExerciseKind.words.localizedTitle
+    #expect(StarHintText.cleanStep(stepStat(.words, index: 3))
+            == "пройдите шаг 4 «\(words)» не больше чем с 2 ошибками на 100 знаков")
 }
 
 /// Строка ★★★★★ в попапе: проверка и остальные шаги — в ошибках на 100 знаков, без процентов.

@@ -10,10 +10,14 @@
 каждый файл скачивается один раз во временную папку, между запросами пауза 1 с.
 Любая ошибка скачивания или разбора останавливает скрипт.
 
-Из каждого произведения берётся один отрывок: от начала первой главы (или тела рассказа)
-целыми абзацами/предложениями, 300–900 знаков, конец — на границе предложения.
+Из каждого произведения берутся пять последовательных отрывков: от начала первой главы (или тела
+рассказа) целыми предложениями, 400–900 знаков (цель 650), конец — на границе предложения.
+У первого отрывка прежний id (на него ссылается история сессий), у следующих — «<id>.2» … «<id>.5»,
+название — «<название> · N». В конце печатается сумма знаков по языку (ожидание 35 000–45 000).
 
-Запуск (stdlib only):  python3 scripts/prepare-texts.py
+Скачанный файл — не больше 200 МБ, только по https (и после перенаправлений).
+
+Запуск (stdlib only):  python3 -I scripts/prepare-texts.py
 """
 import json
 import re
@@ -22,12 +26,15 @@ import tempfile
 import time
 import unicodedata
 import urllib.parse
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "Sources/TypingCore/Resources"
 USER_AGENT = "TenFingersPrep/1.0 (offline typing tutor; one-off download of public-domain texts)"
-MIN_LEN, TARGET_LEN, MAX_LEN = 300, 450, 900
+MIN_LEN, TARGET_LEN, MAX_LEN = 400, 650, 900
+MAX_DOWNLOAD = 200 * 1024 * 1024
+PASSAGES = 5
 
 
 def gutenberg(book_id):
@@ -101,8 +108,20 @@ def fetch(url, dest):
     if dest.exists():  # --cache: файл уже скачан при прошлом запуске
         return dest.read_text(encoding="utf-8")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        data = response.read()
+    # Серверы (особенно Викитека) иногда обрывают TLS-соединение: до трёх попыток с паузой 5, 10 с.
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                if not response.geturl().startswith("https://"):
+                    raise RuntimeError(f"перенаправление не по https: {response.geturl()}")
+                data = response.read(MAX_DOWNLOAD + 1)
+            break
+        except urllib.error.URLError:
+            if attempt == 2:
+                raise
+            time.sleep(5 * (attempt + 1))
+    if len(data) > MAX_DOWNLOAD:
+        raise RuntimeError(f"файл больше {MAX_DOWNLOAD // (1024 * 1024)} МБ: {url}")
     if not data:
         raise RuntimeError(f"пустой ответ: {url}")
     dest.write_bytes(data)
@@ -131,6 +150,8 @@ def strip_marks(text):
     text = unicodedata.normalize("NFC", text)
     text = text.replace("́", "").replace("­", "").replace("﻿", "")
     text = text.replace(" ", " ").replace(" ", " ").replace(" ", " ")
+    # Литературный пропуск названия («***ская губерния») звёздочками не напечатать — пишем «Н-ская» (кириллицей).
+    text = re.sub(r"\*{3}(?=[а-яё])", "Н-", text)
     return text
 
 
@@ -162,7 +183,7 @@ def gutenberg_paragraphs(body, heading, unindented=False):
             continue
         paragraphs = []
         current = []
-        for follow in lines[index + 1:index + 120]:
+        for follow in lines[index + 1:index + 700]:  # хватает на пять отрывков
             if follow.strip() == "":
                 if current:
                     paragraphs.append(current)
@@ -245,45 +266,76 @@ def split_sentences(paragraph):
     return [s for s in SENTENCE_END.split(paragraph) if s]
 
 
-def pick_passage(paragraphs, skip=0):
-    paragraphs = paragraphs[skip:]
-    # Начало — первый «настоящий» абзац.
-    # Подзаголовки («The Period», «Down the Rabbit-Hole») — короткие, без знака конца предложения.
-    while paragraphs and (re.fullmatch(r"[IVXLC\d]+\.?", paragraphs[0]) or (
-            len(paragraphs[0]) < 100 and not re.search(r"[.!?…»\"”]$", paragraphs[0]))):
-        paragraphs = paragraphs[1:]
+CHAPTER = re.compile(r"(chapter|part|book|глава|часть)\s+[IVXLC\d]+\b.*", re.I)
+
+
+def is_chapter_heading(paragraph):
+    """Номер или заголовок главы: «IV», «CHAPTER II.», «Глава III»."""
+    return bool(re.fullmatch(r"[IVXLC\d]+\.?", paragraph) or (len(paragraph) < 80 and CHAPTER.fullmatch(paragraph)))
+
+
+def is_subheading(paragraph):
+    """Подзаголовок («The Period», «Down the Rabbit-Hole»): короткий, без знака конца предложения."""
+    return len(paragraph) < 100 and not re.search(r"[.!?…»\"”]$", paragraph)
+
+
+def body_paragraphs(paragraphs):
+    """Абзацы без заголовков глав. Короткий абзац без конца предложения убирается только в начале текста
+    и сразу за заголовком главы (её подзаголовок); посреди главы он остаётся — это может быть реплика."""
+    result = []
+    after_heading = True  # начало текста — как после заголовка
+    for paragraph in paragraphs:
+        if is_chapter_heading(paragraph):
+            after_heading = True
+            continue
+        if after_heading and is_subheading(paragraph):
+            continue
+        after_heading = False
+        result.append(paragraph)
+    return result
+
+
+def pick_passages(paragraphs, skip=0, count=PASSAGES, reject=None):
+    """`count` последовательных отрывков MIN_LEN–MAX_LEN знаков от начала текста, каждый — целыми предложениями."""
+    # Начало — первый «настоящий» абзац; заголовки следующих глав в отрывки не попадают.
+    paragraphs = body_paragraphs(paragraphs[skip:])
     if not paragraphs:
         raise RuntimeError("нет подходящего абзаца")
-    # Добавляем целые абзацы, а когда абзац не помещается, его предложения.
-    # Если с первого абзаца отрывок не набирается, начинаем со следующего.
-    for first in range(min(len(paragraphs), 3)):
-        found = collect(paragraphs[first:])
-        if found:
-            return found
-    raise RuntimeError("не нашлось отрывка 300–900 знаков, оканчивающегося предложением")
+    units = [part for paragraph in paragraphs for part in split_sentences(paragraph)]
+    passages = []
+    index = 0
+    while len(passages) < count:
+        # Если с этого предложения отрывок не набирается (слишком длинное), начинаем со следующего.
+        for first in range(index, min(len(units), index + 3)):
+            found = collect(units, first)
+            if found:
+                break
+        else:
+            raise RuntimeError(f"нашлось {len(passages)} отрывков из {count}: "
+                               f"нет следующего {MIN_LEN}–{MAX_LEN} знаков, оканчивающегося предложением")
+        text, index = found
+        # Отрывок, который нельзя набрать на раскладке языка (латиница в русском тексте), пропускаем — берём следующий.
+        if reject is None or not reject(text):
+            passages.append(text)
+    return passages
 
 
-def collect(paragraphs):
+def collect(units, start):
+    """Отрывок из предложений с `start`: первый вариант от TARGET_LEN, иначе самый длинный до MAX_LEN.
+    Возвращает (текст, индекс следующего предложения) или None."""
     end_ok = re.compile(r"[.!?…][»\"”'’)\]]*$")
     text = ""
-    candidates = []  # допустимые варианты конца отрывка
-    for paragraph in paragraphs:
-        parts = [paragraph]
-        if len(text) + len(paragraph) + 1 > MAX_LEN:
-            parts = split_sentences(paragraph)
-        for part in parts:
-            extended = (text + " " + part) if text else part
-            if len(extended) > MAX_LEN:
+    best = None  # допустимый вариант конца отрывка
+    for index in range(start, len(units)):
+        extended = (text + " " + units[index]) if text else units[index]
+        if len(extended) > MAX_LEN:
+            break
+        text = extended
+        if len(text) >= MIN_LEN and end_ok.search(text):
+            best = (text, index + 1)
+            if len(text) >= TARGET_LEN:
                 break
-            text = extended
-            if len(text) >= MIN_LEN and end_ok.search(text):
-                candidates.append(text)
-                if len(text) >= TARGET_LEN:
-                    return text
-        else:
-            continue
-        break
-    return candidates[-1] if candidates else None
+    return best
 
 
 def check_modern_russian(text):
@@ -314,20 +366,28 @@ def main():
                     else:
                         raw, url = fetch_wiki(url, tmp_dir / (work_id + ".txt"))
                         paragraphs = wiki_paragraphs(raw)
-                    text = strip_marks(pick_passage(paragraphs, options.get("skip", 0)))
-                    text = text.replace("_", "") if language == "en" else text
-                    if language == "ru":
-                        check_modern_russian(text)
+                    passages = []
+                    latin = (lambda text: re.search(r"[A-Za-z]", text) is not None) if language == "ru" else None
+                    for passage in pick_passages(paragraphs, options.get("skip", 0), reject=latin):
+                        text = strip_marks(passage)
+                        text = text.replace("_", "") if language == "en" else text
+                        if language == "ru":
+                            check_modern_russian(text)
+                        passages.append(text)
                 except Exception as error:  # noqa: BLE001 — падаем громко с указанием работы
                     sys.exit(f"{work_id}: {error}  ({url})")
-                result[language].append({
-                    "id": work_id, "title": title, "author": author, "source": url, "text": text,
-                })
-                print(f"{work_id}: {len(text)} знаков")
+                for number, text in enumerate(passages, 1):
+                    result[language].append({
+                        "id": work_id if number == 1 else f"{work_id}.{number}",
+                        "title": title if number == 1 else f"{title} · {number}",
+                        "author": author, "source": url, "text": text,
+                    })
+                print(f"{work_id}: {' + '.join(str(len(text)) for text in passages)} знаков")
     for language, items in result.items():
         path = OUT_DIR / f"texts-{language}.json"
         path.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"записано {path.name}: {len(items)} отрывков")
+        total = sum(len(item["text"]) for item in items)
+        print(f"записано {path.name}: {len(items)} отрывков, {total} знаков (ожидание 35 000–45 000)")
 
 
 if __name__ == "__main__":

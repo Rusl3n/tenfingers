@@ -96,4 +96,60 @@ private func effective(_ history: [SessionSummary], passed: Bool = false, stored
 
 @Test func exerciseKindHasLocalizedTitle() {
     #expect(["Combinations", "Сочетания"].contains(ExerciseKind.combos.localizedTitle))
+    for kind in ExerciseKind.allCases {
+        #expect(CoreText.localized(kind.titleKey, localization: "en") != kind.titleKey, "\(kind)")
+    }
+    #expect(CoreText.localized("Разминка", localization: "en") == "Warm-up")
+}
+
+// MARK: - Шаги по номеру (решение 22)
+
+private func numbered(_ kind: ExerciseKind, _ index: Int?, accuracy: Double = 1, cpm: Double = 60,
+                      errors: Int = 0) -> SessionSummary {
+    SessionSummary(day: "2026-10-25", endedAt: Date(timeIntervalSince1970: 0), language: .ru, mode: .course,
+                   chars: 100, activeSeconds: 60, accuracy: accuracy, completed: true, lessonId: "ru2.s1.01",
+                   exerciseKind: kind, cpm: cpm, errorCount: errors, stepIndex: index)
+}
+
+@Test func stepsOfTheSameKindAreSeparatedByIndex() {
+    let stats = LessonStepStats.summarize(sessions: [
+        numbered(.words, 3, accuracy: 0.9, cpm: 70, errors: 10),
+        numbered(.words, 2, accuracy: 0.95, cpm: 50, errors: 5),
+        numbered(.words, 2, accuracy: 0.99, cpm: 40, errors: 1),
+    ], lessonId: "ru2.s1.01")
+    #expect(stats == [
+        StepStat(kind: .words, bestAccuracy: 0.99, errorsInBest: 1, cpmInBest: 40, bestCpm: 50, stepIndex: 2),
+        StepStat(kind: .words, bestAccuracy: 0.9, errorsInBest: 10, cpmInBest: 70, bestCpm: 70, stepIndex: 3),
+    ])
+}
+
+@Test func unnumberedAttemptJoinsTheFirstNumberedStepOfItsKind() {
+    let stats = LessonStepStats.summarize(sessions: [
+        numbered(.words, 3, accuracy: 0.9),
+        numbered(.words, 2, accuracy: 0.95),
+        numbered(.words, nil, accuracy: 1, cpm: 90),
+    ], lessonId: "ru2.s1.01")
+    #expect(stats.map(\.stepIndex) == [2, 3])
+    #expect(stats[0].bestAccuracy == 1 && stats[0].bestCpm == 90)
+}
+
+@Test func unnumberedAttemptWithoutPairKeepsTheOldKindOrder() {
+    let stats = LessonStepStats.summarize(sessions: [
+        numbered(.phrases, 4),
+        numbered(.check, nil),       // ранг 3
+        numbered(.drill, 0),
+        numbered(.combos, nil),      // ранг 1: после шага 0, перед шагом 4
+        numbered(.sentences, nil),   // ранг 100 + индекс в allCases: в конце
+        numbered(.words, 1),
+        numbered(.words, nil),       // сливается с шагом 1
+    ], lessonId: "ru2.s1.01")
+    #expect(stats.map(\.kind) == [.drill, .words, .combos, .check, .phrases, .sentences])
+    #expect(stats.map(\.stepIndex) == [0, 1, nil, nil, 4, nil])
+}
+
+@Test func numberedStepComesBeforeUnnumberedOfTheSameRank() {
+    // Шаг 1 (phrases) и запись без номера вида combos (ранг 1): при равенстве — с номером первой.
+    let stats = LessonStepStats.summarize(sessions: [numbered(.combos, nil), numbered(.phrases, 1)],
+                                          lessonId: "ru2.s1.01")
+    #expect(stats.map(\.kind) == [.phrases, .combos])
 }

@@ -6,6 +6,8 @@ enum SettingsKey {
     static let interfaceLanguage = "interfaceLanguage"
     /// Знакомство пройдено или пропущено (`OnboardingDraft`), Bool, по умолчанию false. Не архивируется: состояние устройства.
     static let onboardingCompleted = "onboardingCompleted"
+    /// Лист «Новый курс» показан (2.0.0, §11), Bool. Не архивируется: состояние устройства.
+    static let newCourseIntroShown = "newCourseIntroShown"
     /// Фильтр экрана «Ачивки» (`AchievementsFilter`): all | earned | locked. Не архивируется: состояние окна.
     static let achievementsFilter = "achievementsFilter"
     static let themeMode = "themeMode"

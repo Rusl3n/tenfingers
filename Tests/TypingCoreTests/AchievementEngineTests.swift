@@ -46,13 +46,14 @@ private func facts(_ exercises: [ExerciseFact] = [], days: [String: DayActivity]
                    abandonedByDay: [String: Int] = [:], languagesByDay: [String: Set<Language>] = [:],
                    streakStatuses: [String: DayStatus] = [:], lessonPasses: [String: Date] = [:],
                    lessonAttempts: [String: Int] = [:], starsByLesson: [String: Int] = [:],
-                   courses: [Language: Course] = [:], openLetterDates: [Language: [Character: Date]] = [:],
+                   courses: [Language: Course] = [:], legacyCourses: [Language: Course] = [:],
+                   openLetterDates: [Language: [Character: Date]] = [:],
                    counters: [String: Int] = [:], yoKeyStatCorrect: Int = 0, timeZone: TimeZone = msk,
                    now: Date = testNow) -> AchievementFacts {
     AchievementFacts(exercises: exercises, days: days, abandonedByDay: abandonedByDay,
                      languagesByDay: languagesByDay, streakStatuses: streakStatuses, lessonPasses: lessonPasses,
                      lessonAttempts: lessonAttempts, starsByLesson: starsByLesson, courses: courses,
-                     openLetterDates: openLetterDates, counters: counters, yoKeyStatCorrect: yoKeyStatCorrect,
+                     legacyCourses: legacyCourses, openLetterDates: openLetterDates, counters: counters, yoKeyStatCorrect: yoKeyStatCorrect,
                      timeZone: timeZone, now: now)
 }
 
@@ -321,6 +322,110 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
                                                     courses: [.ru: ruCourse])) == testNow)
 }
 
+// MARK: - Два издания курса (решение 17)
+
+/// Маленький курс издания 1: этап «ru.1» (ru.1.1, ru.1.check, цель 60), этап «ru.2» (ru.2.1, цель 90).
+private let editionOneJSON = """
+{ "language": "ru", "stages": [
+  { "id": "ru.1", "title": "Основной ряд", "targetCpm": 60, "hint": "full", "lessons": [
+    { "id": "ru.1.1", "title": "А и О", "newKeys": ["а", "о"] },
+    { "id": "ru.1.check", "title": "Контрольный: основной ряд", "newKeys": [], "isCheck": true } ]},
+  { "id": "ru.2", "title": "Верхний ряд", "targetCpm": 90, "hint": "full", "lessons": [
+    { "id": "ru.2.1", "title": "К и Е", "newKeys": ["к", "е"] } ]}
+]}
+"""
+
+private func check(_ time: String, _ lessonId: String, cpm: Double, accuracy: Double = 1, kind: ExerciseKind = .check,
+                   completed: Bool = true) -> ExerciseFact {
+    ex(time, mode: .course, lessonId: lessonId, kind: kind, accuracy: accuracy, cpm: cpm, completed: completed)
+}
+
+/// Этап издания 2 засчитан, когда проверка этапа впервые набрала порог (этап 1 фикстуры — ★★, цель 80);
+/// засчитанные уроки без проверки, проверка на ★, другие шаги и брошенная проверка этап не закрывают.
+@Test func engineEditionTwoStageCountsByCheckAtGate() throws {
+    let course = try CourseFixtures.ruMini()
+    let stageOne = Dictionary(uniqueKeysWithValues: course.stages[0].lessons.map { ($0.id, at("2026-09-30 10:00")) })
+    let misses = [
+        check("2026-10-01 10:00", "ru2.s1.check", cpm: 60),                          // ★ (★★ — от 64)
+        check("2026-10-01 11:00", "ru2.s1.check", cpm: 300, kind: .text),            // не шаг проверки
+        check("2026-10-01 12:00", "ru2.s1.check", cpm: 300, completed: false),       // брошена
+        check("2026-10-01 13:00", "ru2.s1.05", cpm: 300),                            // проверка другого урока
+    ]
+    #expect(earned(.firstStage, facts(misses, lessonPasses: stageOne, courses: [.ru: course])) == nil)
+    let gate = misses + [check("2026-10-02 10:00", "ru2.s1.check", cpm: 70, accuracy: 0.97),   // ★★
+                         check("2026-10-03 10:00", "ru2.s1.check", cpm: 300)]
+    #expect(earned(.firstStage, facts(gate, courses: [.ru: course])) == at("2026-10-02 10:00"))
+}
+
+/// Курс издания 2 пройден: все уроки засчитаны и итоговая проверка набрала ★★★ (порог последнего этапа);
+/// дата — более позднее из последнего зачёта и этой проверки.
+@Test func engineEditionTwoCourseNeedsFinalCheckAtThreeStars() throws {
+    let course = try CourseFixtures.ruMini()
+    var passes = Dictionary(uniqueKeysWithValues: course.lessons.map { ($0.id, at("2026-10-01 10:00")) })
+    passes["ru2.s2.04"] = at("2026-10-05 10:00")
+    // Итоговая проверка этапа 2: цель 110, ★★ — от 88, ★★★ — от 110.
+    let twoStars = check("2026-10-06 10:00", "ru2.s2.check", cpm: 100)
+    #expect(earned(.courseCompleted(.ru), facts([twoStars], lessonPasses: passes, courses: [.ru: course])) == nil)
+    let later = [twoStars, check("2026-10-07 10:00", "ru2.s2.check", cpm: 110)]
+    #expect(earned(.courseCompleted(.ru), facts(later, lessonPasses: passes, courses: [.ru: course]))
+            == at("2026-10-07 10:00"))
+    let earlier = [check("2026-10-03 10:00", "ru2.s2.check", cpm: 110)]
+    #expect(earned(.courseCompleted(.ru), facts(earlier, lessonPasses: passes, courses: [.ru: course]))
+            == at("2026-10-05 10:00"))
+    // Проверка взяла порог, но не все уроки засчитаны (экстерн) — курс не пройден.
+    var missing = passes
+    missing["ru2.s1.02"] = nil
+    #expect(earned(.courseCompleted(.ru), facts(later, lessonPasses: missing, courses: [.ru: course])) == nil)
+}
+
+/// Курсовые ачивки — по любому изданию, дата — более ранняя; издание 1 считается как раньше.
+@Test func engineCourseAchievementsCountEitherEdition() throws {
+    let current = try CourseFixtures.ruMini()
+    let legacy = try CourseFixtures.decode(editionOneJSON)
+    let editionOne: [String: Date] = ["ru.1.1": at("2026-10-01 10:00"), "ru.1.check": at("2026-10-02 10:00"),
+                                      "ru.2.1": at("2026-10-04 10:00")]
+    let f = facts(lessonPasses: editionOne, courses: [.ru: current], legacyCourses: [.ru: legacy])
+    #expect(earned(.firstStage, f) == at("2026-10-02 10:00"))
+    #expect(earned(.courseCompleted(.ru), f) == at("2026-10-04 10:00"))
+    // Без архива в фактах прежние уроки курс не проходят.
+    #expect(earned(.courseCompleted(.ru), facts(lessonPasses: editionOne, courses: [.ru: current])) == nil)
+
+    // Пройдены оба издания: дата — более ранняя; «Полиглот» — позднее из языков.
+    var both = editionOne
+    for lesson in current.lessons { both[lesson.id] = at("2026-09-20 10:00") }
+    let finals = [check("2026-09-21 10:00", "ru2.s1.check", cpm: 300), check("2026-09-21 11:00", "ru2.s2.check", cpm: 300)]
+    let all = facts(finals, lessonPasses: both.merging(["e1": at("2026-10-03 10:00")]) { $1 },
+                    courses: [.ru: current, .en: enCourse], legacyCourses: [.ru: legacy])
+    #expect(earned(.firstStage, all) == at("2026-09-21 10:00"))
+    #expect(earned(.courseCompleted(.ru), all) == at("2026-09-21 11:00"))
+    #expect(earned(.polyglot, all) == at("2026-10-03 10:00"))
+}
+
+/// «Отличник курса»: издание 1 — как раньше; издание 2 — цель проверки урока `course.targetCpm(for:)`:
+/// у «ru2.s2.03» это 110 (не «от» этапа 90), ★★★★ — от 143 при 100%.
+@Test func engineAllLessonsExcellentUsesLessonTargetOfEitherEdition() throws {
+    let legacy = try CourseFixtures.decode(editionOneJSON)
+    let old = [check("2026-10-01 10:00", "ru.1.1", cpm: 80), check("2026-10-01 11:00", "ru.1.check", cpm: 80),
+               check("2026-10-02 10:00", "ru.2.1", cpm: 120)]
+    let oldStars = ["ru.1.1": 4, "ru.1.check": 4, "ru.2.1": 4]
+    #expect(earned(.allLessonsExcellent(.ru), facts(old, starsByLesson: oldStars, legacyCourses: [.ru: legacy]))
+            == at("2026-10-02 10:00"))
+
+    let current = try CourseFixtures.ruMini()
+    try #require(current.targetCpm(for: "ru2.s2.03") == 110 && current.stages[1].targetCpm == 90)
+    let stars = Dictionary(uniqueKeysWithValues: current.lessons.map { ($0.id, 4) })
+    let others = current.lessons.filter { $0.id != "ru2.s2.03" }.map { check("2026-10-01 10:00", $0.id, cpm: 300) }
+    let slow = others + [check("2026-10-02 10:00", "ru2.s2.03", cpm: 140)]       // ★★★ при цели 110
+    #expect(earned(.allLessonsExcellent(.ru), facts(slow, starsByLesson: stars, courses: [.ru: current])) == testNow)
+    let fast = slow + [check("2026-10-03 10:00", "ru2.s2.03", cpm: 143)]          // ★★★★
+    #expect(earned(.allLessonsExcellent(.ru), facts(fast, starsByLesson: stars, courses: [.ru: current]))
+            == at("2026-10-03 10:00"))
+    // Оба издания: дата — более ранняя.
+    #expect(earned(.allLessonsExcellent(.ru), facts(old + fast, starsByLesson: stars.merging(oldStars) { $1 },
+                                                    courses: [.ru: current], legacyCourses: [.ru: legacy]))
+            == at("2026-10-02 10:00"))
+}
+
 // MARK: - Объём
 
 @Test func engineVolumeCrossesThresholdOnCumulativeSum() {
@@ -584,8 +689,8 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
     let streak = StreakCalculator.summarize(days: days, today: "2026-10-24", goalSeconds: 600)
     let passes = ["ru.1.1": at("2026-10-23 21:42:30"), "ru.1.2": at("2026-10-24 02:34:32"),
                   "ru.1.3": at("2026-10-24 02:58:24")]
-    let ru = try CourseCatalog.load(.ru)
-    let en = try CourseCatalog.load(.en)
+    let ru = try CourseFixtures.editionOne(.ru)
+    let en = try CourseFixtures.editionOne(.en)
     var stars: [String: Int] = [:]
     for id in passes.keys {
         let target = try #require(ru.context(for: id)).targetCpm

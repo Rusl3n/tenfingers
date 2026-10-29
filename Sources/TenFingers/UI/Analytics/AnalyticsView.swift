@@ -37,7 +37,8 @@ struct AnalyticsView: View {
             } else if let data {
                 AnalyticsContent(data: data, chart: chart, history: history,
                                  unit: SpeedUnit(rawValue: speedUnit) ?? .cpm, snapshot: layout.snapshot,
-                                 period: $period, shareProgress: openProgressCard)
+                                 period: $period, shareProgress: openProgressCard,
+                                 shareCertificate: openCertificateCard)
             } else {
                 Color.clear
             }
@@ -57,6 +58,12 @@ struct AnalyticsView: View {
                                        dayStartHour: dayStartHour, toasts: toasts)
     }
 
+    /// «Сертификат» у строки курса: карточка со средней скоростью проверок этапов.
+    private func openCertificateCard(_ row: CourseProgressRow) {
+        guard let average = row.certificateAverage else { return }
+        share = ShareCard(.certificate(language: row.language, averageCpm: average))
+    }
+
     private func reloadAll() {
         reloadHistory()
         reload()
@@ -65,7 +72,8 @@ struct AnalyticsView: View {
     private func reload() {
         do {
             data = try AnalyticsLoader(context: modelContext).summary(
-                language: language, courses: library.courses, today: today, goalSeconds: Double(dailyGoal) * 60)
+                language: language, courses: library.courses, legacyCourses: library.legacyCourses,
+                today: today, goalSeconds: Double(dailyGoal) * 60)
             failed.remove(.summary)
         } catch {
             failed.insert(.summary)
@@ -75,7 +83,8 @@ struct AnalyticsView: View {
 
     private func reloadHistory() {
         do {
-            history = try AnalyticsLoader(context: modelContext).history(courses: library.courses, texts: library.texts)
+            history = try AnalyticsLoader(context: modelContext)
+                .history(courses: library.courses, legacyCourses: library.legacyCourses, texts: library.texts)
             failed.remove(.history)
         } catch {
             failed.insert(.history)
@@ -101,6 +110,7 @@ struct AnalyticsContent: View {
     let snapshot: LayoutSnapshot
     @Binding var period: AnalyticsPeriod
     var shareProgress: (() -> Void)?
+    var shareCertificate: ((CourseProgressRow) -> Void)?
 
     /// Поделиться прогрессом можно, как только есть хоть одно занятие (как на главной).
     nonisolated static func canShareProgress(_ data: AnalyticsData) -> Bool { data.firstSessionDate != nil }
@@ -122,7 +132,7 @@ struct AnalyticsContent: View {
             DayMetricsView(streak: data.streak)
             RecordsView(records: data.records, unit: unit)
             SessionHistoryView(rows: history, unit: unit)
-            CourseProgressView(rows: data.courseProgress)
+            CourseProgressView(rows: data.courseProgress, shareCertificate: shareCertificate)
         }
         .padding(24)
         .frame(maxWidth: 900, alignment: .leading)

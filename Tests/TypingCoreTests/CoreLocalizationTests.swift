@@ -15,12 +15,17 @@ private func hasCyrillic(_ s: String) -> Bool { s.unicodeScalars.contains { (0x4
 
 private func isAchievementKey(_ key: String) -> Bool { key.hasPrefix("achievement.") }
 
+/// Курсы обоих изданий: текущие и архив издания 1 (его названия по-прежнему видны в истории).
+private func allCourses() throws -> [Course] {
+    try Language.allCases.flatMap { [try CourseCatalog.load($0)] + [try CourseCatalog.legacy($0)].compactMap { $0 } }
+}
+
 private func lessonTitles() throws -> Set<String> {
-    Set(try Language.allCases.flatMap { try CourseCatalog.load($0).lessons.map(\.title) })
+    Set(try allCourses().flatMap { $0.lessons.map(\.title) })
 }
 
 private func stageTitles() throws -> Set<String> {
-    Set(try Language.allCases.flatMap { try CourseCatalog.load($0).stages.map(\.title) })
+    Set(try allCourses().flatMap { $0.stages.map(\.title) })
 }
 
 @Test func coreEnglishStringsAreTranslated() throws {

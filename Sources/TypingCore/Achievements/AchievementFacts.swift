@@ -27,13 +27,15 @@ public struct ExerciseFact: Equatable, Sendable {
     public let fingerErrors: [Finger: Int]?
     /// «Ё» без ошибки; `nil` у сессий до 1.1.0.
     public let yoCorrect: Int?
+    /// Номер шага в плане урока (`SessionRecord.stepIndex`); `nil` у сессий до 6a и вне курса.
+    public let stepIndex: Int?
 
     public init(endedAt: Date, logicalDay: String, language: Language, mode: ExerciseMode,
                 lessonId: String? = nil, exerciseKind: ExerciseKind? = nil, chars: Int, activeSeconds: Double,
                 accuracy: Double, cpm: Double, completed: Bool, hintLevel: HintLevel = .full,
                 maxErrorStreak: Int = 0, wrongKeystrokes: Int = 0, pinkyPresses: Int = 0, pinkyErrors: Int = 0,
                 source: String? = nil, fingerPresses: [Finger: Int]? = nil, fingerErrors: [Finger: Int]? = nil,
-                yoCorrect: Int? = nil) {
+                yoCorrect: Int? = nil, stepIndex: Int? = nil) {
         self.endedAt = endedAt
         self.logicalDay = logicalDay
         self.language = language
@@ -54,6 +56,7 @@ public struct ExerciseFact: Equatable, Sendable {
         self.fingerPresses = fingerPresses
         self.fingerErrors = fingerErrors
         self.yoCorrect = yoCorrect
+        self.stepIndex = stepIndex
     }
 }
 
@@ -74,7 +77,10 @@ public struct AchievementFacts: Sendable {
     public let lessonAttempts: [String: Int]
     /// lessonId → звёзды по `LessonScoring.effectiveStars` (считает приложение).
     public let starsByLesson: [String: Int]
+    /// Текущие курсы языков.
     public let courses: [Language: Course]
+    /// Курсы издания 1 (архив): курсовые ачивки засчитываются по любому изданию (решение 17).
+    public let legacyCourses: [Language: Course]
     /// Открытые символы языка (курс + адаптивный режим, §21) с датой открытия.
     public let openLetterDates: [Language: [Character: Date]]
     /// Счётчики приложения (`CounterName`).
@@ -90,7 +96,8 @@ public struct AchievementFacts: Sendable {
                 abandonedByDay: [String: Int] = [:], languagesByDay: [String: Set<Language>] = [:],
                 streakStatuses: [String: DayStatus] = [:], lessonPasses: [String: Date] = [:],
                 lessonAttempts: [String: Int] = [:], starsByLesson: [String: Int] = [:],
-                courses: [Language: Course] = [:], openLetterDates: [Language: [Character: Date]] = [:],
+                courses: [Language: Course] = [:], legacyCourses: [Language: Course] = [:],
+                openLetterDates: [Language: [Character: Date]] = [:],
                 counters: [String: Int] = [:], yoKeyStatCorrect: Int = 0, timeZone: TimeZone, now: Date) {
         self.exercises = exercises
         self.days = days
@@ -101,6 +108,7 @@ public struct AchievementFacts: Sendable {
         self.lessonAttempts = lessonAttempts
         self.starsByLesson = starsByLesson
         self.courses = courses
+        self.legacyCourses = legacyCourses
         self.openLetterDates = openLetterDates
         self.counters = counters
         self.yoKeyStatCorrect = yoKeyStatCorrect

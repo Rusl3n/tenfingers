@@ -103,8 +103,8 @@ struct ResultRecorder {
     }
 
     /// Вызывается после проверочного упражнения урока; `stars` — по 5-звёздной шкале, `stars == 0` — урок не засчитан.
-    /// Уроки издания 1 хранят прежнюю 3-звёздную шкалу (решение 1 фазы 6a): по ней работает запасное
-    /// правило `effectiveStars`. Зачёт — как раньше, при stars > 0.
+    /// Уроки издания 1 хранят прежнюю 3-звёздную шкалу (решение 1 фазы 6a), издания 2 — 5-звёздную (§16, решение 2):
+    /// по ним работает запасное правило `effectiveStars`. Зачёт — как раньше, при stars > 0.
     func recordLesson(_ result: ExerciseResult, stars: Int) throws {
         guard let lessonId = result.lessonId else { return }
         let descriptor = FetchDescriptor<LessonProgress>(predicate: #Predicate { $0.lessonId == lessonId })
@@ -114,7 +114,8 @@ struct ResultRecorder {
             return created
         }()
         progress.attempts += 1
-        progress.bestStars = max(progress.bestStars, LessonScoring.legacyScale(fiveStar: stars))
+        progress.bestStars = max(progress.bestStars, CourseCatalog.edition(ofLessonId: lessonId) >= 2
+                                                        ? stars : LessonScoring.legacyScale(fiveStar: stars))
         progress.bestCpm = max(progress.bestCpm, result.cpm)
         progress.bestAccuracy = max(progress.bestAccuracy, result.accuracy)
         if stars > 0 && progress.passedAt == nil { progress.passedAt = result.endedAt }

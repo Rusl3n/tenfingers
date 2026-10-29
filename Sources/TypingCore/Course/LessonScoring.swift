@@ -12,15 +12,18 @@ public struct NextStarHint: Equatable, Sendable {
     public let needCpm: Double?
     public let maxErrors: Int?
     /// Шаг урока (не проверка), лучшая попытка которого хуже порога чистого урока; только у подсказки к ★★★★★.
-    public let blockingStep: ExerciseKind?
+    public let blockingStep: StepStat?
 
-    public init(stars: Int, needCpm: Double?, maxErrors: Int?, blockingStep: ExerciseKind? = nil) {
+    public init(stars: Int, needCpm: Double?, maxErrors: Int?, blockingStep: StepStat? = nil) {
         self.stars = stars
         self.needCpm = needCpm
         self.maxErrors = maxErrors
         self.blockingStep = blockingStep
     }
 }
+
+/// В какой шкале хранится `LessonProgress.bestStars`: издание 1 — прежняя 3-звёздная, издание 2 — 5-звёздная.
+public enum StoredStarScale: Sendable { case legacy, fiveStar }
 
 public enum LessonScoring {
     /// Звёзд у урока не больше пяти (спецификация фазы 6, §4).
@@ -64,9 +67,8 @@ public enum LessonScoring {
     /// Шаги урока (кроме проверки) без чистой лучшей попытки, в порядке урока. Шаг без завершённых попыток
     /// в `steps` не входит (`LessonStepStats.summarize`), поэтому не мешает: урок мог быть пройден до того,
     /// как шаги стали записываться.
-    public static func uncleanSteps(_ steps: [StepStat]) -> [ExerciseKind] {
+    public static func uncleanSteps(_ steps: [StepStat]) -> [StepStat] {
         steps.filter { $0.kind != .check && $0.bestAccuracy + accuracyTolerance < cleanLessonStepAccuracy }
-            .map(\.kind)
     }
 
     /// Звёзды урока по звёздам проверки `checkStars` и шагам урока: пятая — только если все шаги чистые,
@@ -120,23 +122,26 @@ public enum LessonScoring {
     /// а пятая звезда ещё и по шагам урока (`steps` — `LessonStepStats.summarize`, `lessonStars`);
     /// истории нет — `storedStars` из базы. У засчитанного урока (`passed`) — не меньше одной звезды:
     /// урок мог быть пройден до того, как шаги стали записываться, а неудачная проверка после этого
-    /// не отменяет зачёта. `storedStars` — `LessonProgress.bestStars` в шкале издания 1; без истории он
-    /// переводится в новую шкалу (`fiveStarScale`).
+    /// не отменяет зачёта. `storedStars` — `LessonProgress.bestStars` в шкале `storedScale`: без истории
+    /// звёзды издания 1 переводятся в новую шкалу (`fiveStarScale`), издания 2 берутся как есть.
     public static func effectiveStars(history: [(cpm: Double, accuracy: Double)], steps: [StepStat], targetCpm: Int,
-                                      passed: Bool, storedStars: Int) -> Int {
+                                      passed: Bool, storedStars: Int, storedScale: StoredStarScale = .legacy) -> Int {
+        let stored = storedScale == .fiveStar ? storedStars : fiveStarScale(legacy: storedStars)
         let base = history.map { stars(cpm: $0.cpm, accuracy: $0.accuracy, targetCpm: targetCpm) }.max()
-            .map { lessonStars(checkStars: $0, steps: steps) } ?? fiveStarScale(legacy: storedStars)
+            .map { lessonStars(checkStars: $0, steps: steps) } ?? stored
         return passed ? max(base, 1) : base
     }
 
     /// То же по сессиям: в историю идут завершённые проверки (`exerciseKind == .check`) этого урока, а шаги —
     /// лучшие попытки всех его шагов (`LessonStepStats`, те же, что в деталях урока на карте курса).
+    /// Шкала хранимых звёзд — по изданию урока (`CourseCatalog.edition(ofLessonId:)`).
     public static func effectiveStars(sessions: [SessionSummary], lessonId: String, targetCpm: Int, passed: Bool,
                                       storedStars: Int) -> Int {
         let history = sessions
             .filter { $0.completed && $0.lessonId == lessonId && $0.exerciseKind == .check }
             .map { (cpm: $0.speed, accuracy: $0.accuracy) }
         return effectiveStars(history: history, steps: LessonStepStats.summarize(sessions: sessions, lessonId: lessonId),
-                              targetCpm: targetCpm, passed: passed, storedStars: storedStars)
+                              targetCpm: targetCpm, passed: passed, storedStars: storedStars,
+                              storedScale: CourseCatalog.edition(ofLessonId: lessonId) >= 2 ? .fiveStar : .legacy)
     }
 }

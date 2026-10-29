@@ -86,7 +86,8 @@ struct TrainingView: View {
     private func reload() {
         let reader = StatsReader(context: modelContext)
         let unlockedCount = (try? reader.unlockedCount(language: language)) ?? AdaptiveTrainer.initialLetters
-        let openLetters = (try? reader.openLetters(language: language, course: library.courses[language]))
+        let openLetters = (try? reader.openLetters(language: language, course: library.courses[language],
+                                                   legacy: library.legacyCourses[language]))
             ?? Set(AdaptiveTrainer(language: language).unlockedLetters(count: unlockedCount))
         snapshot = TrainingSnapshot.make(
             language: language,

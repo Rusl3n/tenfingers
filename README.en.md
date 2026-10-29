@@ -5,7 +5,7 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.0-blue" alt="Version 1.2.0">
+  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version 2.0.0">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -15,7 +15,7 @@
 
 ## Features
 
-- A lesson-based course: 5 stages for each of Russian and English.
+- A course of 98 lessons per language in 7 stages, from the home row to long texts: 6-8 steps per lesson (words from the rows, phrases, sentences, connected text, hard letters, words with your mistakes, a sprint, numbers). "Review" is built from your own errors, "Speed-up" runs on your strong letters with a "Beat yourself" reference. Speed tiers start at stage 2. A stage check (★★ on the first stage, ★★★ on the rest) opens the next stage, and you can take it right away to skip ahead. Finish all 7 stages and the "Certificate" card shows your average speed. The old 30-lesson course is kept as an archive.
 - An on-screen keyboard that follows your actual system layout (including remapped symbols, such as Shift+6 = ":" in "Russian – PC") and is colored by finger. Keyboard size is adjustable, and the keyboard scales smoothly when you change it.
 - A mistake stops the cursor: you have to press the correct key first.
 - Hints that are gradually withdrawn: from a highlighted key and finger to typing blind.
@@ -25,7 +25,7 @@
 - A large speed readout in the center of the exercise screen: green when you are at or above the target, red when below; an up or down arrow next to the target repeats the color.
 - Adaptive training: letters unlock as you master them, with the focus on your weakest one.
 - "Weak spots": 5 minutes on your worst keys and key pairs.
-- Practice: frequent words, 24 classic excerpts (12 per language), digits and symbols, and your own text from the clipboard or a .txt file (Windows-1251 included) with your place remembered.
+- Practice: frequent words, 120 classic excerpts (60 per language), digits and symbols, and your own text from the clipboard or a .txt file (Windows-1251 included) with your place remembered.
 - Esc pauses the exercise and opens the sidebar; from another section, Esc takes you back to the paused lesson.
 - Settings are split into sections; dragging the keyboard size or offset slider shows a full-size keyboard preview over the screen.
 - Speed and accuracy are collected for every key while you type; the result screen shows the keys with the most errors.
@@ -68,7 +68,7 @@ cd tenfingers
 ./scripts/build-app.sh
 ```
 
-The script builds a release version, signs it ad hoc and copies it to `/Applications`. The app is installed as `/Applications/TenFingers.app`; Finder and the Dock show it as "Десять пальцев" on a Russian system and "TenFingers" on an English one. The interface language can be changed in Settings → General. The old "Десять пальцев.app" bundle is removed during installation and your progress stays in place. Version 1.2.0 changes the database schema (generation 6): earlier versions cannot open it, so you may want to save a copy before updating with `./scripts/pin-backup.sh before-phase6`.
+The script builds a release version, signs it ad hoc and copies it to `/Applications`. The app is installed as `/Applications/TenFingers.app`; Finder and the Dock show it as "Десять пальцев" on a Russian system and "TenFingers" on an English one. The interface language can be changed in Settings → General. The old "Десять пальцев.app" bundle is removed during installation and your progress stays in place. Version 2.0.0 introduces a new course: course progress starts over, while history, streak, achievements and backups are kept. The database schema is generation 6, as in 1.2.0. Before the first install of 2.0.0, save a copy of your progress with `./scripts/pin-backup.sh before-new-course`; if you are updating from 1.1.x, also run `./scripts/pin-backup.sh before-phase6`.
 
 ## Development
 
@@ -98,4 +98,5 @@ Design and work plans live in [`docs/superpowers`](docs/superpowers): the [speci
 
 - Code — [MIT](LICENSE). The MIT license covers the code, not the word lists.
 - Word lists `Sources/TypingCore/Resources/words-*.txt` — filtered adaptations of the frequency lists from [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (OpenSubtitles 2018), licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). See also [`CREDITS.md`](Sources/TypingCore/Resources/CREDITS.md).
+- Exercise sentences `Sources/TypingCore/Resources/sentences-*.json` — selected and normalized sentences from [Tatoeba](https://tatoeba.org), licensed [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/); each sentence's number is stored in its `source` field.
 - The icon is drawn in code: [`scripts/make-icon.swift`](scripts/make-icon.swift).

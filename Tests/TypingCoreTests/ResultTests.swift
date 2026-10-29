@@ -24,6 +24,18 @@ private func finishedEngine() -> TypingEngine {
     #expect(result.wrongKeystrokes == 1)
 }
 
+/// Связный текст (предложения и тексты курса) планировщик помечает сам: символы этого не скажут.
+@Test func connectedSpecAddsConnectedTrait() {
+    let plain = ExerciseResult(engine: finishedEngine(), mode: .course, language: .ru, lessonId: "ru2.s4.02",
+                               startedAt: .now, endedAt: .now, hintLevel: .full, exerciseKind: .text, stepIndex: 4)
+    #expect(!plain.textTraits.contains(.connected))
+    let connected = ExerciseResult(engine: finishedEngine(), mode: .course, language: .ru, lessonId: "ru2.s4.02",
+                                   startedAt: .now, endedAt: .now, hintLevel: .full, exerciseKind: .text,
+                                   stepIndex: 4, connected: true)
+    #expect(connected.textTraits.contains(.connected))
+    #expect(connected.textTraits.subtracting(.connected) == plain.textTraits)
+}
+
 @Test func samplesGroupByCharacterAndSkipSpace() {
     let result = ExerciseResult(engine: finishedEngine(), mode: .course, language: .ru, lessonId: nil,
                                 startedAt: .now, endedAt: .now, hintLevel: .full)

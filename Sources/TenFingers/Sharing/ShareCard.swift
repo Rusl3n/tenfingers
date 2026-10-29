@@ -13,6 +13,9 @@ enum ShareEvent: Equatable {
     case stage(id: String, title: String, language: Language)
     /// Пройден весь курс языка.
     case course(language: Language)
+    /// «Сертификат»: курс издания 2 пройден, `averageCpm` — средняя скорость лучших проверок этапов (знаков в минуту,
+    /// не ниже `Certificate.minimumAverageCpm`).
+    case certificate(language: Language, averageCpm: Double)
     /// «Мой прогресс»: серия, календарь месяца или года и итоги периода.
     case progress(ProgressCardData)
 
@@ -20,7 +23,7 @@ enum ShareEvent: Equatable {
     var date: Date? {
         switch self {
         case .achievement(_, let date), .speedRecord(_, _, let date): date
-        case .streak, .stage, .course, .progress: nil
+        case .streak, .stage, .course, .certificate, .progress: nil
         }
     }
 
@@ -32,6 +35,7 @@ enum ShareEvent: Equatable {
         case .speedRecord: "speedometer"
         case .stage: "flag.checkered"
         case .course: "graduationcap.fill"
+        case .certificate: "rosette"
         }
     }
 
@@ -48,21 +52,51 @@ enum ShareEvent: Equatable {
         case .speedRecord(let language, let cpm, _): "tenfingers-speed-\(language.rawValue)-\(Int(cpm.rounded()))"
         case .stage(let id, _, _): "tenfingers-stage-\(id)"
         case .course(let language): "tenfingers-course-\(language.rawValue)"
+        case .certificate(let language, _): "tenfingers-certificate-\(language.rawValue)"
         case .progress(let data): "tenfingers-progress-\(data.today)"
         }
     }
 
-    /// Что предложить на экране итога урока: последний урок этапа пройден — этап, последний урок курса — курс.
-    static func completion(course: Course, lessonId: String, stars: Int) -> ShareEvent? {
-        guard stars > 0, let stage = course.stage(of: lessonId), stage.lessons.last?.id == lessonId else { return nil }
-        if course.lessons.last?.id == lessonId { return .course(language: course.language) }
+    /// Что предложить на экране итога урока. Издание 1: последний урок этапа пройден — этап, последний урок курса —
+    /// курс. Издание 2: этап засчитывает проверка этапа со звёздами не ниже порога (`Stage.gate`); курс — любая попытка,
+    /// которой курс становится пройденным (`Course.isCompleted`: до попытки нет, после есть) — итоговая проверка или
+    /// последний пропущенный урок после неё. Проверка этапа, с которой курс пройден, даёт карточку курса и без этого
+    /// условия «до», а у последнего этапа без карточки курса — ничего.
+    /// `passed` и `checkStars` — прогресс до попытки: сама попытка (урок, звёзды проверки) добавляется здесь.
+    static func completion(course: Course, lessonId: String, stars: Int, passed: Set<String>,
+                           checkStars: [String: Int]) -> ShareEvent? {
+        guard stars > 0, let stage = course.stage(of: lessonId) else { return nil }
+        guard course.edition >= 2 else {
+            guard stage.lessons.last?.id == lessonId else { return nil }
+            if course.lessons.last?.id == lessonId { return .course(language: course.language) }
+            return .stage(id: stage.id, title: stage.localizedTitle, language: course.language)
+        }
+        let attempt = CourseGate.withAttempt(course: course, lessonId: lessonId, stars: stars, passed: passed,
+                                             checkStars: checkStars)
+        let completes = course.isCompleted(passed: attempt.passed, checkStars: attempt.checkStars)
+        guard stage.checkLesson?.id == lessonId else {
+            // Обычный урок: карточка курса — только если именно эта попытка закрыла курс.
+            let wasCompleted = course.isCompleted(passed: passed, checkStars: checkStars)
+            return completes && !wasCompleted ? .course(language: course.language) : nil
+        }
+        guard stars >= stage.gate else { return nil }
+        if completes { return .course(language: course.language) }
+        if stage.id == course.stages.last?.id { return nil }
         return .stage(id: stage.id, title: stage.localizedTitle, language: course.language)
     }
 
+    /// Сертификат — второе предложение рядом с карточкой курса: итоговая проверка взяла порог (`completion` — `.course`)
+    /// и условие сертификата выполнено (`average` — `Certificate.eligibleAverage`, иначе `nil`).
+    static func certificateOffer(after completion: ShareEvent?, language: Language, average: Double?) -> ShareEvent? {
+        guard case .course? = completion, let average else { return nil }
+        return .certificate(language: language, averageCpm: average)
+    }
+
     /// Повтор одного шага: этап или курс засчитывает только проверка (`stars` — её звёзды).
-    static func stepCompletion(course: Course, lessonId: String, kind: ExerciseKind, stars: Int?) -> ShareEvent? {
+    static func stepCompletion(course: Course, lessonId: String, kind: ExerciseKind, stars: Int?, passed: Set<String>,
+                               checkStars: [String: Int]) -> ShareEvent? {
         guard kind == .check, let stars else { return nil }
-        return completion(course: course, lessonId: lessonId, stars: stars)
+        return completion(course: course, lessonId: lessonId, stars: stars, passed: passed, checkStars: checkStars)
     }
 }
 
@@ -329,6 +363,14 @@ struct ShareCardText: Equatable {
             headline = Self.layoutName(language, bundle: bundle, locale: locale)
             subtitle = String(localized: "Все уроки курса пройдены", bundle: bundle, locale: locale)
             footnote = nil
+        case .certificate(let language, let averageCpm):
+            header = String(localized: "Сертификат", bundle: bundle, locale: locale)
+            headline = Self.layoutName(language, bundle: bundle, locale: locale)
+            let name = Self.languageName(language, bundle: bundle, locale: locale)
+            let speed = unit.format(averageCpm)
+            subtitle = String(localized: "Курс «Десять пальцев» (\(name)) пройден · средняя скорость проверок этапов \(speed)",
+                              bundle: bundle, locale: locale)
+            footnote = nil
         case .progress(let data):
             let count = Formatting.days(data.streak, bundle: bundle, locale: locale)
             header = String(localized: "Мой прогресс", bundle: bundle, locale: locale)
@@ -357,6 +399,14 @@ struct ShareCardText: Equatable {
         switch language {
         case .ru: String(localized: "Русская раскладка", bundle: bundle, locale: locale)
         case .en: String(localized: "Английская раскладка", bundle: bundle, locale: locale)
+        }
+    }
+
+    /// Название языка на языке карточки («Русский» / "Russian").
+    private static func languageName(_ language: Language, bundle: Bundle, locale: Locale) -> String {
+        switch language {
+        case .ru: String(localized: "Русский", bundle: bundle, locale: locale)
+        case .en: String(localized: "English", bundle: bundle, locale: locale)
         }
     }
 

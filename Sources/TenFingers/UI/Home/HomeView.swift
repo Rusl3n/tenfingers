@@ -22,6 +22,8 @@ struct HomeView: View {
     @Query private var progress: [LessonProgress]
     @Query(sort: \AchievementRecord.unlockedAt, order: .reverse) private var achievementRecords: [AchievementRecord]
     @State private var data: HomeData?
+    /// Звёзды проверок этапов курса (гейт этапов): читаются вместе с остальным в `reload`.
+    @State private var checkStars: [String: Int] = [:]
     /// Последнее чтение из базы не удалось.
     @State private var loadFailed = false
     /// Открытая карточка «Мой прогресс».
@@ -86,13 +88,7 @@ struct HomeView: View {
     private var continueInfo: ContinueInfo? {
         guard let course = library.courses[language] else { return nil }
         let passed = Set(progress.filter { $0.language == language.rawValue && $0.passedAt != nil }.map(\.lessonId))
-        let percent = Int(course.completion(passed: passed) * 100)
-        guard let lesson = course.nextLesson(passed: passed) else {
-            return ContinueInfo(lessonTitle: nil, stageTitle: "", percent: percent, lessonRun: nil)
-        }
-        return ContinueInfo(lessonTitle: lesson.localizedTitle,
-                            stageTitle: course.stage(of: lesson.id)?.localizedTitle ?? "", percent: percent,
-                            lessonRun: LessonRun(language: language, lessonId: lesson.id))
+        return ContinueInfo.make(course: course, language: language, passed: passed, checkStars: checkStars)
     }
 
     /// Дни читаются один раз (из них и серия, и время), сессии — только за неделю, дата первого занятия —
@@ -106,6 +102,12 @@ struct HomeView: View {
             let sessions = try snapshot.sessionSummaries(fromDay: StreakCalculator.dayKey(today, offset: -6))
             let first = try snapshot.firstSessionDate()
             let training = trainingSnapshot()
+            // Звёзды проверок нужны только гейту издания 2; прежний курс порога не знает.
+            if let course = library.courses[language], course.edition >= 2 {
+                checkStars = try snapshot.stageCheckStars(course: course)
+            } else {
+                checkStars = [:]
+            }
             data = HomeData.make(language: language, streak: streak, days: days, sessions: sessions, today: today,
                                  goalMinutes: dailyGoal, focus: training?.letters.first(where: \.isFocus)?.character,
                                  weakKeys: training?.weakKeys ?? [], canStartWeakSpots: training?.canStartWeakSpots ?? false,
@@ -122,7 +124,8 @@ struct HomeView: View {
         guard let count = try? reader.unlockedCount(language: language),
               let keys = try? reader.keyMastery(language: language),
               let bigrams = try? reader.bigramMastery(language: language),
-              let open = try? reader.openLetters(language: language, course: library.courses[language])
+              let open = try? reader.openLetters(language: language, course: library.courses[language],
+                                                 legacy: library.legacyCourses[language])
         else { return nil }
         return TrainingSnapshot.make(language: language, unlockedCount: count, keyMastery: keys,
                                      bigramMastery: bigrams, targetCpm: Double(targetCpm), openLetters: open)

@@ -1,0 +1,45 @@
+{
+  "language": "en",
+  "stages": [
+    { "id": "en.1", "title": "Основной ряд", "targetCpm": 60, "hint": "full", "lessons": [
+      { "id": "en.1.1", "title": "F и J", "newKeys": ["f", "j"] },
+      { "id": "en.1.2", "title": "D и K", "newKeys": ["d", "k"] },
+      { "id": "en.1.3", "title": "S и L", "newKeys": ["s", "l"] },
+      { "id": "en.1.4", "title": "A и ;", "newKeys": ["a", ";"] },
+      { "id": "en.1.5", "title": "G и H", "newKeys": ["g", "h"] },
+      { "id": "en.1.check", "title": "Контрольный: основной ряд", "newKeys": [], "isCheck": true }
+    ]},
+    { "id": "en.2", "title": "Верхний ряд", "targetCpm": 90, "hint": "full", "lessons": [
+      { "id": "en.2.1", "title": "R и U", "newKeys": ["r", "u"] },
+      { "id": "en.2.2", "title": "E и I", "newKeys": ["e", "i"] },
+      { "id": "en.2.3", "title": "W и O", "newKeys": ["w", "o"] },
+      { "id": "en.2.4", "title": "Q и P", "newKeys": ["q", "p"] },
+      { "id": "en.2.5", "title": "T и Y", "newKeys": ["t", "y"] },
+      { "id": "en.2.6", "title": "[ и ]", "newKeys": ["[", "]"] },
+      { "id": "en.2.check", "title": "Контрольный: верхний ряд", "newKeys": [], "isCheck": true, "hint": "hidden" }
+    ]},
+    { "id": "en.3", "title": "Нижний ряд", "targetCpm": 120, "hint": "onError", "lessons": [
+      { "id": "en.3.1", "title": "V и M", "newKeys": ["v", "m"] },
+      { "id": "en.3.2", "title": "C и запятая", "newKeys": ["c", ","] },
+      { "id": "en.3.3", "title": "X и точка", "newKeys": ["x", "."] },
+      { "id": "en.3.4", "title": "Z и /", "newKeys": ["z", "/"] },
+      { "id": "en.3.5", "title": "B и N", "newKeys": ["b", "n"] },
+      { "id": "en.3.check", "title": "Контрольный: нижний ряд", "newKeys": [], "isCheck": true, "hint": "hidden" }
+    ]},
+    { "id": "en.4", "title": "Заглавные и пунктуация", "targetCpm": 150, "hint": "onError", "lessons": [
+      { "id": "en.4.1", "title": "Заглавные буквы", "newKeys": [], "capitals": true },
+      { "id": "en.4.2", "title": "' и \"", "newKeys": ["'", "\""] },
+      { "id": "en.4.3", "title": ": и ?", "newKeys": [":", "?"] },
+      { "id": "en.4.4", "title": "- и _", "newKeys": ["-", "_"] },
+      { "id": "en.4.check", "title": "Контрольный: весь алфавит", "newKeys": [], "isCheck": true, "hint": "hidden" }
+    ]},
+    { "id": "en.5", "title": "Цифры и символы", "targetCpm": 180, "hint": "onError", "lessons": [
+      { "id": "en.5.1", "title": "Цифры 1–5", "newKeys": ["1", "2", "3", "4", "5"] },
+      { "id": "en.5.2", "title": "Цифры 6–0", "newKeys": ["6", "7", "8", "9", "0"] },
+      { "id": "en.5.3", "title": "! @ #", "newKeys": ["!", "@", "#"] },
+      { "id": "en.5.4", "title": "$ % ^", "newKeys": ["$", "%", "^"] },
+      { "id": "en.5.5", "title": "& * ( )", "newKeys": ["&", "*", "(", ")"] },
+      { "id": "en.5.check", "title": "Контрольный: цифры и символы", "newKeys": [], "isCheck": true, "hint": "hidden" }
+    ]}
+  ]
+}

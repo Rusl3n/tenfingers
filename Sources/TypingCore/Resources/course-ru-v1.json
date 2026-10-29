@@ -1,0 +1,45 @@
+{
+  "language": "ru",
+  "stages": [
+    { "id": "ru.1", "title": "Основной ряд", "targetCpm": 60, "hint": "full", "lessons": [
+      { "id": "ru.1.1", "title": "А и О", "newKeys": ["а", "о"] },
+      { "id": "ru.1.2", "title": "В и Л", "newKeys": ["в", "л"] },
+      { "id": "ru.1.3", "title": "Ы и Д", "newKeys": ["ы", "д"] },
+      { "id": "ru.1.4", "title": "Ф и Ж", "newKeys": ["ф", "ж"] },
+      { "id": "ru.1.5", "title": "П и Р", "newKeys": ["п", "р"] },
+      { "id": "ru.1.check", "title": "Контрольный: основной ряд", "newKeys": [], "isCheck": true }
+    ]},
+    { "id": "ru.2", "title": "Верхний ряд", "targetCpm": 90, "hint": "full", "lessons": [
+      { "id": "ru.2.1", "title": "К и Е", "newKeys": ["к", "е"] },
+      { "id": "ru.2.2", "title": "Н и Г", "newKeys": ["н", "г"] },
+      { "id": "ru.2.3", "title": "У и Ш", "newKeys": ["у", "ш"] },
+      { "id": "ru.2.4", "title": "Ц и Щ", "newKeys": ["ц", "щ"] },
+      { "id": "ru.2.5", "title": "Й и З", "newKeys": ["й", "з"] },
+      { "id": "ru.2.6", "title": "Х и Ъ", "newKeys": ["х", "ъ"] },
+      { "id": "ru.2.check", "title": "Контрольный: верхний ряд", "newKeys": [], "isCheck": true, "hint": "hidden" }
+    ]},
+    { "id": "ru.3", "title": "Нижний ряд", "targetCpm": 120, "hint": "onError", "lessons": [
+      { "id": "ru.3.1", "title": "М и И", "newKeys": ["м", "и"] },
+      { "id": "ru.3.2", "title": "Т и Ь", "newKeys": ["т", "ь"] },
+      { "id": "ru.3.3", "title": "С и Б", "newKeys": ["с", "б"] },
+      { "id": "ru.3.4", "title": "Ч и Ю", "newKeys": ["ч", "ю"] },
+      { "id": "ru.3.5", "title": "Я и точка", "newKeys": ["я", "."] },
+      { "id": "ru.3.check", "title": "Контрольный: нижний ряд", "newKeys": [], "isCheck": true, "hint": "hidden" }
+    ]},
+    { "id": "ru.4", "title": "Заглавные и пунктуация", "targetCpm": 150, "hint": "onError", "lessons": [
+      { "id": "ru.4.1", "title": "Э и Ё", "newKeys": ["э", "ё"] },
+      { "id": "ru.4.2", "title": "Заглавные буквы", "newKeys": [], "capitals": true },
+      { "id": "ru.4.3", "title": "Запятая", "newKeys": [","] },
+      { "id": "ru.4.4", "title": "Дефис", "newKeys": ["-"] },
+      { "id": "ru.4.check", "title": "Контрольный: весь алфавит", "newKeys": [], "isCheck": true, "hint": "hidden" }
+    ]},
+    { "id": "ru.5", "title": "Цифры и символы", "targetCpm": 180, "hint": "onError", "lessons": [
+      { "id": "ru.5.1", "title": "Цифры 1–5", "newKeys": ["1", "2", "3", "4", "5"] },
+      { "id": "ru.5.2", "title": "Цифры 6–0", "newKeys": ["6", "7", "8", "9", "0"] },
+      { "id": "ru.5.3", "title": "! ? :", "newKeys": ["!", "?", ":"] },
+      { "id": "ru.5.4", "title": "; \" №", "newKeys": [";", "\"", "№"] },
+      { "id": "ru.5.5", "title": "( ) %", "newKeys": ["(", ")", "%"] },
+      { "id": "ru.5.check", "title": "Контрольный: цифры и символы", "newKeys": [], "isCheck": true, "hint": "hidden" }
+    ]}
+  ]
+}

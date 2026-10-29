@@ -127,3 +127,12 @@ private func makeSession(_ text: String = "ао") -> ExerciseSession {
     let adaptive = ExerciseSession(spec: spec, language: .ru, mode: .adaptive, lessonId: nil, hint: .full)
     #expect(adaptive.makeResult().stepIndex == nil)
 }
+
+@MainActor @Test func connectedSpecMarksResultAsConnectedText() {
+    let spec = ExerciseSpec(id: 4, kind: .text, title: "t", text: "ао", connected: true)
+    let session = ExerciseSession(spec: spec, language: .ru, mode: .course, lessonId: "ru2.s1.01", hint: .full)
+    #expect(session.makeResult().textTraits.contains(.connected))
+    let plain = ExerciseSession(spec: ExerciseSpec(id: 0, kind: .words, title: "t", text: "ао"), language: .ru,
+                                mode: .course, lessonId: "ru2.s1.01", hint: .full)
+    #expect(!plain.makeResult().textTraits.contains(.connected))
+}

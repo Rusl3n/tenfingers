@@ -91,8 +91,37 @@ private func check(_ lessonId: String, accuracy: Double, cpm: Double, kind: Stri
 }
 
 @Test func lessonRunKeepsOptionalSingleStep() {
-    #expect(LessonRun(language: .ru, lessonId: "ru.1.1").onlyStep == nil)
-    #expect(LessonRun(language: .ru, lessonId: "ru.1.1", onlyStep: .combos).onlyStep == .combos)
+    #expect(LessonRun(language: .ru, lessonId: "ru2.s1.01").onlyStepIndex == nil)
+    #expect(LessonRun(language: .ru, lessonId: "ru2.s1.01", onlyStepIndex: 3).onlyStepIndex == 3)
+}
+
+/// Тексты шагов издания 2 зависят от предыдущих (общий генератор, неповторяющиеся отрывки): повтор шага N строит
+/// весь план урока тем же генератором и берёт шаг N, а не планирует шаг отдельно.
+@MainActor @Test func singleStepReplayTakesStepFromWholePlanWithSameSeed() throws {
+    let library = ContentLibrary()
+    let course = try #require(library.courses[.ru])
+    let planner = try #require(library.planners[.ru])
+    let lesson = try #require(course.lessons.first { $0.resolvedKind == .speedup })
+    let context = try #require(course.context(for: lesson.id))
+    var fullRng = SeededGenerator(seed: 11)
+    let full = planner.exercises(for: context, learner: .empty, rng: &fullRng)
+    #expect(full.count >= 6)
+    for index in [0, 3, full.count - 1] {
+        var rng = SeededGenerator(seed: 11)
+        let run = LessonRunPlan.exercises(planner: planner, context: context, learner: .empty,
+                                          onlyStepIndex: index, rng: &rng)
+        #expect(run.singleStep)
+        #expect(run.exercises == [full[index]])
+        #expect(run.exercises.first?.id == index)
+    }
+    // Без номера или с номером вне плана — весь урок.
+    for only in [nil, full.count] as [Int?] {
+        var rng = SeededGenerator(seed: 11)
+        let run = LessonRunPlan.exercises(planner: planner, context: context, learner: .empty,
+                                          onlyStepIndex: only, rng: &rng)
+        #expect(!run.singleStep)
+        #expect(run.exercises == full)
+    }
 }
 
 // MARK: - ★★★★★ — только за чистый урок
@@ -117,7 +146,7 @@ private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Doub
 /// «Прогресс курсов» в аналитике считает звёзды по тому же правилу, что карта курса.
 @Test func analyticsCourseProgressAgreesWithTheMapOnCleanLesson() throws {
     let course = try CourseCatalog.load(.ru)
-    let lesson = course.lessons[0], target = course.stages[0].targetCpm
+    let lesson = course.lessons[0], target = try #require(course.targetCpm(for: course.lessons[0].id))
     let sessions = [step(.words, accuracy: 0.934, errors: 8, lessonId: lesson.id),
                     step(.check, accuracy: 1, errors: 0, cpm: Double(target) * 2, lessonId: lesson.id)]
     let row = CourseProgressRow.make(course: course,

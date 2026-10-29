@@ -133,7 +133,8 @@ struct WeakSpotsRunnerView: View {
         let reader = StatsReader(context: modelContext)
         let thresholdMs = trainer.thresholdMs
         // Текст и цели — только из открытых букв: неоткрытые в слабые места не попадают.
-        let open = (try? reader.openLetters(language: language, course: library.courses[language]))
+        let open = (try? reader.openLetters(language: language, course: library.courses[language],
+                                            legacy: library.legacyCourses[language]))
             ?? Set(trainer.unlockedLetters(count: AdaptiveTrainer.initialLetters))
         let keys = WeakSpotsFocus.keys((try? reader.keyMastery(language: language)) ?? [:],
                                        letters: open, thresholdMs: thresholdMs)

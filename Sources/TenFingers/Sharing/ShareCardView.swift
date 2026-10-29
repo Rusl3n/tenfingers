@@ -58,6 +58,7 @@ struct ShareCardStyle {
         case .speedRecord: .blue
         case .stage: .purple
         case .course: .green
+        case .certificate: .indigo
         }
     }
 }

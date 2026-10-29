@@ -90,6 +90,9 @@ struct RootView: View {
     @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
     @AppStorage(SettingsKey.onboardingCompleted) private var onboardingCompleted = false
+    /// Читается, чтобы лист «Новый курс» зависел от флага (он живёт в `UserDefaults`, вне архива).
+    @AppStorage(SettingsKey.newCourseIntroShown) private var newCourseIntroShown = false
+    @Query private var lessonProgress: [LessonProgress]
     @Query(filter: #Predicate<AchievementRecord> { !$0.seen }) private var unseenRecords: [AchievementRecord]
     @State private var selection: SidebarItem? = .home
     @State private var activeRun: RunKind?
@@ -111,6 +114,11 @@ struct RootView: View {
     private var unseenAchievements: Int {
         AchievementsListing.unseenIds(catalog: AchievementCatalog.all,
                                       earned: unseenRecords.map(StoredAchievement.init), adultHumor: adultHumor).count
+    }
+    /// Лист «Новый курс»: после знакомства, один раз, если был прогресс прежнего курса.
+    private var showsNewCourseIntro: Bool {
+        onboardingCompleted && !newCourseIntroShown
+            && NewCourseIntro.shouldShow(lessonIds: lessonProgress.map(\.lessonId), defaults: .standard)
     }
     /// Запуск есть, но пользователь ушёл в другой раздел.
     private var isRunHidden: Bool { activeRun != nil && !presence.isVisible }
@@ -184,6 +192,15 @@ struct RootView: View {
         // Знакомство: лист закрывают только его кнопки («Пропустить» или «Готово» ставят флаг).
         .sheet(isPresented: Binding(get: { !onboardingCompleted }, set: { _ in })) { OnboardingView() }
         .interactiveDismissDisabled()
+        // «Новый курс»: любое закрытие листа ставит флаг, «Начать» ещё и открывает «Курс».
+        .sheet(isPresented: Binding(get: { showsNewCourseIntro },
+                                    set: { if !$0 { NewCourseIntro.markShown(.standard) } })) {
+            NewCourseSheet(start: {
+                NewCourseIntro.markShown(.standard)
+                selection = .course
+                if activeRun != nil { presence.isVisible = false }
+            })
+        }
         // Пока открыто знакомство, запуск скрыт: без монитора клавиш Return и буквы не уходят в упражнение.
         .onChange(of: onboardingCompleted, initial: true) { _, done in
             if !done, activeRun != nil { presence.isVisible = false }
@@ -191,6 +208,7 @@ struct RootView: View {
         // Первый запуск версии с ачивками выдаёт всё заработанное задним числом (одна сводка вместо лавины тостов).
         // Кнопка «Поделиться» в тостах ачивок открывает карточку здесь.
         .task {
+            purgeStaleLessonResume()
             toasts.shareAchievement = { shareCard = ShareCard(.achievement($0, .now)) }
             AchievementAnnouncer.launchCheck(service: .live(context: modelContext), toasts: toasts,
                                              adultHumor: StoredSettings.adultHumor(), open: openAchievements)
@@ -287,6 +305,14 @@ struct RootView: View {
         pendingRun = nil
         presence.reset()
         activeRun = run
+    }
+
+    /// Продолжения уроков прежнего курса больше не нужны: остаются только id текущих курсов.
+    /// Без загруженных курсов не трогаем ничего.
+    private func purgeStaleLessonResume() {
+        guard library.loadError == nil, library.courses.count == Language.allCases.count else { return }
+        let ids = Set(library.courses.values.flatMap { $0.lessons.map(\.id) })
+        LessonResume().purge(keeping: ids)
     }
 
     /// Раздел «Ачивки»; идущий запуск при этом скрывается (как при выборе раздела в боковой панели).

@@ -1,11 +1,13 @@
 import Foundation
+import AppKit
 import SwiftUI
 import Testing
 import TypingCore
 @testable import TenFingers
 
-private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Double = 100) -> StepStat {
-    StepStat(kind: kind, bestAccuracy: accuracy, errorsInBest: errors, cpmInBest: cpm, bestCpm: cpm)
+private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Double = 100,
+                  index: Int? = nil) -> StepStat {
+    StepStat(kind: kind, bestAccuracy: accuracy, errorsInBest: errors, cpmInBest: cpm, bestCpm: cpm, stepIndex: index)
 }
 
 // MARK: - Содержимое колонок
@@ -33,6 +35,72 @@ private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Doub
     #expect(CourseColumns.errorsTemplates == ["ошибок: 999"])
     // Обе единицы сразу: ширина колонки не прыгает при смене единицы скорости.
     #expect(CourseColumns.speedTemplates == ["999 зн/мин", "99 WPM"])
+}
+
+// MARK: - Шаги по номеру
+
+/// В уроках издания 2 виды шагов повторяются: строки шагов различаются номером (в названии и в id колонок).
+@Test func stepsOfOneKindDifferByNumber() {
+    let second = step(.words, accuracy: 1, errors: 0, index: 2), third = step(.words, accuracy: 1, errors: 0, index: 3)
+    let words = ExerciseKind.words.localizedTitle
+    #expect(CourseColumns.stepTitle(second) == "3. \(words)")
+    #expect(CourseColumns.stepColumnId(second) != CourseColumns.stepColumnId(third))
+    // Без номера (записи до 6a) — только название, id — по виду.
+    let legacy = step(.words, accuracy: 1, errors: 0)
+    #expect(CourseColumns.stepTitle(legacy) == words)
+    #expect(CourseColumns.stepColumnId(legacy) != CourseColumns.stepColumnId(second))
+    #expect(StepTitle.numbered(0, "Разминка") == "1. Разминка")
+    #expect(StepTitle.numbered(nil, "Разминка") == "Разминка")
+}
+
+// MARK: - Заголовок этапа
+
+/// Этап издания 2: «цель 60 → 80 зн/мин» и порог; «до» = «от» — одна цель; закрытый этап называет условие.
+@Test func stageHeaderTexts() throws {
+    let course = try CourseFixtureApp.ruMini()
+    #expect(CourseColumns.stageGoalText(course.stages[0], unit: .cpm) == "цель 60 → 80 зн/мин")
+    #expect(CourseColumns.stageGoalText(course.stages[0], unit: .wpm) == "цель 12 → 16 WPM")
+    #expect(CourseColumns.gateText(course.stages[0]) == "порог ★★")
+    #expect(CourseColumns.gateText(course.stages[1]) == "порог ★★★")
+    #expect(CourseColumns.opensWhenText(previousStage: 1, gate: course.stages[0].gate)
+            == "Откроется, когда проверка этапа 1 наберёт ★★")
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    let stage = try #require(legacy.stages.first)
+    #expect(CourseColumns.stageGoalText(stage, unit: .cpm) == "цель \(SpeedUnit.cpm.format(Double(stage.targetCpm)))")
+}
+
+// MARK: - Названия шагов на карте и в итоге
+
+/// Карта и итог называют шаг одинаково: разминка проверки этапа — «1. Разминка» и на карте, а не название вида.
+@Test func mapStepTitleMatchesTheRunnerTitle() throws {
+    let course = try CourseFixtureApp.ruMini()
+    let plan = StepTemplates.resolve(try #require(course.context(for: "ru2.s1.check")))
+    // Название разминки — ключ ядра «Разминка» (язык системы), а не название вида «Слова».
+    let warmUp = ExerciseSpec(id: 0, kind: .words, title: "Разминка", text: "").localizedTitle
+    let mappedWarmUp = CourseColumns.stepTitle(step(.words, accuracy: 1, errors: 0, index: 0), plan: plan)
+    #expect(mappedWarmUp == "1. \(warmUp)")
+    #expect(mappedWarmUp != "1. \(ExerciseKind.words.localizedTitle)")
+    // Для каждого шага плана — то же название, что в раннере (`ExerciseSpec.localizedTitle`).
+    for (index, resolved) in plan.enumerated() {
+        let runner = ExerciseSpec(id: index, kind: resolved.kind, title: resolved.title, text: "").localizedTitle
+        let mapped = CourseColumns.stepTitle(step(resolved.kind, accuracy: 1, errors: 0, index: index), plan: plan)
+        #expect(mapped == StepTitle.numbered(index, runner))
+    }
+    // Остальные уроки — название вида; этап без `text`: средний шаг записан как «Фразы».
+    #expect(CourseColumns.stepTitle(step(.phrases, accuracy: 1, errors: 0, index: 1), plan: plan)
+            == "2. \(ExerciseKind.phrases.localizedTitle)")
+}
+
+/// История другой структуры (вид шага не совпал с планом) и записи без номера — название вида; без плана — тоже.
+@Test func mapStepTitleFallsBackToTheKindName() throws {
+    let course = try CourseFixtureApp.ruMini()
+    let plan = StepTemplates.resolve(try #require(course.context(for: "ru2.s1.check")))
+    let drill = ExerciseKind.drill.localizedTitle
+    #expect(CourseColumns.stepTitle(step(.drill, accuracy: 1, errors: 0, index: 0), plan: plan) == "1. \(drill)")
+    #expect(CourseColumns.stepTitle(step(.drill, accuracy: 1, errors: 0, index: 9), plan: plan) == "10. \(drill)")
+    #expect(CourseColumns.stepTitle(step(.words, accuracy: 1, errors: 0), plan: plan) == ExerciseKind.words.localizedTitle)
+    #expect(CourseColumns.stepTitle(step(.words, accuracy: 1, errors: 0, index: 0), plan: [])
+            == "1. \(ExerciseKind.words.localizedTitle)")
 }
 
 // MARK: - Цвет ошибок
@@ -111,4 +179,53 @@ private let lesson: Lesson = {
         #expect(abs((edges["step.\(kind).errors"] ?? 0) - (edges["errors"] ?? 100)) <= 1)
         #expect(abs((edges["step.\(kind).speed"] ?? 0) - (edges["speed"] ?? 100)) <= 1)
     }
+}
+
+/// Два шага «Слова» (номера 2 и 3) — две строки со своими колонками, обе на месте колонок урока.
+@MainActor @Test func numberedStepsOfOneKindGetTheirOwnColumns() {
+    let steps = [step(.words, accuracy: 1, errors: 0, index: 2), step(.words, accuracy: 0.9, errors: 10, index: 3)]
+    let edges = rightEdges(stars: 3, bestCpm: 217, steps: steps, unit: .cpm, expanded: true)
+    for step in steps {
+        let id = CourseColumns.stepColumnId(step)
+        #expect(abs((edges["\(id).errors"] ?? 0) - (edges["errors"] ?? 100)) <= 1, "нет колонки \(id).errors")
+        #expect(abs((edges["\(id).speed"] ?? 0) - (edges["speed"] ?? 100)) <= 1, "нет колонки \(id).speed")
+    }
+}
+
+// MARK: - Значки видов урока
+
+@Test func lessonKindIconsAreRealSymbolsOnlyForSpecialKinds() {
+    #expect(LessonKindIcon.name(.review) == "arrow.triangle.2.circlepath")
+    #expect(LessonKindIcon.name(.speedup) == "hare")
+    #expect(LessonKindIcon.name(.tier) == "speedometer")
+    #expect(LessonKindIcon.name(.stageCheck) == "flag.checkered")
+    for kind in [LessonKind.keys, .rows, .text] { #expect(LessonKindIcon.name(kind) == nil) }
+    for kind in [LessonKind.review, .speedup, .tier, .stageCheck] {
+        let name = LessonKindIcon.name(kind) ?? ""
+        #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
+        #expect(!(LessonKindIcon.help(kind) ?? "").isEmpty)
+    }
+    #expect(LessonKindIcon.help(.keys) == nil)
+    #expect(LessonKindIcon.help(.review) == "Повтор: по вашим ошибкам")
+}
+
+// MARK: - Подсказка экстерна
+
+@Test func externHintShownOnlyWhileGateNotTaken() {
+    func hint(edition: Int = 2, unlocked: Bool = true, check: Bool = true, previousPassed: Bool = false,
+              best: Int = 0, gate: Int = 3) -> Bool {
+        CourseColumns.showsExternHint(edition: edition, isUnlocked: unlocked, isStageCheck: check,
+                                      previousPassed: previousPassed, bestCheckStars: best, gate: gate)
+    }
+    #expect(hint())
+    #expect(hint(best: 2))
+    // Порог взят — подсказки нет.
+    #expect(!hint(best: 3))
+    #expect(!hint(best: 5))
+    #expect(!hint(best: 2, gate: 2))
+    // Остальные условия прежние.
+    #expect(!hint(edition: 1))
+    #expect(!hint(unlocked: false))
+    #expect(!hint(check: false))
+    #expect(!hint(previousPassed: true))
 }

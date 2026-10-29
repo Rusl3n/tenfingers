@@ -24,7 +24,7 @@ private func at(_ text: String) -> Date {
                                       cpm: Double = 160, completed: Bool = true, hint: String = "full",
                                       maxErrorStreak: Int = 1, wrong: Int = 1, pinky: Int = 0, pinkyErrors: Int = 0,
                                       source: String? = nil, fingerPresses: [Finger: Int]? = nil,
-                                      fingerErrors: [Finger: Int]? = nil, yo: Int? = nil) {
+                                      fingerErrors: [Finger: Int]? = nil, yo: Int? = nil, stepIndex: Int? = nil) {
     let end = at(ended)
     context.insert(SessionRecord(
         mode: mode, language: language, lessonId: lessonId, startedAt: end.addingTimeInterval(-seconds), endedAt: end,
@@ -32,7 +32,7 @@ private func at(_ text: String) -> Date {
         completed: completed, hintLevel: hint, maxErrorStreak: maxErrorStreak, wrongKeystrokes: wrong,
         exerciseKind: kind, pinkyPresses: pinky, pinkyErrors: pinkyErrors, source: source,
         fingerPresses: fingerPresses.map(FingerCounts.data), fingerErrors: fingerErrors.map(FingerCounts.data),
-        yoPresses: yo))
+        yoPresses: yo, stepIndex: stepIndex))
 }
 
 @MainActor private func makeService(_ context: ModelContext, now: Date = at("2026-10-24 07:00"),
@@ -40,9 +40,13 @@ private func at(_ text: String) -> Date {
                                     beforeSave: (() throws -> Void)? = nil) -> AchievementService {
     var recorder = ResultRecorder(context: context, dayStartHour: 4)
     recorder.beforeSave = beforeSave
-    return AchievementService(recorder: recorder, goalSeconds: { 600 }, timeZone: msk, now: { now },
-                              catalog: catalog)
+    return AchievementService(recorder: recorder, goalSeconds: { 600 }, timeZone: msk, now: { now }, catalog: catalog)
 }
+
+/// Курсы издания 1 (`ru.1.1` …) для ожидаемых значений: архив, у языка без архива — текущий файл.
+private let editionOneCourses: [Language: Course] = Dictionary(uniqueKeysWithValues: Language.allCases.compactMap {
+    language in (try? CourseCatalog.legacy(language) ?? CourseCatalog.load(language)).map { (language, $0) }
+})
 
 /// История, похожая на настоящую: урок «ru.1.1» пройден вечером, ночью тренировка и брошенные шаги,
 /// урок «ru.1.2» засчитан без истории проверок (до записи шагов), адаптивный режим открыл седьмую букву.
@@ -141,7 +145,7 @@ private func at(_ text: String) -> Date {
 @MainActor @Test func starsOfLessonNeedCleanStepsForFifthStar() throws {
     let container = try ModelStore.makeContainer(inMemory: true)
     let context = container.mainContext
-    let target = try #require(CourseCatalog.load(.ru).context(for: "ru.1.1")).targetCpm
+    let target = try #require(CourseCatalog.legacy(.ru)?.context(for: "ru.1.1")).targetCpm
     insertSession(context, ended: "2026-10-23 21:40:00", day: "2026-10-23", lessonId: "ru.1.1", kind: "words",
                   chars: 120, accuracy: 0.934, cpm: 100, wrong: 8)
     insertSession(context, ended: "2026-10-23 21:42:30", day: "2026-10-23", lessonId: "ru.1.1", kind: "check",
@@ -174,7 +178,7 @@ private func at(_ text: String) -> Date {
     try populateHistory(context)
     let facts = try makeService(context).facts()
     let ru = try #require(facts.openLetterDates[.ru])
-    let course = try CourseCatalog.load(.ru)
+    let course = try #require(editionOneCourses[.ru])
     let lesson1 = Set(course.lessons[0].newCharacters.map { Character(String($0).lowercased()) })
     let lesson2 = Set(course.lessons[1].newCharacters.map { Character(String($0).lowercased()) })
         .subtracting(lesson1)
@@ -227,6 +231,82 @@ private func at(_ text: String) -> Date {
     #expect(Set(dates.keys) == Set(order.prefix(9)))
     for letter in order.prefix(8) { #expect(dates[letter] == now) }
     #expect(dates[order[8]] == at("2026-10-22 10:00"))
+}
+
+// MARK: - Два издания курса (решение 17)
+
+/// По умолчанию служба знает оба издания: текущий курс (издание 2) и архив (издание 1).
+@MainActor @Test func serviceUsesCurrentAndLegacyCourses() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let service = makeService(container.mainContext)
+    #expect(service.courses[.ru]?.edition == 2 && service.courses[.en]?.edition == 2)
+    #expect(service.legacyCourses[.ru]?.edition == 1 && service.legacyCourses[.en]?.edition == 1)
+    let facts = try service.facts()
+    #expect(facts.legacyCourses[.ru]?.lessons.first?.id == "ru.1.1")
+}
+
+/// Обновление на издание 2: прежние ачивки и строки `LessonProgress` издания 1 остаются как были (даты, просмотр),
+/// а прежние уроки (этап не закрыт) не дают ни «Курс пройден», ни «Первый этап».
+@MainActor @Test func launchAfterNewCourseKeepsEarnedAndGrantsNothingWrong() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    context.insert(AchievementRecord(achievementId: "course.first_lesson", unlockedAt: at("2026-10-23 21:42:30"), seen: true))
+    context.insert(AchievementRecord(achievementId: "letters.ru.alphabet", unlockedAt: at("2026-10-20 10:00"), seen: false))
+    try context.save()
+    let before = try records(context).map { ($0.achievementId, $0.unlockedAt, $0.seen) }
+    let progressBefore = try context.fetch(FetchDescriptor<LessonProgress>()).map { ($0.lessonId, $0.passedAt, $0.bestStars) }
+        .sorted { $0.0 < $1.0 }
+
+    let result = try makeService(context).check(reason: .launch)
+    #expect(!result.isBackfill)
+    let after = try records(context)
+    for (id, date, seen) in before {
+        let record = after.first { $0.achievementId == id }
+        #expect(record?.unlockedAt == date && record?.seen == seen, "\(id)")
+    }
+    let ids = Set(after.map(\.achievementId))
+    #expect(!ids.contains("course.ru") && !ids.contains("course.first_stage") && !ids.contains("course.polyglot"))
+    let progressAfter = try context.fetch(FetchDescriptor<LessonProgress>()).map { ($0.lessonId, $0.passedAt, $0.bestStars) }
+        .sorted { $0.0 < $1.0 }
+    #expect(progressAfter.map(\.0) == progressBefore.map(\.0))
+    #expect(progressAfter.map(\.1) == progressBefore.map(\.1) && progressAfter.map(\.2) == progressBefore.map(\.2))
+}
+
+/// Открытые буквы — объединение изданий: засчитан «ru.4.check» издания 1 — весь алфавит (и «э») открыт с датой
+/// зачёта, хотя прогресса издания 2 нет.
+@MainActor @Test func openLetterDatesKeepEditionOneLetters() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let passed = LessonProgress(lessonId: "ru.4.check", language: "ru")
+    passed.passedAt = at("2026-10-20 10:00")
+    context.insert(passed)
+    try context.save()
+    let facts = try makeService(context).facts()
+    let ru = try #require(facts.openLetterDates[.ru])
+    #expect(ru["э"] == at("2026-10-20 10:00"))
+    #expect(Language.ru.letters.allSatisfy { ru[$0] == at("2026-10-20 10:00") })
+    #expect(AchievementEngine.evaluate(facts).contains { $0.id == "letters.ru.alphabet" })
+}
+
+/// Звёзды урока издания 2 — по цели урока (`Course.targetCpm(for:)`): у проверки этапа 1 это «до» (80), а не «от» (60);
+/// 80 зн/мин без ошибок — ★★★ (при цели 60 было бы ★★★★). Факты несут номер шага.
+@MainActor @Test func editionTwoLessonStarsUseLessonTarget() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let course = try CourseCatalog.load(.ru)
+    let check = try #require(course.stages[0].checkLesson)
+    try #require(course.targetCpm(for: check.id) == 80 && course.stages[0].targetCpm == 60)
+    insertSession(context, ended: "2026-10-25 10:00", day: "2026-10-25", lessonId: check.id, kind: "check",
+                  chars: 200, accuracy: 1, cpm: 80, wrong: 0, stepIndex: 2)
+    let progress = LessonProgress(lessonId: check.id, language: "ru")
+    progress.bestStars = 3
+    progress.passedAt = at("2026-10-25 10:00")
+    context.insert(progress)
+    try context.save()
+    let facts = try makeService(context, now: at("2026-10-25 12:00")).facts()
+    #expect(facts.starsByLesson[check.id] == 3)
+    #expect(facts.exercises.first?.stepIndex == 2)
 }
 
 // MARK: - Выдача

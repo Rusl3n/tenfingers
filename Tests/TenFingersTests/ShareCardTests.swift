@@ -108,34 +108,103 @@ private let fixedDate = Date(timeIntervalSince1970: 1_792_843_200)   // 24 ок�
     #expect(ShareAvailability.canShare(plain, adultHumor: false))
 }
 
-/// Последний урок этапа — карточка этапа, последний урок курса — карточка курса, остальные уроки и
+/// Издание 1: последний урок этапа — карточка этапа, последний урок курса — карточка курса, остальные уроки и
 /// непройденная проверка — ничего.
 @Test func completionEventForLastLessons() throws {
-    let course = try CourseCatalog.load(.ru)
+    let course = try #require(try CourseCatalog.legacy(.ru))
     let first = try #require(course.stages.first)
     let last = try #require(course.stages.last)
-    #expect(ShareEvent.completion(course: course, lessonId: first.lessons.last!.id, stars: 1)
-            == .stage(id: first.id, title: first.localizedTitle, language: .ru))
-    #expect(ShareEvent.completion(course: course, lessonId: last.lessons.last!.id, stars: 2) == .course(language: .ru))
-    #expect(ShareEvent.completion(course: course, lessonId: first.lessons.first!.id, stars: 3) == nil)
-    #expect(ShareEvent.completion(course: course, lessonId: first.lessons.last!.id, stars: 0) == nil)
-    #expect(ShareEvent.completion(course: course, lessonId: "нет такого", stars: 3) == nil)
+    func event(_ lessonId: String, _ stars: Int) -> ShareEvent? {
+        ShareEvent.completion(course: course, lessonId: lessonId, stars: stars, passed: [], checkStars: [:])
+    }
+    #expect(event(first.lessons.last!.id, 1) == .stage(id: first.id, title: first.localizedTitle, language: .ru))
+    #expect(event(last.lessons.last!.id, 2) == .course(language: .ru))
+    #expect(event(first.lessons.first!.id, 3) == nil)
+    #expect(event(first.lessons.last!.id, 0) == nil)
+    #expect(event("нет такого", 3) == nil)
 }
 
-/// Повтор одного шага: карточку этапа или курса предлагает только проверка, которая засчитала последний урок.
-@Test func singleStepCompletionOnlyForPassedCheck() throws {
-    let course = try CourseCatalog.load(.ru)
+/// Издание 2: этап засчитывает проверка, набравшая порог (этап 1 — ★★), курс — итоговая проверка ★★★ при всех
+/// засчитанных уроках; остальные уроки и проверка ниже порога — ничего.
+@Test func completionEventInEditionTwoFollowsTheGate() throws {
+    let course = try CourseFixtureApp.ruMini()
     let first = try #require(course.stages.first)
-    let last = try #require(course.stages.last)
-    let stageEnd = first.lessons.last!.id, courseEnd = last.lessons.last!.id
-    #expect(ShareEvent.stepCompletion(course: course, lessonId: stageEnd, kind: .check, stars: 1)
-            == .stage(id: first.id, title: first.localizedTitle, language: .ru))
-    #expect(ShareEvent.stepCompletion(course: course, lessonId: courseEnd, kind: .check, stars: 3)
-            == .course(language: .ru))
-    #expect(ShareEvent.stepCompletion(course: course, lessonId: stageEnd, kind: .check, stars: 0) == nil)
-    #expect(ShareEvent.stepCompletion(course: course, lessonId: stageEnd, kind: .check, stars: nil) == nil)
-    #expect(ShareEvent.stepCompletion(course: course, lessonId: stageEnd, kind: .words, stars: 3) == nil)
-    #expect(ShareEvent.stepCompletion(course: course, lessonId: first.lessons.first!.id, kind: .check, stars: 3) == nil)
+    let allPassed = Set(course.lessons.map(\.id))
+    func event(_ lessonId: String, _ stars: Int, passed: Set<String> = [], checkStars: [String: Int] = [:]) -> ShareEvent? {
+        ShareEvent.completion(course: course, lessonId: lessonId, stars: stars, passed: passed, checkStars: checkStars)
+    }
+    #expect(event("ru2.s1.check", 2) == .stage(id: first.id, title: first.localizedTitle, language: .ru))
+    #expect(event("ru2.s1.check", 1) == nil)
+    #expect(event("ru2.s1.check", 0) == nil)
+    #expect(event("ru2.s1.03", 3) == nil)
+    #expect(event("ru2.s2.check", 3, passed: allPassed.subtracting(["ru2.s2.check"]), checkStars: ["ru2.s1.check": 2]) == .course(language: .ru))
+    // Пропущен урок — курс не пройден, а у последнего этапа карточки этапа нет.
+    #expect(event("ru2.s2.check", 3, passed: allPassed.subtracting(["ru2.s2.check", "ru2.s2.01"])) == nil)
+    // Итоговая проверка ниже порога — ничего.
+    #expect(event("ru2.s2.check", 2, passed: allPassed) == nil)
+}
+
+/// Издание 2: итоговая проверка пройдена экстерном, а последний пропущенный урок — позже: карточка курса (и
+/// «Сертификат») появляется на итоге этого урока, любого, а не только проверки этапа.
+@Test func completionEventWhenTheLastSkippedLessonClosesTheCourse() throws {
+    let course = try CourseFixtureApp.ruMini()
+    let allPassed = Set(course.lessons.map(\.id))
+    let gates = ["ru2.s1.check": 2, "ru2.s2.check": 3]
+    func event(_ lessonId: String, _ stars: Int, passed: Set<String>, checkStars: [String: Int] = gates) -> ShareEvent? {
+        ShareEvent.completion(course: course, lessonId: lessonId, stars: stars, passed: passed, checkStars: checkStars)
+    }
+    // Последний незасчитанный урок этапа 1 после итоговой проверки, взятой экстерном.
+    #expect(event("ru2.s1.02", 1, passed: allPassed.subtracting(["ru2.s1.02"])) == .course(language: .ru))
+    // Это же — для урока последнего этапа.
+    #expect(event("ru2.s2.01", 5, passed: allPassed.subtracting(["ru2.s2.01"])) == .course(language: .ru))
+    // Не последний пропуск: курс ещё не закрыт.
+    #expect(event("ru2.s1.02", 1, passed: allPassed.subtracting(["ru2.s1.02", "ru2.s1.03"])) == nil)
+    // Урок не засчитан.
+    #expect(event("ru2.s1.02", 0, passed: allPassed.subtracting(["ru2.s1.02"])) == nil)
+    // Порог итоговой проверки не взят: курс не пройден.
+    #expect(event("ru2.s1.02", 3, passed: allPassed.subtracting(["ru2.s1.02"]),
+                  checkStars: ["ru2.s1.check": 2, "ru2.s2.check": 2]) == nil)
+    // Курс был пройден до попытки: повтор урока карточку не предлагает.
+    #expect(event("ru2.s1.02", 3, passed: allPassed) == nil)
+    // Проверка этапа, с которой курс закрыт, — по-прежнему карточка курса (даже при повторе).
+    #expect(event("ru2.s1.check", 2, passed: allPassed.subtracting(["ru2.s1.check"]),
+                  checkStars: ["ru2.s2.check": 3]) == .course(language: .ru))
+    #expect(event("ru2.s2.check", 3, passed: allPassed) == .course(language: .ru))
+}
+
+/// «Сертификат» на итоге обычного урока следует за той же карточкой курса.
+@Test func certificateOfferFollowsTheCourseCardOfAnyLesson() throws {
+    let course = try CourseFixtureApp.ruMini()
+    let allPassed = Set(course.lessons.map(\.id))
+    let closing = ShareEvent.completion(course: course, lessonId: "ru2.s1.02", stars: 1,
+                                        passed: allPassed.subtracting(["ru2.s1.02"]),
+                                        checkStars: ["ru2.s1.check": 2, "ru2.s2.check": 3])
+    #expect(ShareEvent.certificateOffer(after: closing, language: .ru, average: 130) == .certificate(language: .ru, averageCpm: 130))
+    #expect(ShareEvent.certificateOffer(after: closing, language: .ru, average: nil) == nil)
+    let open = ShareEvent.completion(course: course, lessonId: "ru2.s1.02", stars: 1, passed: [], checkStars: [:])
+    #expect(ShareEvent.certificateOffer(after: open, language: .ru, average: 130) == nil)
+}
+
+/// Повтор одного шага: этап или курс засчитывает только проверка, которая взяла порог.
+@Test func singleStepCompletionOnlyForPassedCheck() throws {
+    let course = try CourseFixtureApp.ruMini()
+    let first = try #require(course.stages.first)
+    let allPassed = Set(course.lessons.map(\.id))
+    func event(_ lessonId: String, _ kind: ExerciseKind, _ stars: Int?, passed: Set<String> = []) -> ShareEvent? {
+        ShareEvent.stepCompletion(course: course, lessonId: lessonId, kind: kind, stars: stars, passed: passed, checkStars: [:])
+    }
+    #expect(event("ru2.s1.check", .check, 2) == .stage(id: first.id, title: first.localizedTitle, language: .ru))
+    #expect(event("ru2.s1.check", .check, 1) == nil)
+    #expect(event("ru2.s2.check", .check, 3, passed: allPassed) == .course(language: .ru))
+    #expect(event("ru2.s1.check", .check, nil) == nil)
+    #expect(event("ru2.s1.check", .words, 3) == nil)
+    #expect(event("ru2.s1.01", .check, 3) == nil)
+    // Издание 1 — как раньше: порога нет, последний урок этапа со ★.
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    let stage = try #require(legacy.stages.first)
+    #expect(ShareEvent.stepCompletion(course: legacy, lessonId: stage.lessons.last!.id, kind: .check, stars: 1,
+                                      passed: [], checkStars: [:])
+            == .stage(id: stage.id, title: stage.localizedTitle, language: .ru))
 }
 
 @Test func speedUnitValueMatchesFormat() {
@@ -166,6 +235,54 @@ private let fixedDate = Date(timeIntervalSince1970: 1_792_843_200)   // 24 ок�
     #expect(ShareCard(.course(language: .en), now: fixedDate).fileName == "tenfingers-course-en.png")
     #expect(ShareCard(.streak(days: 30, full: 28), now: fixedDate).fileName == "tenfingers-streak-30.png")
     #expect(ShareCard(.stage(id: "ru.2", title: "Верхний ряд", language: .ru)).fileName == "tenfingers-stage-ru.2.png")
+}
+
+// MARK: - «Сертификат»
+
+@Test func certificateEventHasFileNameIconAndNowDate() {
+    let ru = ShareCard(.certificate(language: .ru, averageCpm: 125), now: fixedDate)
+    #expect(ru.fileName == "tenfingers-certificate-ru.png")
+    #expect(ShareCard(.certificate(language: .en, averageCpm: 125)).fileName == "tenfingers-certificate-en.png")
+    #expect(ru.date == fixedDate && ru.event.date == nil)
+    #expect(ru.event.icon == "rosette")
+    #expect(NSImage(systemSymbolName: ru.event.icon, accessibilityDescription: nil) != nil)
+    #expect(ru.event.progressData == nil)
+}
+
+/// Сертификат предлагается вторым предложением только вместе с карточкой курса (итоговая проверка взяла порог) и когда
+/// условие сертификата выполнено.
+@Test func certificateIsOfferedOnlyWithTheCourseCard() {
+    let course = ShareEvent.course(language: .ru)
+    let stage = ShareEvent.stage(id: "ru2.s1", title: "Этап 1", language: .ru)
+    #expect(ShareEvent.certificateOffer(after: course, language: .ru, average: 125)
+            == .certificate(language: .ru, averageCpm: 125))
+    #expect(ShareEvent.certificateOffer(after: course, language: .ru, average: nil) == nil)
+    #expect(ShareEvent.certificateOffer(after: stage, language: .ru, average: 125) == nil)
+    #expect(ShareEvent.certificateOffer(after: nil, language: .ru, average: 125) == nil)
+}
+
+@Test func certificateCardTextInBothLanguages() {
+    let card = ShareCard(.certificate(language: .ru, averageCpm: 125), now: fixedDate)
+    let options = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .wide)
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    let russian = ShareCardText(card: card, options: options, profile: profile, unit: .wpm,
+                                bundle: localization("ru"), locale: ru)
+    #expect(russian.header == "Сертификат")
+    #expect(russian.headline == "Русская раскладка")
+    #expect(russian.subtitle == "Курс «Десять пальцев» (Русский) пройден · средняя скорость проверок этапов 25 WPM")
+    #expect(russian.footnote == nil && russian.progress == nil)
+    #expect(russian.signature == "rusl3n")
+    let english = ShareCardText(card: ShareCard(.certificate(language: .en, averageCpm: 150), now: fixedDate),
+                                options: options, profile: profile, unit: .wpm, bundle: localization("en"), locale: en)
+    #expect(english.header == "Certificate")
+    #expect(english.headline == "English layout")
+    #expect(english.subtitle == "TenFingers course (English) completed · average stage-check speed 30 WPM")
+    let russianInEnglish = ShareCardText(card: card, options: options, profile: profile, unit: .wpm,
+                                         bundle: localization("en"), locale: en)
+    #expect(russianInEnglish.subtitle == "TenFingers course (Russian) completed · average stage-check speed 25 WPM")
+    let cpm = ShareCardText(card: card, options: options, profile: profile, unit: .cpm,
+                            bundle: localization("ru"), locale: ru)
+    #expect(cpm.subtitle?.hasSuffix("125 зн/мин") == true)
 }
 
 // MARK: - Тексты карточки
@@ -776,6 +893,32 @@ private let cardPadding: [ShareFormat: Int] = [.wide: 72, .square: 80, .story: 9
     }
 }
 
+/// Карточка «Сертификат» во всех трёх форматах, обеих темах и на обоих языках рисуется точного размера
+/// формата (при масштабе 1), а подзаголовок (самая длинная строка карточки) не выходит за поля: в полосах полей нет
+/// пикселей текста — как у самой длинной сноски ачивки (раньше длинный текст без ограничения ширины вылезал за карточку
+/// и обрезался по краям). Скорость берётся в самой широкой записи (четыре цифры, знаки в минуту).
+@MainActor @Test func certificateCardRendersInEveryFormatWithoutClippedSubtitle() throws {
+    let (defaults, name) = makeTestDefaults("share-certificate-render-")
+    defer { removeTestDefaults(name) }
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "Руслан")
+    for (language, locale, code) in [(Language.ru, ru, "ru"), (.en, en, "en")] {
+        for format in ShareFormat.allCases {
+            for theme in ShareTheme.allCases {
+                let options = ShareOptions(signature: .both, theme: theme, background: .colored, format: format)
+                let card = ShareCard(.certificate(language: language, averageCpm: 1234), now: fixedDate)
+                let view = ShareCardView.make(card: card, options: options, profile: profile, defaults: defaults,
+                                              bundle: localization(code), locale: locale)
+                let size = format.size
+                let rep = try decode(try ShareCardRenderer.png(view, scale: 1))
+                #expect(rep.pixelsWide == Int(size.width) && rep.pixelsHigh == Int(size.height),
+                        "\(code) \(format) \(theme): размер \(rep.pixelsWide)×\(rep.pixelsHigh)")
+                let ink = inkInSideMargins(rep, margin: try #require(cardPadding[format]) - 16, dark: theme == .dark)
+                #expect(ink == 0, "\(code) \(format) \(theme): \(ink) пикселей текста в полях")
+            }
+        }
+    }
+}
+
 /// Водяной знак (иконка и две строки) с QR и без него не выходит за поля ни у одной карточки ни в одном формате, в обеих
 /// темах; блок «QR + водяной знак» в вертикальных форматах центрирован как единое целое (допуск ±2% ширины).
 @MainActor @Test func watermarkStaysInsideMarginsOnEveryCard() throws {
@@ -785,7 +928,7 @@ private let cardPadding: [ShareFormat: Int] = [.wide: 72, .square: 80, .story: 9
     let events: [ShareEvent] = [.achievement(achievement, fixedDate), .streak(days: 30, full: 28),
                                 .speedRecord(.ru, cpm: 312, date: fixedDate),
                                 .stage(id: "ru.1", title: "Основной ряд", language: .ru), .course(language: .en),
-                                .progress(progressData())]
+                                .certificate(language: .ru, averageCpm: 125), .progress(progressData())]
     for event in events {
         for format in ShareFormat.allCases {
             for qr in [false, true] {

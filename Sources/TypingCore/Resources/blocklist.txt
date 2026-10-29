@@ -1,0 +1,115 @@
+# Список-исключение грубой лексики для текстов упражнений.
+# Читают оба: WordFilter (Swift, словари words-*.txt) и scripts/prepare-sentences.py (корпус Tatoeba).
+# Строка: «вид фрагмент». Фрагмент — регулярное выражение в общем синтаксисе Python re и ICU,
+# сравнивается со строчным текстом. Вид:
+#   any   — в любом месте слова (только однозначные корни: «бля» есть в «корабля», «cunt» — в «scunthorpe»);
+#   start — с начала слова;
+#   word  — слово целиком.
+# Буквы слова — [a-zа-яё]. Проверки на примерах: WordFilterTests и `prepare-sentences.py --check`.
+
+any хуй
+any хуе
+any хуё
+any хуя
+any пизд
+any бляд
+any fuck
+any shit
+any bitch
+any whore
+any slut
+any porn
+any goddamn
+any jackass
+any dumbass
+any долбо[её]б
+
+# «еб/ёб» с приставкой или без, только с начала слова: голое «еб» внутри слова — хлеб, колебать, небо.
+start (?:на|по|про|раз|разъ|съ|въ|вы|за|у|от|отъ|до|пере|при|из|изъ|подъ|о)?[её]б(?:а|у|л|н|ё|и|ш|е|о|к)
+word бля
+start блят
+word сук(?:а|и|е|у|ой|ам|ами|ах)
+start сучк
+start сучар
+start сукин
+start мудак
+start мудил
+start гандон
+start гондон
+start залуп
+start дроч
+start шлюх
+start проститут
+start жоп
+# «сравнить», «срам», «сражение» проходят.
+start (?:на|по|за|об|обо|вы|про|у)?сра(?:т|н|л)
+start засран
+start обосра
+start говн
+start дерьм
+start пидор
+start пидар
+start пидр
+start педераст
+start педик(?!ю)
+start трах(?:а|н|у)
+start секс
+start наркот
+start ублюд
+start задниц
+start сиськ
+start херн
+
+# Английские корни, у которых есть невинные слова с тем же сочетанием внутри: scunthorpe, swank, snigger.
+start cunt
+start wank
+start nigg
+start bastard
+start asshole
+start dickhead
+start pussy
+start damn
+start crap
+start piss
+start sex
+start faggot
+start retard
+start boob
+start cocksuck
+start blowjob
+start dildo
+start skank
+start prostitut
+start hooker
+start stripper
+start twat
+start bollock
+word horny
+word dicks?
+word cocks?
+word ass(?:es)?
+word arse
+word fags?
+word tits?
+word rap(?:e|ed|es|ist|ists|ing)
+word pricks?
+word bugger(?:s|ed)?
+word pimps?
+# Анатомия и около: в случайных упражнениях этим словам не место.
+word penis(?:es)?
+word vaginas?
+word sperm
+word nudes?
+# Дополнения после финального ревью Task 2 (за пределами топ-8000 и возможные в корпусе).
+start минет
+start отсос
+start мразь
+start шалав
+word манда
+start (?:об|за|на)?ссат
+word cum
+word kikes?
+word spics?
+start презик
+start презерват
+start гандон

@@ -7,7 +7,7 @@ import TypingCore
 private let firstSix = Set(Language.ru.adaptiveOrder.prefix(6))  // о е а и н т
 
 @Test func openLettersFromCourseOnly() throws {
-    let course = try CourseCatalog.load(.ru)
+    let course = try #require(try CourseCatalog.legacy(.ru))
     // Пройдены 1.1 и 1.2 (а о в л); адаптивная тренировка не начиналась — в ней открыты стартовые 6 букв.
     let letters = OpenLetters.combine(language: .ru, course: course, passedLessonIds: ["ru.1.1", "ru.1.2"],
                                       adaptiveCount: AdaptiveTrainer.initialLetters)
@@ -16,14 +16,14 @@ private let firstSix = Set(Language.ru.adaptiveOrder.prefix(6))  // о е а и 
 }
 
 @Test func openLettersFromAdaptiveOnly() throws {
-    let course = try CourseCatalog.load(.ru)
+    let course = try #require(try CourseCatalog.legacy(.ru))
     let letters = OpenLetters.combine(language: .ru, course: course, passedLessonIds: [], adaptiveCount: 9)
     #expect(letters == Set(Language.ru.adaptiveOrder.prefix(9)))
     #expect(OpenLetters.combine(language: .ru, course: nil, passedLessonIds: ["ru.1.1"], adaptiveCount: 6) == firstSix)
 }
 
 @Test func openLettersUnionUsesLastPassedLessonInCourseOrder() throws {
-    let course = try CourseCatalog.load(.ru)
+    let course = try #require(try CourseCatalog.legacy(.ru))
     // Порядок в наборе не важен: берётся последний пройденный урок по курсу (1.3) со всеми буквами до него.
     let letters = OpenLetters.combine(language: .ru, course: course, passedLessonIds: ["ru.1.3", "ru.1.1"],
                                       adaptiveCount: 7)
@@ -42,9 +42,31 @@ private let firstSix = Set(Language.ru.adaptiveOrder.prefix(6))  // о е а и 
     context.insert(english)
     context.insert(AdaptiveState(language: "ru", unlockedCount: 8))
     try context.save()
-    let course = try CourseCatalog.load(.ru)
-    let letters = try StatsReader(context: context).openLetters(language: .ru, course: course)
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    let letters = try StatsReader(context: context).openLetters(language: .ru, course: try CourseCatalog.load(.ru),
+                                                                legacy: legacy)
     #expect(letters == Set(Language.ru.adaptiveOrder.prefix(8)).union("аовл"))
+}
+
+/// Открытые буквы — объединение изданий: «ru.2.1» издания 1 (основной ряд без «э», «к», «е») и «ru2.s1.04»
+/// издания 2 (основной ряд до «э»); каждое издание добавляет своё.
+@MainActor @Test func openLettersCombineBothEditions() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    for id in ["ru.2.1", "ru2.s1.04"] {
+        let passed = LessonProgress(lessonId: id, language: "ru")
+        passed.passedAt = Date()
+        context.insert(passed)
+    }
+    try context.save()
+    let reader = StatsReader(context: context)
+    let current = try CourseCatalog.load(.ru)
+    let legacy = try #require(try CourseCatalog.legacy(.ru))
+    let letters = try reader.openLetters(language: .ru, course: current, legacy: legacy)
+    #expect(letters == firstSix.union("аовлыдфжпркеэ"))
+    #expect(try reader.openLetters(language: .ru, course: current, legacy: nil) == firstSix.union("аовлыдфжэ"))
+    #expect(OpenLetters.combine(language: .ru, course: current, legacy: legacy, passedLessonIds: ["ru.2.1", "ru2.s1.04"],
+                                adaptiveCount: 6) == letters)
 }
 
 @Test func weakSpotsNeedEnoughOpenLetters() {

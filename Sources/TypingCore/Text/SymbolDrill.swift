@@ -42,7 +42,7 @@ public enum SymbolDrill {
             (digitSet.union("$"), false, { rng in "$\(Int.random(in: 1...99, using: &rng))" }),
             (Set("()"), true, { rng in "(\(word(&rng)))" }),
             (Set("\""), true, { rng in "\"\(word(&rng))\"" }),
-            (Set("'"), true, { rng in "'\(word(&rng))'" }),
+            (Set("'s"), true, { rng in "\(word(&rng))'s" }),  // апостроф — не кавычка: только внутри слова
             (Set("[]"), true, { rng in "[\(word(&rng))]" }),
             (Set(","), true, after(",")),
             (Set("."), true, after(".")),
@@ -62,6 +62,9 @@ public enum SymbolDrill {
             }),
             (Set("="), true, between("=")),
             (Set("+"), true, between("+")),
+            // Пункты списков (урок «Списки»): «3) слово», «2. слово».
+            (digitSet.union(")"), true, { rng in "\(Int.random(in: 1...9, using: &rng))) \(word(&rng))" }),
+            (digitSet.union("."), true, { rng in "\(Int.random(in: 1...9, using: &rng)). \(word(&rng))" }),
         ]
         let available = patterns.filter { $0.requires.isSubset(of: allowed) && (!$0.usesWords || !words.isEmpty) }
         guard !available.isEmpty else { return "" }

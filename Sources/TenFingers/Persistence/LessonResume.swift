@@ -59,4 +59,12 @@ struct LessonResume {
         if step == 0, defaults.object(forKey: Self.key(lessonId: lessonId)) != nil { clear(lessonId: lessonId) }
         return step
     }
+
+    /// Удаляет записи продолжения уроков, которых нет в `keeping` (уроки текущих курсов). Идемпотентно.
+    func purge(keeping lessonIds: Set<String>) {
+        let prefix = Self.key(lessonId: "")
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            if !lessonIds.contains(String(key.dropFirst(prefix.count))) { defaults.removeObject(forKey: key) }
+        }
+    }
 }

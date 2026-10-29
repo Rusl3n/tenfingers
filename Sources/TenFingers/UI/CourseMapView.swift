@@ -28,38 +28,60 @@ struct CourseMapView: View {
     var body: some View {
         if let course = library.courses[language] {
             let records = progressById
-            let sessions = Dictionary(grouping: courseSessions.compactMap(ProgressSnapshot.summary)) { $0.lessonId ?? "" }
+            let summaries = courseSessions.compactMap(ProgressSnapshot.summary)
+            let sessions = Dictionary(grouping: summaries) { $0.lessonId ?? "" }
             let passed = passed
+            // Гейт этапов издания 2: звёзды проверок по тем же сессиям (у издания 1 порога нет).
+            let checkStars = CourseGate.checkStars(course: course, sessions: summaries)
             // ScrollView, а не List: строки List — отдельные NSHostingView, и при масштабе интерфейса
             // (`uiScaled`) клики в них попадают мимо кнопок.
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    ForEach(course.stages) { stage in
+                    ForEach(Array(course.stages.enumerated()), id: \.element.id) { stageIndex, stage in
                         Section {
-                            ForEach(stage.lessons) { lesson in
+                            ForEach(Array(stage.lessons.enumerated()), id: \.element.id) { lessonIndex, lesson in
                                 let record = records[lesson.id]
-                                let overview = LessonOverview.make(lessonId: lesson.id, targetCpm: stage.targetCpm,
+                                let target = course.targetCpm(for: lesson.id) ?? 0
+                                let overview = LessonOverview.make(lessonId: lesson.id, targetCpm: target,
                                                                    sessions: sessions[lesson.id] ?? [],
                                                                    storedStars: record?.bestStars ?? 0,
                                                                    isPassed: record?.passedAt != nil)
+                                let isUnlocked = course.isUnlocked(lesson.id, passed: passed, checkStars: checkStars)
+                                // Проверку открытого этапа можно сдать, не пройдя уроки: экстерн (пока порог не взят).
+                                let isExtern = CourseColumns.showsExternHint(
+                                    edition: course.edition, isUnlocked: isUnlocked,
+                                    isStageCheck: lesson.resolvedKind == .stageCheck,
+                                    previousPassed: lessonIndex > 0 ? passed.contains(stage.lessons[lessonIndex - 1].id) : true,
+                                    bestCheckStars: checkStars[lesson.id] ?? 0, gate: stage.gate)
                                 CourseLessonRow(lesson: lesson, language: language, overview: overview,
-                                                targetCpm: stage.targetCpm, bestCpm: record?.bestCpm ?? 0, isPassed: record?.passedAt != nil,
-                                                isUnlocked: course.isUnlocked(lesson.id, passed: passed), unit: unit,
+                                                targetCpm: target, bestCpm: record?.bestCpm ?? 0, isPassed: record?.passedAt != nil,
+                                                isUnlocked: isUnlocked, unit: unit,
+                                                stepPlan: stepPlan(course, lesson, isExpanded: expanded.contains(lesson.id)),
+                                                isExtern: isExtern,
                                                 isExpanded: expandedBinding(lesson.id), start: start)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                             }
                         } header: {
-                            let goal = unit.format(Double(stage.targetCpm))
-                            HStack {
-                                Text(stage.localizedTitle).foregroundStyle(.primary)
-                                Spacer()
-                                Text("цель \(goal)").foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(stage.localizedTitle).foregroundStyle(.primary)
+                                    Spacer()
+                                    Text(CourseColumns.stageGoalText(stage, unit: unit)).foregroundStyle(.secondary)
+                                    if course.edition >= 2 {
+                                        Text(CourseColumns.gateText(stage)).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                                .font(.callout.weight(.semibold))
+                                if !course.isStageOpen(stageIndex, checkStars: checkStars) {
+                                    Text(CourseColumns.opensWhenText(previousStage: stageIndex, gate: course.stages[stageIndex - 1].gate))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
-                            .font(.callout.weight(.semibold))
                             .padding(.horizontal, 10)
                             .padding(.top, 14)
                             .padding(.bottom, 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .background(palette.background)
                         }
                     }
@@ -69,6 +91,13 @@ struct CourseMapView: View {
             }
             .navigationTitle("Курс · \(language.displayName)")
         }
+    }
+
+    /// План шагов раскрытого урока издания 2: названия шагов на карте — как в итоге раннера (у разминки проверки —
+    /// «Разминка»). У свёрнутого урока и у издания 1 плана нет — названия по виду шага.
+    private func stepPlan(_ course: Course, _ lesson: Lesson, isExpanded: Bool) -> [ResolvedStep] {
+        guard isExpanded, course.edition >= 2, let context = course.context(for: lesson.id) else { return [] }
+        return StepTemplates.resolve(context)
     }
 
     private func expandedBinding(_ lessonId: String) -> Binding<Bool> {
@@ -90,6 +119,10 @@ struct CourseLessonRow: View {
     let isPassed: Bool
     let isUnlocked: Bool
     let unit: SpeedUnit
+    /// План шагов урока (`StepTemplates.resolve`): названия строк шагов.
+    var stepPlan: [ResolvedStep] = []
+    /// Проверка этапа, которую можно сдать сразу (предыдущий урок этапа не засчитан): подсказка «экстерном».
+    var isExtern = false
     @Binding var isExpanded: Bool
     let start: (LessonRun) -> Void
 
@@ -106,6 +139,11 @@ struct CourseLessonRow: View {
                         Image(systemName: isPassed ? "checkmark.circle.fill" : (isUnlocked ? "play.circle" : "lock"))
                             .foregroundStyle(isPassed ? Color.green : Color.secondary)
                             .frame(width: 20)
+                        if let icon = LessonKindIcon.name(lesson.resolvedKind) {
+                            Image(systemName: icon)
+                                .foregroundStyle(.secondary)
+                                .help(LessonKindIcon.help(lesson.resolvedKind) ?? "")
+                        }
                         Text(lesson.localizedTitle)
                         Spacer()
                         // Слева направо: ошибки, скорость, звёзды. Ширина колонок не зависит от значений,
@@ -123,6 +161,7 @@ struct CourseLessonRow: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!isUnlocked)
+                .modifier(ExternHelp(isExtern: isExtern))
                 StarsHelpButton(targetCpm: targetCpm, unit: unit, isPresented: $showsStarsHelp)
                     .opacity(isHovered || isExpanded || showsStarsHelp ? 1 : 0.35)
                     .courseColumnFrame("help")
@@ -145,7 +184,8 @@ struct CourseLessonRow: View {
             }
             if isExpanded, !overview.steps.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(overview.steps, id: \.kind) { step in stepRow(step) }
+                    // Ключ строки — (номер, вид): у двух шагов с одинаковыми итогами id не совпадает.
+                    ForEach(overview.steps, id: \.rowKey) { step in stepRow(step) }
                 }
                 .padding(.leading, 32)
                 .padding(.bottom, 4)
@@ -158,24 +198,28 @@ struct CourseLessonRow: View {
     /// Шаг: колонки «ошибки», «скорость» те же, что у строки урока (ширина по тем же шаблонам, правые края
     /// совпадают), а «Пройти заново» стоит на месте звёзд, «?» и стрелки.
     private func stepRow(_ step: StepStat) -> some View {
-        HStack(spacing: CourseColumns.spacing) {
-            Text(step.kind.localizedTitle)
+        let columnId = CourseColumns.stepColumnId(step)
+        return HStack(spacing: CourseColumns.spacing) {
+            Text(CourseColumns.stepTitle(step, plan: stepPlan))
             Spacer()
-            CourseColumn(id: "step.\(step.kind.rawValue).errors", text: CourseColumns.stepErrorsText(step.errorsInBest),
+            CourseColumn(id: "\(columnId).errors", text: CourseColumns.stepErrorsText(step.errorsInBest),
                          templates: CourseColumns.errorsTemplates)
                 .foregroundStyle(Self.errorsColor(step))
-            CourseColumn(id: "step.\(step.kind.rawValue).speed", text: CourseColumns.speedText(step.bestCpm, unit: unit),
+            CourseColumn(id: "\(columnId).speed", text: CourseColumns.speedText(step.bestCpm, unit: unit),
                          templates: CourseColumns.speedTemplates)
                 .foregroundStyle(.secondary)
             ZStack(alignment: .trailing) {
                 CourseColumns.trailingTemplate
-                Button {
-                    start(LessonRun(language: language, lessonId: lesson.id, onlyStep: step.kind))
-                } label: {
-                    Label("Пройти заново", systemImage: "arrow.counterclockwise")
+                // Повтор — по номеру шага в плане; у шага без номера (только архивные уроки) кнопки нет.
+                if let index = step.stepIndex {
+                    Button {
+                        start(LessonRun(language: language, lessonId: lesson.id, onlyStepIndex: index))
+                    } label: {
+                        Label("Пройти заново", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(!isUnlocked)
                 }
-                .buttonStyle(.borderless)
-                .disabled(!isUnlocked)
             }
             .fixedSize(horizontal: true, vertical: false)
         }
@@ -192,12 +236,43 @@ struct CourseLessonRow: View {
     }
 }
 
+/// Значок вида урока перед названием на карте: «Повтор», «Ускорение», ступень скорости, проверка этапа.
+/// У обычных уроков (`keys`, `rows`, `text`) значка нет.
+enum LessonKindIcon {
+    static func name(_ kind: LessonKind) -> String? {
+        switch kind {
+        case .review: "arrow.triangle.2.circlepath"
+        case .speedup: "hare"
+        case .tier: "speedometer"
+        case .stageCheck: "flag.checkered"
+        case .keys, .rows, .text: nil
+        }
+    }
+
+    static func help(_ kind: LessonKind) -> String? {
+        switch kind {
+        case .review: String(localized: "Повтор: по вашим ошибкам")
+        case .speedup: String(localized: "Ускорение: на сильных буквах")
+        case .tier: String(localized: "Ступень скорости")
+        case .stageCheck: String(localized: "Проверка этапа")
+        case .keys, .rows, .text: nil
+        }
+    }
+}
+
 /// Тексты колонок карты курса и их шаблоны ширины (чистые функции: проверяются без отрисовки).
 enum CourseColumns {
     static let spacing: CGFloat = 12
     static let chevronWidth: CGFloat = 18
     /// Шрифт цифровых колонок общий у строки урока и строк шагов: ширина шаблона зависит от шрифта.
     static let font = Font.callout
+
+    /// Подсказка «экстерном» — у проверки открытого этапа издания 2, к которой не пройден предыдущий урок, и только
+    /// пока лучшие звёзды проверки ниже порога этапа: у сданной проверки подсказка вводила бы в заблуждение.
+    static func showsExternHint(edition: Int, isUnlocked: Bool, isStageCheck: Bool, previousPassed: Bool,
+                                bestCheckStars: Int, gate: Int) -> Bool {
+        edition >= 2 && isUnlocked && isStageCheck && !previousPassed && bestCheckStars < gate
+    }
 
     /// «ошибок: 3»; у урока без попыток (`nil`) — пусто.
     static func errorsText(_ errors: Int?) -> String {
@@ -208,6 +283,38 @@ enum CourseColumns {
     /// «217 зн/мин»; без попыток (скорость 0) — пусто.
     static func speedText(_ cpm: Double, unit: SpeedUnit) -> String {
         cpm > 0 ? unit.format(cpm) : ""
+    }
+
+    /// Строка шага: «3. Слова» (`stepIndex + 1`); без номера — только название. Название — по плану урока
+    /// (`plan`, `StepTemplates.resolve`), как в итоге раннера: у разминки проверки этапа — «Разминка».
+    static func stepTitle(_ step: StepStat, plan: [ResolvedStep] = []) -> String {
+        StepTitle.numbered(step.stepIndex, StepTitle.name(stepIndex: step.stepIndex, kind: step.kind, plan: plan))
+    }
+
+    /// Шаги издания 2 одного вида различаются номером: id колонок — `step.<номер>.<вид>` (без номера — `step.<вид>`).
+    static func stepColumnId(_ step: StepStat) -> String {
+        step.stepIndex.map { "step.\($0).\(step.kind.rawValue)" } ?? "step.\(step.kind.rawValue)"
+    }
+
+    /// Цель этапа в заголовке: «цель 60 → 80 зн/мин», если «до» ≠ «от», иначе «цель 80 зн/мин».
+    static func stageGoalText(_ stage: Stage, unit: SpeedUnit) -> String {
+        let end = unit.format(Double(stage.targetEnd))
+        guard stage.targetEnd != stage.targetCpm else { return String(localized: "цель \(end)") }
+        let start = String(unit.wholeValue(Double(stage.targetCpm)))
+        return String(localized: "цель \(start) → \(end)")
+    }
+
+    /// Порог проверки этапа: «порог ★★».
+    static func gateText(_ stage: Stage) -> String {
+        let stars = String(repeating: "★", count: stage.gate)
+        return String(localized: "порог \(stars)")
+    }
+
+    /// Под заголовком закрытого этапа: «Откроется, когда проверка этапа 1 наберёт ★★». `previousStage` — номер
+    /// предыдущего этапа (с 1), `gate` — его порог.
+    static func opensWhenText(previousStage: Int, gate: Int) -> String {
+        let stars = String(repeating: "★", count: gate)
+        return String(localized: "Откроется, когда проверка этапа \(previousStage) наберёт \(stars)")
     }
 
     /// Ошибки в строке шага: «0 ошибок», «1 ошибка».
@@ -228,6 +335,19 @@ enum CourseColumns {
         }
         .hidden()
         .accessibilityHidden(true)
+    }
+}
+
+/// Подсказка «экстерном» только у строки проверки открытого этапа; у остальных строк подсказки нет.
+private struct ExternHelp: ViewModifier {
+    let isExtern: Bool
+
+    func body(content: Content) -> some View {
+        if isExtern {
+            content.help(Text("Проверку этапа можно сдать сразу — экстерном"))
+        } else {
+            content
+        }
     }
 }
 
@@ -275,4 +395,14 @@ struct CourseStarsColumn: View {
             .fixedSize()
             .courseColumnFrame("stars")
     }
+}
+
+private struct StepRowKey: Hashable {
+    let index: Int?
+    let kind: ExerciseKind
+}
+
+private extension StepStat {
+    /// Ключ строки шага на карте курса: номер и вид (как группы `LessonStepStats.summarize`).
+    var rowKey: StepRowKey { StepRowKey(index: stepIndex, kind: kind) }
 }

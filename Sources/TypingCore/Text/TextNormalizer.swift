@@ -70,3 +70,82 @@ public enum TextNormalizer {
         return cyrillic >= latin ? .ru : .en
     }
 }
+
+// MARK: - Стиль этапа (решение 9) и предложения отрывка
+
+extension TextNormalizer {
+    /// Знаки конца предложения и то, что может идти за ними в том же предложении.
+    private static let terminals: Set<Character> = [".", "!", "?", "…"]
+    private static let closers: Set<Character> = ["»", "\"", "”", "’", "'", ")", "]"]
+
+    /// Решение 9. `nil` — предложение не годится (символ не открыт, цифра при digits == false).
+    /// Кавычки, тире и многоточие — как в `typeable`; заглавная «Ё» → «Е» (Shift+ё в RussianWin не печатается);
+    /// `lower` — всё строчными; `punctuation: none` — убрать знаки, кроме апострофа между буквами, если «'» открыт
+    /// (дефис между буквами становится пробелом: «кто-то» → «кто то», а не «ктото»).
+    public static func styled(_ text: String, style: TextStyle, allowed: Set<Character>, capitals: Bool) -> String? {
+        var mappedText = ""
+        for character in text {
+            // Быстрый путь: один скаляр ASCII или кириллицы (U+0400–U+04FF) — NFC его не меняет, ударений в нём нет;
+            // невидимых и юникодных пробелов, кроме « », в этих диапазонах нет. Вывод тот же, что у общего пути.
+            if character.unicodeScalars.count == 1, let scalar = character.unicodeScalars.first,
+               scalar.value < 0x80 || (0x400...0x4FF).contains(scalar.value) {
+                if character == " " || character.isNewline { mappedText.append(" ") }
+                else if character == "Ё" { mappedText.append("Е") }
+                else if let replacement = replacements[character] { mappedText.append(replacement) }
+                else { mappedText.append(character) }
+                continue
+            }
+            if character.unicodeScalars.allSatisfy({ invisible.contains($0.value) }) { continue }
+            if isUnicodeSpace(character) || character.isNewline { mappedText.append(" "); continue }
+            let composed = Character(String(character).precomposedStringWithCanonicalMapping)
+            if composed == "Ё" { mappedText.append("Е"); continue }
+            if let replacement = replacements[composed] { mappedText.append(replacement); continue }
+            // Ударения (а́) снимаются; прочие символы остаются как есть и проверяются ниже.
+            mappedText.append(String(composed.unicodeScalars.filter { $0.value != 0x0301 && $0.value != 0x0300 }
+                .map(Character.init)))
+        }
+        if !style.digits && mappedText.contains(where: { $0.isASCII && $0.isWholeNumber }) { return nil }
+        if style.case == .lower { mappedText = mappedText.lowercased() }
+
+        if style.punctuation == .none {
+            let chars = Array(mappedText)
+            var kept = ""
+            for (index, c) in chars.enumerated() {
+                if c.isLetter || c.isNumber || c == " " { kept.append(c); continue }
+                let betweenLetters = index > 0 && index + 1 < chars.count
+                    && chars[index - 1].isLetter && chars[index + 1].isLetter
+                if c == "'" && betweenLetters && allowed.contains("'") { kept.append(c) }
+                else if c == "-" && betweenLetters { kept.append(" ") }
+            }
+            mappedText = kept
+        }
+
+        let result = mappedText.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
+        guard !result.isEmpty else { return nil }
+        for c in result where c != " " {
+            if c.isUppercase {
+                guard capitals, c.lowercased().allSatisfy(allowed.contains) else { return nil }
+            } else if !allowed.contains(c) {
+                return nil
+            }
+        }
+        return result
+    }
+
+    /// Предложения отрывка: разрез после «.», «!», «?», «…» (и их повторов, кавычки/скобки за ними — в том же
+    /// предложении) перед пробелом; пробелы схлопнуты, пустые выброшены.
+    public static func sentences(_ text: String) -> [String] {
+        var result: [String] = []
+        var current: [Substring] = []
+        for token in text.split(whereSeparator: { $0.isWhitespace || isUnicodeSpace($0) }) {
+            current.append(token)
+            let core = token.reversed().drop(while: closers.contains)
+            if let last = core.first, terminals.contains(last) {
+                result.append(current.joined(separator: " "))
+                current = []
+            }
+        }
+        if !current.isEmpty { result.append(current.joined(separator: " ")) }
+        return result
+    }
+}

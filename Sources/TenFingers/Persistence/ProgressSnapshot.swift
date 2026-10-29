@@ -23,6 +23,36 @@ struct ProgressSnapshot {
         try context.fetch(FetchDescriptor<SessionRecord>()).compactMap(Self.summary)
     }
 
+    /// Сессии одного языка: курс и его ориентиры не читают историю чужого языка.
+    func sessionSummaries(language: Language) throws -> [SessionSummary] {
+        let code = language.rawValue
+        let descriptor = FetchDescriptor<SessionRecord>(predicate: #Predicate { $0.language == code })
+        return try context.fetch(descriptor).compactMap(Self.summary)
+    }
+
+    /// Звёзды проверок этапов курса по истории (`CourseGate.checkStars`) — для гейта на главной и в раннере.
+    func stageCheckStars(course: Course) throws -> [String: Int] {
+        let code = course.language.rawValue
+        let descriptor = FetchDescriptor<SessionRecord>(
+            predicate: #Predicate { $0.language == code && $0.mode == "course" && $0.completed })
+        return CourseGate.checkStars(course: course, sessions: try context.fetch(descriptor).compactMap(Self.summary))
+    }
+
+    /// Средняя скорость проверок этапов для «Сертификата» (`Certificate.eligibleAverage`): курс пройден и средняя не ниже
+    /// 120 зн/мин; иначе `nil`. `passed` — засчитанные уроки языка.
+    func certificateAverage(course: Course, passed: Set<String>) throws -> Double? {
+        let code = course.language.rawValue
+        let descriptor = FetchDescriptor<SessionRecord>(
+            predicate: #Predicate { $0.language == code && $0.mode == "course" && $0.completed })
+        return Certificate.eligibleAverage(course: course, passed: passed,
+                                           sessions: try context.fetch(descriptor).compactMap(Self.summary))
+    }
+
+    /// Ориентир «Ускорения» языка курса по его истории (`SpeedupReference.reference`); `nil` — проверок ещё нет.
+    func speedupReference(course: Course) throws -> Double? {
+        SpeedupReference.reference(course: course, sessions: try sessionSummaries(language: course.language))
+    }
+
     /// Сессии начиная с логического дня `start` (включительно): окно недели на главной.
     func sessionSummaries(fromDay start: String) throws -> [SessionSummary] {
         let descriptor = FetchDescriptor<SessionRecord>(predicate: #Predicate { $0.logicalDay >= start })
@@ -53,7 +83,7 @@ struct ProgressSnapshot {
                               chars: record.chars, activeSeconds: record.activeSeconds,
                               accuracy: record.accuracy, completed: record.completed,
                               lessonId: record.lessonId, exerciseKind: record.exerciseKind.flatMap(ExerciseKind.init),
-                              cpm: record.cpm, errorCount: record.errorCount)
+                              cpm: record.cpm, errorCount: record.errorCount, stepIndex: record.stepIndex)
     }
 
     func keyStats(language: Language) throws -> [KeyStatSummary] {

@@ -96,13 +96,13 @@ private struct Evaluator {
         case .firstLesson:
             return facts.lessonPasses.values.min()
         case .firstStage:
-            return Language.allCases.compactMap { facts.courses[$0] }
-                .flatMap(\.stages)
-                .compactMap { passDate(of: $0.lessons) }
+            return Language.allCases.flatMap(editions)
+                .flatMap { course in course.stages.compactMap { stageDate($0, in: course) } }
                 .min()
         case .courseCompleted(let language):
             return courseDate(language)
         case .polyglot:
+            // Каждый язык — по более раннему из изданий, «Полиглот» — когда пройден второй язык.
             let dates = Language.allCases.map(courseDate)
             guard dates.allSatisfy({ $0 != nil }) else { return nil }
             return dates.compactMap { $0 }.max()
@@ -502,27 +502,57 @@ private struct Evaluator {
         return latest
     }
 
+    /// Курсы языка обоих изданий (текущий и архив); курсовые ачивки засчитываются по любому (решение 17).
+    private func editions(_ language: Language) -> [Course] {
+        [facts.courses[language], facts.legacyCourses[language]].compactMap { $0 }
+    }
+
+    /// Дата прохождения этапа. Издание 1 — все уроки этапа засчитаны (`passDate`); издание 2 — первая завершённая
+    /// проверка этапа (шаг `check` урока `checkLesson`) со звёздами по цели этого урока не ниже порога `gate` (§3).
+    private func stageDate(_ stage: Stage, in course: Course) -> Date? {
+        guard course.edition >= 2 else { return passDate(of: stage.lessons) }
+        guard let check = stage.checkLesson, let target = course.targetCpm(for: check.id) else { return nil }
+        return completed.first {
+            $0.lessonId == check.id && $0.exerciseKind == .check
+                && LessonScoring.stars(cpm: $0.cpm, accuracy: $0.accuracy, targetCpm: target) >= stage.gate
+        }?.endedAt
+    }
+
+    /// Дата прохождения курса. Издание 1 — все уроки засчитаны; издание 2 — ещё и итоговая проверка взяла порог
+    /// последнего этапа (`Course.isCompleted`), дата — более позднее из двух.
+    private func courseDate(_ course: Course) -> Date? {
+        guard let lessons = passDate(of: course.lessons) else { return nil }
+        guard course.edition >= 2 else { return lessons }
+        guard let last = course.stages.last, let check = stageDate(last, in: course) else { return nil }
+        return max(lessons, check)
+    }
+
+    /// Курс языка пройден по любому изданию: более ранняя дата.
     private func courseDate(_ language: Language) -> Date? {
-        facts.courses[language].flatMap { passDate(of: $0.lessons) }
+        editions(language).compactMap(courseDate).min()
+    }
+
+    /// По любому изданию, более ранняя дата (`allLessonsExcellentDate(course)`).
+    private func allLessonsExcellentDate(_ language: Language) -> Date? {
+        editions(language).compactMap(allLessonsExcellentDate).min()
     }
 
     /// Все уроки не ниже ★★★★ (`LessonScoring.excellentStars`) по `starsByLesson`; дата — последняя из первых
-    /// ★★★★-проверок уроков, а если хоть у одного урока такой проверки в истории нет — `now`.
-    private func allLessonsExcellentDate(_ language: Language) -> Date? {
+    /// ★★★★-проверок уроков (цель — `course.targetCpm(for:)`, как у звёзд урока), а если хоть у одного урока
+    /// такой проверки в истории нет — `now`.
+    private func allLessonsExcellentDate(_ course: Course) -> Date? {
         let excellent = LessonScoring.excellentStars
-        guard let course = facts.courses[language], !course.lessons.isEmpty,
+        guard !course.lessons.isEmpty,
               course.lessons.allSatisfy({ (facts.starsByLesson[$0.id] ?? 0) >= excellent }) else { return nil }
         var latest: Date?
-        for stage in course.stages {
-            for lesson in stage.lessons {
-                let excellentCheck = completed.first {
-                    $0.lessonId == lesson.id && $0.exerciseKind == .check
-                        && LessonScoring.stars(cpm: $0.cpm, accuracy: $0.accuracy,
-                                               targetCpm: stage.targetCpm) >= excellent
-                }
-                guard let date = excellentCheck?.endedAt else { return facts.now }
-                latest = max(latest ?? date, date)
+        for lesson in course.lessons {
+            guard let target = course.targetCpm(for: lesson.id) else { return nil }
+            let excellentCheck = completed.first {
+                $0.lessonId == lesson.id && $0.exerciseKind == .check
+                    && LessonScoring.stars(cpm: $0.cpm, accuracy: $0.accuracy, targetCpm: target) >= excellent
             }
+            guard let date = excellentCheck?.endedAt else { return facts.now }
+            latest = max(latest ?? date, date)
         }
         return latest
     }

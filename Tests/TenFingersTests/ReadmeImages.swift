@@ -79,7 +79,7 @@ func renderReadmeImages() throws {
     try render(
         HomeContent(data: homeFixture(), continueInfo: ContinueInfo(
                         lessonTitle: "Буквы E и N", stageTitle: "Основной ряд", percent: 23,
-                        lessonRun: LessonRun(language: .en, lessonId: "en.1.3")),
+                        retakeCheck: false, lessonRun: LessonRun(language: .en, lessonId: "en.1.3")),
                     unit: .cpm, startLesson: { _ in }, openTraining: {}, startWeakSpots: {}, openPractice: {})
             .column
             .frame(width: 820)

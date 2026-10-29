@@ -88,6 +88,15 @@ private func date(_ day: Int, _ hour: Int) -> Date {
     }
 }
 
+/// Уроки издания 2 хранят `bestStars` в 5-звёздной шкале как есть.
+@MainActor @Test func lessonProgressStoresFiveStarScaleForEditionTwo() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit { try recorder.recordLesson(result(at: date(23, 12), lessonId: "ru2.s1.01"), stars: 5) }
+    let progress = try #require(try container.mainContext.fetch(FetchDescriptor<LessonProgress>()).first)
+    #expect(progress.lessonId == "ru2.s1.01" && progress.bestStars == 5)
+}
+
 @MainActor @Test func countersIncrement() throws {
     let container = try ModelStore.makeContainer(inMemory: true)
     let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
@@ -194,13 +203,14 @@ private struct Boom: Error {}
 }
 
 private func textResult(_ text: String, typed: Int? = nil, mode: ExerciseMode = .practice, lessonId: String? = nil,
-                        stepIndex: Int? = nil) -> ExerciseResult {
+                        stepIndex: Int? = nil, connected: Bool = false) -> ExerciseResult {
     var engine = TypingEngine(text: text)
     for (index, character) in text.prefix(typed ?? text.count).enumerated() {
         _ = engine.handle(Keystroke(character: character, keyCode: 3, timestamp: Double(index)))
     }
     return ExerciseResult(engine: engine, mode: mode, language: .ru, lessonId: lessonId,
-                          startedAt: .now, endedAt: .now, hintLevel: .full, stepIndex: stepIndex)
+                          startedAt: .now, endedAt: .now, hintLevel: .full, stepIndex: stepIndex,
+                          connected: connected)
 }
 
 @MainActor @Test func courseSessionStoresStepIndexAndTraits() throws {
@@ -213,6 +223,17 @@ private func textResult(_ text: String, typed: Int? = nil, mode: ExerciseMode = 
     #expect(session.stepIndex == 2)
     #expect(session.textTraits == 0)
     #expect(session.planSlot == nil)
+}
+
+@MainActor @Test func courseConnectedTextStoresTraitAndStepIndex() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit {
+        try recorder.record(textResult("ао", mode: .course, lessonId: "ru2.s1.01", stepIndex: 4, connected: true))
+    }
+    let session = try #require(try container.mainContext.fetch(FetchDescriptor<SessionRecord>()).first)
+    #expect((session.textTraits ?? 0) & 8 != 0)
+    #expect(session.stepIndex == 4)
 }
 
 @MainActor @Test func practiceFromLibraryStoresConnectedTrait() throws {

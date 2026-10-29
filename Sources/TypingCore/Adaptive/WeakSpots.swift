@@ -20,3 +20,44 @@ public enum WeakSpots {
         }.prefix(limit).map(\.key)
     }
 }
+
+// MARK: - «Повтор» и «Ускорение» (спецификация фазы 6, §6.1–§6.2)
+
+extension WeakSpots {
+    /// «Повтор» (§6.1): до `limit` букв из `allowed` с наибольшей долей ошибок (`errorRate`, не меньше
+    /// `minimumKeyPresses` нажатий), при равенстве — больше ошибок (`errorRate · presses`), затем по алфавиту;
+    /// буквы с долей 0 не берутся. Сочетания — то же с `minimumBigramCount`, только из букв `allowed`.
+    public static func mostErrors(keys: [Character: KeyMastery], bigrams: [String: KeyMastery],
+                                  allowed: Set<Character>, limit: Int = 5) -> (keys: [Character], bigrams: [String]) {
+        let keyList = rankByErrors(keys.filter {
+            allowed.contains($0.key) && $0.value.presses >= minimumKeyPresses
+        }, limit: limit)
+        let bigramList = rankByErrors(bigrams.filter {
+            $0.key.allSatisfy(allowed.contains) && $0.value.presses >= minimumBigramCount
+        }, limit: limit)
+        return (keyList, bigramList)
+    }
+
+    /// «Ускорение» (§6.2): открытые буквы с долей ошибок ≤ 2% и от 30 нажатий; меньше 6 — все открытые буквы.
+    public static let strongMaxErrorRate = 0.02
+    public static let strongMinimumPresses = 30
+    /// Сколько сильных букв нужно, чтобы взять только их.
+    static let strongMinimumCount = 6
+
+    public static func strongKeys(_ keys: [Character: KeyMastery], allowed: Set<Character>) -> [Character] {
+        let open = allowed.filter { $0.isLetter && $0.isLowercase }
+        let strong = open.filter { letter in
+            guard let mastery = keys[letter] else { return false }
+            return mastery.errorRate <= strongMaxErrorRate && mastery.presses >= strongMinimumPresses
+        }
+        return (strong.count < strongMinimumCount ? open : strong).sorted()
+    }
+
+    private static func rankByErrors<K: Comparable>(_ stats: [K: KeyMastery], limit: Int) -> [K] {
+        stats.filter { $0.value.errorRate > 0 }.sorted { lhs, rhs in
+            if lhs.value.errorRate != rhs.value.errorRate { return lhs.value.errorRate > rhs.value.errorRate }
+            let l = lhs.value.errorRate * Double(lhs.value.presses), r = rhs.value.errorRate * Double(rhs.value.presses)
+            return l != r ? l > r : lhs.key < rhs.key
+        }.prefix(limit).map(\.key)
+    }
+}

@@ -305,10 +305,20 @@ enum SessionHistory {
         }
     }
 
-    static func lessonTitle(lessonId: String?, kind: String?, course: Course?) -> String? {
-        guard let lessonId, let lesson = course?.lessons.first(where: { $0.id == lessonId }) else { return nil }
-        guard let step = kind.flatMap(ExerciseKind.init(rawValue:)) else { return lesson.localizedTitle }
-        return "\(lesson.localizedTitle) · \(step.localizedTitle)"
+    /// Урок текущего курса — «<название>[ · <шаг>]»; иначе урок прежнего курса (`legacy`, сессии издания 1 сохраняют
+    /// названия) — то же с пометкой «(курс 1.x)»; иначе `nil`.
+    static func lessonTitle(lessonId: String?, kind: String?, course: Course?, legacy: Course? = nil) -> String? {
+        guard let lessonId else { return nil }
+        func title(_ lesson: Lesson) -> String {
+            guard let step = kind.flatMap(ExerciseKind.init(rawValue:)) else { return lesson.localizedTitle }
+            return "\(lesson.localizedTitle) · \(step.localizedTitle)"
+        }
+        if let lesson = course?.lessons.first(where: { $0.id == lessonId }) { return title(lesson) }
+        if let lesson = legacy?.lessons.first(where: { $0.id == lessonId }) {
+            let name = title(lesson)
+            return String(localized: "\(name) (курс 1.x)")
+        }
+        return nil
     }
 }
 
@@ -326,27 +336,45 @@ struct CourseProgressRow: Identifiable, Equatable {
     let passed: Int
     let total: Int
     let stars: Int
+    /// Строка курса издания 1 (архив).
+    let isArchive: Bool
+    /// Средняя скорость проверок этапов, если курс издания 2 пройден и она не ниже 120 зн/мин (`Certificate`): у строки
+    /// появляется кнопка «Сертификат». У архива — всегда `nil`.
+    var certificateAverage: Double? = nil
 
-    var id: Language { language }
+    var id: String { "\(language.rawValue)\(isArchive ? ".v1" : "")" }
+    /// «Русский» или «Курс 1.x (архив) · Русский».
+    var title: String {
+        isArchive ? String(localized: "Курс 1.x (архив) · \(language.displayName)") : language.displayName
+    }
     var maxStars: Int { total * LessonScoring.maxStars }
     var fraction: Double { total > 0 ? Double(passed) / Double(total) : 0 }
 
-    /// Звёзды — по тому же правилу, что на карте курса: `LessonScoring.effectiveStars` (история шагов урока, иначе база,
-    /// у пройденного урока не меньше одной). `sessions` — завершённые шаги уроков курса.
+    /// Звёзды — по тому же правилу, что на карте курса: `LessonScoring.effectiveStars` с целью урока
+    /// `Course.targetCpm(for:)` (история шагов урока, иначе база, у пройденного урока не меньше одной).
+    /// `sessions` — завершённые шаги уроков курса.
     static func make(course: Course, lessons: [StoredLesson], sessions: [SessionSummary]) -> CourseProgressRow {
         let stored = Dictionary(lessons.map { ($0.lessonId, $0) }, uniquingKeysWith: { first, _ in first })
         let byLesson = Dictionary(grouping: sessions) { $0.lessonId ?? "" }
         var passed = 0, stars = 0
+        var passedIds: Set<String> = []
         for stage in course.stages {
             for lesson in stage.lessons {
                 let record = stored[lesson.id]
                 let isPassed = record?.passed == true
-                if isPassed { passed += 1 }
+                if isPassed {
+                    passed += 1
+                    passedIds.insert(lesson.id)
+                }
                 stars += LessonScoring.effectiveStars(sessions: byLesson[lesson.id] ?? [], lessonId: lesson.id,
-                                                      targetCpm: stage.targetCpm, passed: isPassed,
+                                                      targetCpm: course.targetCpm(for: lesson.id) ?? 0,
+                                                      passed: isPassed,
                                                       storedStars: record?.storedStars ?? 0)
             }
         }
-        return CourseProgressRow(language: course.language, passed: passed, total: course.lessons.count, stars: stars)
+        return CourseProgressRow(
+            language: course.language, passed: passed, total: course.lessons.count, stars: stars,
+            isArchive: course.edition == 1,
+            certificateAverage: Certificate.eligibleAverage(course: course, passed: passedIds, sessions: sessions))
     }
 }

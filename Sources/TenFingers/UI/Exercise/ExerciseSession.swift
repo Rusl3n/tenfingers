@@ -155,7 +155,8 @@ final class ExerciseSession {
     func makeResult() -> ExerciseResult {
         ExerciseResult(engine: engine, mode: mode, language: language, lessonId: lessonId,
                        startedAt: startedAt ?? .now, endedAt: .now, hintLevel: hint,
-                       exerciseKind: spec.kind, stepIndex: mode == .course ? spec.id : nil)
+                       exerciseKind: spec.kind, stepIndex: mode == .course ? spec.id : nil,
+                       connected: spec.connected)
     }
 }
 

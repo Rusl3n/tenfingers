@@ -3,7 +3,8 @@ import TypingCore
 
 /// Итог повтора одного шага урока: точность, ошибки, скорость и «Лучший результат!», если стало лучше.
 struct StepResultView: View {
-    let kind: ExerciseKind
+    /// Заголовок: шаг с номером в плане урока («4. Слова», `StepTitle.numbered`).
+    let title: String
     let summary: ExerciseSummary
     let errors: Int
     let improved: Bool
@@ -21,6 +22,14 @@ struct StepResultView: View {
     var fullFlame: FullFlame?
     /// Проверка засчитала последний урок этапа или курса (`ShareEvent.stepCompletion`).
     var completion: ShareEvent?
+    /// Вместе с карточкой курса — «Сертификат» (`ShareEvent.certificateOffer`): вторая строка «Поделиться».
+    var certificate: ShareEvent? = nil
+    /// Итог повтора проверки «Ускорения» против ориентира до попытки: строка под метриками.
+    var speedup: SpeedupReference.Outcome?
+    /// Проверка этапа засчитана, но порог не взят (`GateHint.text`): строка под звёздами, как на итоге урока.
+    var gateText: String? = nil
+    /// «Потренировать слабые буквы» — «Повтор» этапа (`GateHint.reviewLesson`); `nil` — кнопки нет.
+    var onPracticeWeak: (() -> Void)? = nil
     let onRetry: () -> Void
     let onExit: () -> Void
 
@@ -30,7 +39,7 @@ struct StepResultView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text(kind.localizedTitle).font(.largeTitle.bold())
+            Text(title).font(.largeTitle.bold())
             if improved {
                 Label("Лучший результат!", systemImage: "trophy.fill")
                     .font(.title2.bold())
@@ -41,6 +50,13 @@ struct StepResultView: View {
                     .overlay(alignment: .trailing) {
                         StarsHelpButton(targetCpm: targetCpm, unit: unit, size: 17).offset(x: 30)
                     }
+            }
+            if let gateText {
+                Text(gateText)
+                    .font(.title3)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: 520)
             }
             if let lessonStarsGained {
                 HStack(spacing: 10) {
@@ -54,12 +70,14 @@ struct StepResultView: View {
                 metric("Ошибки", "\(errors)")
                 metric("Скорость", unit.format(summary.cpm))
             }
+            if let speedup { SpeedupOutcomeLine(outcome: speedup, unit: unit) }
             if stars != nil {
                 NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
                                  chars: summary.chars, targetCpm: targetCpm, steps: steps, unit: unit)
             }
             NewAchievementCards(achievements: newAchievements, fullFlame: fullFlame)
             if let completion { CompletionShareLine(event: completion) }
+            if let certificate { CompletionShareLine(event: certificate) }
             if !summary.topErrors.isEmpty {
                 HStack(spacing: 12) {
                     ForEach(summary.topErrors, id: \.self) { error in
@@ -69,6 +87,10 @@ struct StepResultView: View {
                             .background(Color.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
                     }
                 }
+            }
+            if gateText != nil, let onPracticeWeak {
+                Button("Потренировать слабые буквы", action: onPracticeWeak)
+                    .buttonStyle(.borderedProminent)
             }
             HStack(spacing: 12) {
                 Button("К курсу", action: onExit)
@@ -85,5 +107,24 @@ struct StepResultView: View {
             Text(title).foregroundStyle(.secondary)
             Text(value).font(.title2.bold()).monospacedDigit()
         }
+    }
+}
+
+/// Название шага с номером в плане урока: «3. Слова». Номер — с единицы (`stepIndex + 1`): в уроках издания 2
+/// виды шагов повторяются; без номера (записи до 6a) — только название.
+enum StepTitle {
+    static func numbered(_ stepIndex: Int?, _ title: String) -> String {
+        guard let stepIndex else { return title }
+        return String(localized: "\(stepIndex + 1). \(title)")
+    }
+
+    /// Название шага по плану урока (`StepTemplates.resolve`) — то же, что в раннере (`ExerciseSpec.localizedTitle`):
+    /// у разминки проверки этапа — «Разминка», а не название вида. Шага с таким номером и видом в плане нет
+    /// (история другой структуры, записи без номера) — название вида.
+    static func name(stepIndex: Int?, kind: ExerciseKind, plan: [ResolvedStep]) -> String {
+        guard let stepIndex, plan.indices.contains(stepIndex), plan[stepIndex].kind == kind else {
+            return kind.localizedTitle
+        }
+        return ExerciseSpec(id: stepIndex, kind: kind, title: plan[stepIndex].title, text: "").localizedTitle
     }
 }

@@ -91,3 +91,13 @@ func libraryTextsAreTypeable(language: Language) throws {
     #expect(first.nextOffset == 9)
     #expect(TextChunker.chunk("aaaa bbbb cccc", from: first.nextOffset, size: 9).text == "cccc")
 }
+
+@Test func symbolDrillBuildsListItems() {
+    let generator = TextGenerator(wordList: WordList(words: ["слово", "дело", "вода"]))
+    var rng = SeededGenerator(seed: 2)
+    let text = SymbolDrill.text(language: .ru, allowed: Set("словеда 0123456789)"), generator: generator,
+                                length: 300, rng: &rng)
+    #expect(text.contains(") "))
+    let expected = Set("словеда 0123456789)")
+    #expect(text.allSatisfy { expected.contains($0) })
+}

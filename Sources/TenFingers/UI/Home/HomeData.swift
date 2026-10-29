@@ -91,5 +91,26 @@ struct ContinueInfo: Equatable {
     let lessonTitle: String?
     let stageTitle: String
     let percent: Int
+    /// Все уроки этапа засчитаны, проверка ниже порога: «Пересдать проверку» вместо «Продолжить курс».
+    let retakeCheck: Bool
     let lessonRun: LessonRun?
+
+    /// По `Course.continueTarget` (решение 13): урок, «Пересдать проверку» или «Курс пройден».
+    /// `nil` — вести некуда, а курс не пройден (в курсе без уроков).
+    static func make(course: Course, language: Language, passed: Set<String>, checkStars: [String: Int]) -> ContinueInfo? {
+        let percent = Int(course.completion(passed: passed) * 100)
+        switch course.continueTarget(passed: passed, checkStars: checkStars) {
+        case .lesson(let lesson):
+            return ContinueInfo(lessonTitle: lesson.localizedTitle, stageTitle: course.stage(of: lesson.id)?.localizedTitle ?? "",
+                                percent: percent, retakeCheck: false,
+                                lessonRun: LessonRun(language: language, lessonId: lesson.id))
+        case .retakeCheck(let check):
+            return ContinueInfo(lessonTitle: check.localizedTitle, stageTitle: course.stage(of: check.id)?.localizedTitle ?? "",
+                                percent: percent, retakeCheck: true,
+                                lessonRun: LessonRun(language: language, lessonId: check.id))
+        case nil:
+            guard course.isCompleted(passed: passed, checkStars: checkStars) else { return nil }
+            return ContinueInfo(lessonTitle: nil, stageTitle: "", percent: percent, retakeCheck: false, lessonRun: nil)
+        }
+    }
 }

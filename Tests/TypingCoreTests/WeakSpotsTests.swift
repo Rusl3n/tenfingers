@@ -85,3 +85,45 @@ private let smallGenerator = TextGenerator(wordList: WordList(words: [
     #expect(withZh > 0)
     #expect(Double(withV) > Double(withZh) * 0.8)
 }
+
+// MARK: - «Повтор» и «Ускорение» (§6.1–§6.2)
+
+@Test func mostErrorsRankByErrorShareThenVolume() {
+    let keys: [Character: KeyMastery] = [
+        "а": KeyMastery(ewmaMs: 300, errorRate: 0.2, presses: 20),
+        "б": KeyMastery(ewmaMs: 300, errorRate: 0.2, presses: 40),   // та же доля, больше нажатий — выше
+        "в": KeyMastery(ewmaMs: 300, errorRate: 0.5, presses: 9),    // мало нажатий
+        "г": KeyMastery(ewmaMs: 900, errorRate: 0, presses: 50),     // без ошибок
+        "д": KeyMastery(ewmaMs: 300, errorRate: 0.1, presses: 30),
+        "ъ": KeyMastery(ewmaMs: 300, errorRate: 0.9, presses: 30),   // не открыта
+    ]
+    let bigrams: [String: KeyMastery] = [
+        "ъе": KeyMastery(ewmaMs: 300, errorRate: 0.9, presses: 10),  // «ъ» не открыта
+        "ад": KeyMastery(ewmaMs: 300, errorRate: 0.3, presses: 5),
+        "ба": KeyMastery(ewmaMs: 300, errorRate: 0.4, presses: 4),   // мало появлений
+        "да": KeyMastery(ewmaMs: 300, errorRate: 0, presses: 40),
+    ]
+    let result = WeakSpots.mostErrors(keys: keys, bigrams: bigrams, allowed: Set("абвгдеё"))
+    #expect(result.keys == ["б", "а", "д"])
+    #expect(result.bigrams == ["ад"])
+    #expect(WeakSpots.mostErrors(keys: keys, bigrams: bigrams, allowed: Set("абвгдеё"), limit: 1).keys == ["б"])
+}
+
+@Test func mostErrorsBreaksFullTiesAlphabetically() {
+    let same = KeyMastery(ewmaMs: 300, errorRate: 0.2, presses: 20)
+    let result = WeakSpots.mostErrors(keys: ["в": same, "а": same, "б": same], bigrams: [:], allowed: Set("абв"))
+    #expect(result.keys == ["а", "б", "в"])
+}
+
+@Test func strongKeysNeedLowErrorsAndVolume() {
+    let strong = KeyMastery(ewmaMs: 300, errorRate: 0.02, presses: 30)
+    let allowed: Set<Character> = Set("абвгдежз .,АБЖ")  // заглавные в «открытые буквы» не входят
+    var keys: [Character: KeyMastery] = [
+        "е": strong, "д": strong, "г": strong, "в": strong, "б": strong, "а": strong,
+        "ж": KeyMastery(ewmaMs: 300, errorRate: 0.03, presses: 100),
+        "з": KeyMastery(ewmaMs: 300, errorRate: 0, presses: 29),
+    ]
+    #expect(WeakSpots.strongKeys(keys, allowed: allowed) == ["а", "б", "в", "г", "д", "е"])
+    keys["е"] = nil
+    #expect(WeakSpots.strongKeys(keys, allowed: allowed) == ["а", "б", "в", "г", "д", "е", "ж", "з"])
+}

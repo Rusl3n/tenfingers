@@ -48,18 +48,24 @@ struct StatsReader {
         return result
     }
 
+    /// Статистика клавиш и сочетаний для планировщика: «Повтор», «Ускорение» и шаги `focus` строятся по ней.
+    func learnerStats(language: Language) throws -> LearnerStats {
+        LearnerStats(keys: try keyMastery(language: language), bigrams: try bigramMastery(language: language))
+    }
+
     func unlockedCount(language: Language) throws -> Int {
         let code = language.rawValue
         let descriptor = FetchDescriptor<AdaptiveState>(predicate: #Predicate { $0.language == code })
         return try context.fetch(descriptor).first?.unlockedCount ?? AdaptiveTrainer.initialLetters
     }
 
-    /// Буквы, открытые пользователем: в курсе и в адаптивной тренировке (см. `OpenLetters`).
-    func openLetters(language: Language, course: Course?) throws -> Set<Character> {
+    /// Буквы, открытые пользователем: в курсах обоих изданий (текущем и архиве `legacy`) и в адаптивной
+    /// тренировке (см. `OpenLetters`).
+    func openLetters(language: Language, course: Course?, legacy: Course?) throws -> Set<Character> {
         let code = language.rawValue
         let progress = try context.fetch(FetchDescriptor<LessonProgress>(predicate: #Predicate { $0.language == code }))
         let passed = Set(progress.filter { $0.passedAt != nil }.map(\.lessonId))
-        return OpenLetters.combine(language: language, course: course, passedLessonIds: passed,
+        return OpenLetters.combine(language: language, course: course, legacy: legacy, passedLessonIds: passed,
                                    adaptiveCount: try unlockedCount(language: language))
     }
 
@@ -71,16 +77,18 @@ struct StatsReader {
 }
 
 /// Буквы, которые пользователь уже открыл. Курс: все буквы до последнего пройденного урока
-/// (в порядке курса). Адаптивная тренировка: открытые в ней буквы (не меньше стартовых шести).
+/// (в порядке курса); курсы обоих изданий — объединение, так буквы прежнего курса остаются открытыми.
+/// Адаптивная тренировка: открытые в ней буквы (не меньше стартовых шести).
 enum OpenLetters {
     /// Меньше стольких открытых букв — «Слабые места» не запускаются: слов из них почти нет.
     static let minimumForWeakSpots = 8
 
-    static func combine(language: Language, course: Course?, passedLessonIds: Set<String>,
+    static func combine(language: Language, course: Course?, legacy: Course? = nil, passedLessonIds: Set<String>,
                         adaptiveCount: Int) -> Set<Character> {
         var result = Set(AdaptiveTrainer(language: language).unlockedLetters(count: adaptiveCount))
-        if let course, let last = course.lessons.last(where: { passedLessonIds.contains($0.id) }),
-           let lesson = course.context(for: last.id) {
+        for course in [course, legacy].compactMap({ $0 }) {
+            guard let last = course.lessons.last(where: { passedLessonIds.contains($0.id) }),
+                  let lesson = course.context(for: last.id) else { continue }
             for character in lesson.allowed {
                 let lowered = Character(String(character).lowercased())
                 if language.letters.contains(lowered) { result.insert(lowered) }

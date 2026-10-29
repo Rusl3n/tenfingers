@@ -19,6 +19,18 @@ import Testing
     #expect(LessonScoring.effectiveStars(history: [], steps: [], targetCpm: 60, passed: false, storedStars: 0) == 0)
 }
 
+/// Уроки издания 2 хранят звёзды уже в 5-звёздной шкале: без истории они берутся как есть (§16, решение 2).
+@Test func effectiveStarsReadsStoredScaleByEdition() {
+    #expect(LessonScoring.effectiveStars(history: [], steps: [], targetCpm: 60, passed: true, storedStars: 5,
+                                         storedScale: .fiveStar) == 5)
+    #expect(LessonScoring.effectiveStars(history: [], steps: [], targetCpm: 60, passed: true, storedStars: 2,
+                                         storedScale: .legacy) == 3)
+    #expect(LessonScoring.effectiveStars(sessions: [], lessonId: "ru2.s1.01", targetCpm: 60, passed: true,
+                                         storedStars: 4) == 4)
+    #expect(LessonScoring.effectiveStars(sessions: [], lessonId: "ru.1.1", targetCpm: 60, passed: true,
+                                         storedStars: 3) == 4)
+}
+
 @Test func effectiveStarsOfPassedLessonIsAtLeastOne() {
     #expect(LessonScoring.effectiveStars(history: [], steps: [], targetCpm: 60, passed: true, storedStars: 0) == 1)
     // неудачная проверка после прохождения не отменяет зачёта
@@ -147,8 +159,8 @@ import Testing
 // ★★★★★ — только за чистый урок (решение пользователя 2026-10-25, §15.14): проверка на пятёрку и у каждого шага
 // кроме проверки лучшая попытка не больше 2 ошибок на 100 знаков.
 
-private func stat(_ kind: ExerciseKind, accuracy: Double, errors: Int = 0) -> StepStat {
-    StepStat(kind: kind, bestAccuracy: accuracy, errorsInBest: errors, cpmInBest: 80, bestCpm: 80)
+private func stat(_ kind: ExerciseKind, accuracy: Double, errors: Int = 0, index: Int? = nil) -> StepStat {
+    StepStat(kind: kind, bestAccuracy: accuracy, errorsInBest: errors, cpmInBest: 80, bestCpm: 80, stepIndex: index)
 }
 
 private func summary(_ kind: ExerciseKind, lessonId: String = "ru.1.5", accuracy: Double, errors: Int,
@@ -166,11 +178,11 @@ private func summary(_ kind: ExerciseKind, lessonId: String = "ru.1.5", accuracy
 @Test func uncleanStepsAreNonCheckStepsBelowThreshold() {
     let steps = [stat(.drill, accuracy: 1), stat(.combos, accuracy: 0.98), stat(.words, accuracy: 0.934, errors: 8),
                  stat(.check, accuracy: 0.5, errors: 60)]   // проверка в расчёт не идёт
-    #expect(LessonScoring.uncleanSteps(steps) == [.words])
+    #expect(LessonScoring.uncleanSteps(steps) == [steps[2]])
     #expect(LessonScoring.uncleanSteps([]).isEmpty)
     // Ровно на пороге (допуск): 1 − 2/100 в двоичной арифметике.
     #expect(LessonScoring.uncleanSteps([stat(.words, accuracy: 1 - 2.0 / 100)]).isEmpty)
-    #expect(LessonScoring.uncleanSteps([stat(.words, accuracy: 0.979)]) == [.words])
+    #expect(LessonScoring.uncleanSteps([stat(.words, accuracy: 0.979)]).map(\.kind) == [.words])
 }
 
 /// Проверка на пятёрку, «Слова» 93,4% (8 ошибок) → ★★★★; после чистой попытки «Слова» — ★★★★★.
@@ -227,13 +239,13 @@ private func summary(_ kind: ExerciseKind, lessonId: String = "ru.1.5", accuracy
     let dirty = [stat(.drill, accuracy: 1), stat(.words, accuracy: 0.934, errors: 8)]
     // Проверка уже на ★★★★★, мешает шаг «Слова».
     #expect(LessonScoring.nextStarHint(cpm: 100, accuracy: 1, errors: 0, chars: 120, targetCpm: 60, steps: dirty)
-        == NextStarHint(stars: 5, needCpm: nil, maxErrors: nil, blockingStep: .words))
+        == NextStarHint(stars: 5, needCpm: nil, maxErrors: nil, blockingStep: dirty[1]))
     // Все шаги чистые — подсказки нет.
     #expect(LessonScoring.nextStarHint(cpm: 100, accuracy: 1, errors: 0, chars: 120, targetCpm: 60,
                                        steps: [stat(.words, accuracy: 1)]) == nil)
     // До пятой звезды не хватает и скорости: подсказка называет и её, и шаг.
     #expect(LessonScoring.nextStarHint(cpm: 80, accuracy: 1, errors: 0, chars: 120, targetCpm: 60, steps: dirty)
-        == NextStarHint(stars: 5, needCpm: 90, maxErrors: nil, blockingStep: .words))
+        == NextStarHint(stars: 5, needCpm: 90, maxErrors: nil, blockingStep: dirty[1]))
     // Ниже четвёртой звезды шаг в подсказку не попадает.
     #expect(LessonScoring.nextStarHint(cpm: 80, accuracy: 0.99, errors: 1, chars: 100, targetCpm: 60, steps: dirty)
         == NextStarHint(stars: 4, needCpm: nil, maxErrors: 0))
@@ -241,6 +253,15 @@ private func summary(_ kind: ExerciseKind, lessonId: String = "ru.1.5", accuracy
     #expect(LessonScoring.nextStarHint(cpm: 100, accuracy: 0.9, errors: 12, chars: 120, targetCpm: 60, steps: dirty) == nil)
     // Первый из нескольких мешающих шагов — в порядке урока.
     #expect(LessonScoring.nextStarHint(cpm: 100, accuracy: 1, errors: 0, chars: 120, targetCpm: 60,
-                                       steps: [stat(.combos, accuracy: 0.9), stat(.words, accuracy: 0.9)])?.blockingStep
+                                       steps: [stat(.combos, accuracy: 0.9), stat(.words, accuracy: 0.9)])?.blockingStep?.kind
         == .combos)
+}
+
+/// Шаги издания 2 повторяются по виду: мешающий шаг называется номером (решение 22).
+@Test func uncleanStepsKeepStepIndex() {
+    let steps = [stat(.words, accuracy: 1, index: 2), stat(.words, accuracy: 0.9, errors: 12, index: 3),
+                 stat(.check, accuracy: 1, index: 5)]
+    #expect(LessonScoring.uncleanSteps(steps).map(\.stepIndex) == [3])
+    let hint = LessonScoring.nextStarHint(cpm: 100, accuracy: 1, errors: 0, chars: 120, targetCpm: 60, steps: steps)
+    #expect(hint?.stars == 5 && hint?.blockingStep?.stepIndex == 3)
 }

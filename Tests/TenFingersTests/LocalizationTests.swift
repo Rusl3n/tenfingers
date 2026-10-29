@@ -16,7 +16,8 @@ private func hasCyrillic(_ s: String) -> Bool { s.unicodeScalars.contains { (0x4
 private func normalize(_ s: String) -> String {
     var r = s.replacingOccurrences(of: #"\\\([^)]*\)"#, with: "∗", options: .regularExpression)
     r = r.replacingOccurrences(of: #"%(\d+\$)?(lld|ld|d|@|lf|f|\.\d+f)"#, with: "∗", options: .regularExpression)
-    return r
+    // Знак процента в литерале `String(localized:)` попадает в ключ удвоенным: «+\(n)%» → «+%lld%%».
+    return r.replacingOccurrences(of: "%%", with: "%")
 }
 
 @Test func englishHasNoCyrillicAndRussianKeysMatch() throws {

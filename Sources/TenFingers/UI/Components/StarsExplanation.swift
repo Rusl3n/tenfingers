@@ -52,19 +52,24 @@ enum StarHintText {
         return String(localized: "\(check) на проверке, а на остальных шагах — \(steps)")
     }
 
-    /// «пройдите шаг «Слова» не больше чем с 2 ошибками на 100 знаков»: что сделать с шагом, мешающим ★★★★★.
-    static func cleanStep(_ kind: ExerciseKind) -> String {
+    /// «пройдите шаг 4 «Слова» не больше чем с 2 ошибками на 100 знаков»: что сделать с шагом, мешающим ★★★★★.
+    /// Номер — с единицы (`stepIndex + 1`): в уроках издания 2 виды шагов повторяются; без номера — только название.
+    static func cleanStep(_ step: StepStat) -> String {
         let chars = 100
         let allowed = LessonScoring.allowedErrors(chars: chars, accuracy: LessonScoring.cleanLessonStepAccuracy)
         let limit = Formatting.withAtMostErrors(allowed)
-        return String(localized: "пройдите шаг «\(kind.localizedTitle)» \(limit) на \(chars) знаков")
+        let title = step.kind.localizedTitle
+        guard let index = step.stepIndex else {
+            return String(localized: "пройдите шаг «\(title)» \(limit) на \(chars) знаков")
+        }
+        return String(localized: "пройдите шаг \(index + 1) «\(title)» \(limit) на \(chars) знаков")
     }
 
     /// «скорость от 78 зн/мин (у вас 70 зн/мин) и не больше 1 ошибки (у вас 3)»; пусто, если условий нет.
     /// Порог скорости округляется вверх, результат — вниз: недостающее не выглядит достигнутым.
     /// `blockingStep` — шаг, мешающий ★★★★★: последним условием.
     static func requirements(needCpm: Double?, maxErrors: Int?, cpm: Double, errors: Int, unit: SpeedUnit,
-                             blockingStep: ExerciseKind? = nil) -> String {
+                             blockingStep: StepStat? = nil) -> String {
         var parts: [String] = []
         if let needCpm, needCpm > 0 {
             let need = unit.format(needCpm, rounding: .up), have = unit.format(cpm, rounding: .down)

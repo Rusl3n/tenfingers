@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Строка на экране итога урока или проверки: «Этап «…» пройден» / «Курс пройден!» и ссылка «Поделиться»
-/// (`ShareEvent.completion`, `ShareEvent.stepCompletion`).
+/// Строка на экране итога урока или проверки: «Этап «…» пройден» / «Курс пройден!» / «Сертификат» и ссылка «Поделиться»
+/// (`ShareEvent.completion`, `ShareEvent.stepCompletion`, `ShareEvent.certificateOffer`).
 struct CompletionShareLine: View {
     let event: ShareEvent
     @State private var share: ShareCard?
@@ -11,6 +11,8 @@ struct CompletionShareLine: View {
             switch event {
             case .stage(_, let title, _):
                 Label(String(localized: "Этап «\(title)» пройден"), systemImage: event.icon)
+            case .certificate:
+                Label(String(localized: "Сертификат"), systemImage: event.icon)
             default:
                 Label(String(localized: "Курс пройден!"), systemImage: event.icon)
             }

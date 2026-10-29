@@ -29,6 +29,15 @@
 "Сочетания" = "Combinations";
 "Слова" = "Words";
 "Проверочный текст" = "Checkpoint text";
+"Слова из рядов" = "Row words";
+"Фразы" = "Phrases";
+"Предложения" = "Sentences";
+"Текст" = "Text";
+"Трудные буквы" = "Tricky letters";
+"Слова с ошибками" = "Error words";
+"Спринт" = "Sprint";
+"Числа" = "Numbers";
+"Разминка" = "Warm-up";
 
 /* Этапы курсов */
 "Основной ряд" = "Home row";
@@ -90,6 +99,95 @@
 "! @ #" = "! @ #";
 "$ % ^" = "$ % ^";
 "& * ( )" = "& * ( )";
+
+/* Этапы курса издания 2 */
+"Знакомство: основной ряд" = "Getting started: home row";
+"Верхний ряд и пара с основным" = "Top row and pairing with home";
+"Нижний ряд, пары рядов, все три" = "Bottom row, row pairs, all three";
+"Связный текст строчными" = "Connected lowercase text";
+"Заглавные и пунктуация в тексте" = "Capitals and punctuation in text";
+"Цифры и символы, цифры в тексте" = "Digits and symbols, digits in text";
+"Скорость: длинные тексты" = "Speed: long texts";
+
+/* Уроки курса издания 2 */
+"Ф, Ж и Э" = "Ф, Ж and Э";
+"Закрепление основного ряда" = "Home row consolidation";
+"Повтор" = "Review";
+"Ускорение" = "Speed-up";
+"Проверка этапа" = "Stage check";
+"Закрепление: К Е Н Г с основным" = "Consolidation: К Е Н Г with the home row";
+"Только верхний ряд" = "Top row only";
+"Основной ряд отдельно" = "Home row on its own";
+"Верхний и основной вместе" = "Top and home rows together";
+"Ступень 100" = "Speed tier 100";
+"Закрепление: М И Т Ь С Б" = "Consolidation: М И Т Ь С Б";
+"Только нижний ряд" = "Bottom row only";
+"Нижний и основной" = "Bottom and home rows";
+"Нижний и верхний" = "Bottom and top rows";
+"Верхний и основной" = "Top and home rows";
+"Все три ряда: частые слова" = "All three rows: common words";
+"Все три ряда: длинные слова" = "All three rows: long words";
+"Ступень 120" = "Speed tier 120";
+"Буква Ё" = "The letter Ё";
+"Короткие фразы" = "Short phrases";
+"Предложения: частые слова" = "Sentences: common words";
+"Предложения: длинные слова" = "Sentences: long words";
+"Трудные сочетания (щ, ъе, ьо, вств)" = "Tricky letter clusters";
+"Связный текст I" = "Connected text I";
+"Связный текст II" = "Connected text II";
+"Связный текст III" = "Connected text III";
+"Ступень 140" = "Speed tier 140";
+"Заглавные: левый Shift" = "Capitals: left Shift";
+"Заглавные: правый Shift" = "Capitals: right Shift";
+"Точка и заглавная" = "Full stop and capital";
+"Дефис и тире" = "Hyphen and dash";
+"? и !" = "? and !";
+": и ;" = ": and ;";
+"Кавычки" = "Quotation marks";
+"Скобки" = "Parentheses";
+"Прямая речь" = "Direct speech";
+"Текст с пунктуацией" = "Text with punctuation";
+"Ступень 160" = "Speed tier 160";
+"Годы и даты" = "Years and dates";
+"Числа в тексте" = "Numbers in text";
+"Время и проценты" = "Time and percentages";
+"№ и номера" = "№ and numbers";
+"Цены и количества" = "Prices and quantities";
+"Символы * + = /" = "Symbols * + = /";
+"Цифры и пунктуация вместе" = "Digits and punctuation together";
+"Списки: 1) и 2." = "Lists: 1) and 2.";
+"Текст с цифрами" = "Text with digits";
+"Ступень 170" = "Speed tier 170";
+"Длинный текст I" = "Long text I";
+"Длинный текст II" = "Long text II";
+"Длинный текст III" = "Long text III";
+"Ступень 200" = "Speed tier 200";
+"Марафон 1000 знаков" = "Marathon: 1000 characters";
+"Классика: Пушкин" = "Classics: Pushkin";
+"Классика: Чехов" = "Classics: Chekhov";
+"Безошибочный текст" = "Error-free text";
+"Ступень 250" = "Speed tier 250";
+"Текст с цифрами и знаками" = "Text with digits and symbols";
+"Классика: Толстой" = "Classics: Tolstoy";
+"Ступень 300" = "Speed tier 300";
+"Итоговый текст" = "Final text";
+"Итоговая проверка курса" = "Final course check";
+
+/* Уроки английского курса издания 2 */
+"Закрепление: R U E I с основным" = "Consolidation: R U E I with the home row";
+"Закрепление: W O Q P T Y с основным" = "Consolidation: W O Q P T Y with the home row";
+"Закрепление: V M C X" = "Consolidation: V M C X";
+"Z" = "Z";
+"' и апостроф в словах" = "' and apostrophes in words";
+"Трудные сочетания (th, ght, wh, qu)" = "Tricky clusters (th, ght, wh, qu)";
+"Двоеточие" = "Colon";
+"# и номера" = "# and numbers";
+"$ и цены" = "$ and prices";
+"@ & ^" = "@ & ^";
+"[ ] и _" = "[ ] and _";
+"Классика: Диккенс" = "Classics: Dickens";
+"Классика: Твен" = "Classics: Twain";
+"Классика: Остин" = "Classics: Austen";
 
 /* Ачивки: ключи achievement.<id>.title и achievement.<id>.detail; id стабильны */
 

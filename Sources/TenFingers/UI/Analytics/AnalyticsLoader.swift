@@ -27,8 +27,8 @@ struct AnalyticsLoader {
     let context: ModelContext
 
     /// `firstWeekday` — явное значение (1 — воскресенье, 2 — понедельник); без него — настройка из `defaults`.
-    func summary(language: Language, courses: [Language: Course], today: String, goalSeconds: Double,
-                 firstWeekday: Int? = nil, defaults: UserDefaults = .standard) throws -> AnalyticsData {
+    func summary(language: Language, courses: [Language: Course], legacyCourses: [Language: Course] = [:],
+                 today: String, goalSeconds: Double, firstWeekday: Int? = nil, defaults: UserDefaults = .standard) throws -> AnalyticsData {
         let firstWeekday = firstWeekday ?? StoredSettings.firstWeekday(defaults)
         let days = try ProgressSnapshot(context: context).dayActivities()
         let streak = StreakCalculator.summarize(days: days, today: today, goalSeconds: goalSeconds)
@@ -43,7 +43,7 @@ struct AnalyticsLoader {
             streak: streak,
             keys: keys,
             fingers: FingerRow.rows(keys),
-            courseProgress: try courseProgress(courses: courses))
+            courseProgress: try courseProgress(courses: courses, legacy: legacyCourses))
     }
 
     /// Точки графиков языка за период (по логическим дням от начала периода).
@@ -61,13 +61,15 @@ struct AnalyticsLoader {
     }
 
     /// Последние `SessionHistory.limit` сессий всех языков, новые сверху.
-    func history(courses: [Language: Course], texts: [Language: [LibraryText]]) throws -> [HistoryRow] {
+    func history(courses: [Language: Course], legacyCourses: [Language: Course] = [:],
+                 texts: [Language: [LibraryText]]) throws -> [HistoryRow] {
         var descriptor = FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.endedAt, order: .reverse)])
         descriptor.fetchLimit = SessionHistory.limit
         return try context.fetch(descriptor).map { record in
             let language = Language(rawValue: record.language)
             let course = language.flatMap { courses[$0] }
-            let title = SessionHistory.lessonTitle(lessonId: record.lessonId, kind: record.exerciseKind, course: course)
+            let title = SessionHistory.lessonTitle(lessonId: record.lessonId, kind: record.exerciseKind, course: course,
+                                                   legacy: language.flatMap { legacyCourses[$0] })
                 ?? SessionHistory.sourceTitle(record.source, library: language.flatMap { texts[$0] } ?? [])
             return HistoryRow(id: record.id, endedAt: record.endedAt, modeTitle: SessionHistory.modeTitle(record.mode),
                               language: language, title: title, cpm: record.cpm, accuracy: record.accuracy,
@@ -95,19 +97,31 @@ struct AnalyticsLoader {
         }
     }
 
-    private func courseProgress(courses: [Language: Course]) throws -> [CourseProgressRow] {
+    /// По строке курса издания 2 на язык и строка архива языка, если у языка есть `LessonProgress` урока издания 1.
+    /// Уроки в строки идут по своему курсу: id изданий не пересекаются.
+    func courseProgress(courses: [Language: Course], legacy: [Language: Course] = [:]) throws -> [CourseProgressRow] {
         let progress = try context.fetch(FetchDescriptor<LessonProgress>())
         // Все завершённые шаги уроков: проверки дают звёзды, остальные шаги — чистоту урока для ★★★★★.
         let sessions = try context.fetch(FetchDescriptor<SessionRecord>(predicate: #Predicate {
             $0.mode == "course" && $0.completed && $0.exerciseKind != nil
         })).compactMap(ProgressSnapshot.summary)
-        return Language.allCases.compactMap { language in
-            guard let course = courses[language] else { return nil }
-            let lessons = progress.filter { $0.language == language.rawValue }.map {
+        func row(_ course: Course) -> CourseProgressRow {
+            let lessons = progress.filter { $0.language == course.language.rawValue }.map {
                 StoredLesson(lessonId: $0.lessonId, passed: $0.passedAt != nil, storedStars: $0.bestStars)
             }
             return CourseProgressRow.make(course: course, lessons: lessons,
-                                          sessions: sessions.filter { $0.language == language })
+                                          sessions: sessions.filter { $0.language == course.language })
+        }
+        return Language.allCases.flatMap { language -> [CourseProgressRow] in
+            var rows: [CourseProgressRow] = []
+            if let course = courses[language] { rows.append(row(course)) }
+            if let old = legacy[language] {
+                let ids = Set(old.lessons.map(\.id))
+                if progress.contains(where: { $0.language == language.rawValue && ids.contains($0.lessonId) }) {
+                    rows.append(row(old))
+                }
+            }
+            return rows
         }
     }
 }

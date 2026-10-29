@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// «Продолжить курс»: следующий урок и кнопка «Начать».
+/// «Продолжить курс» (или «Пересдать проверку»): следующий урок и кнопка «Начать».
 struct ContinueCard: View {
     let info: ContinueInfo
     let start: (LessonRun) -> Void
@@ -9,8 +9,14 @@ struct ContinueCard: View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 if let title = info.lessonTitle {
-                    Text("Продолжить курс · \(info.stageTitle)")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                    Group {
+                        if info.retakeCheck {
+                            Text("Пересдать проверку · \(info.stageTitle)")
+                        } else {
+                            Text("Продолжить курс · \(info.stageTitle)")
+                        }
+                    }
+                    .font(.subheadline).foregroundStyle(.secondary)
                     Text(title).font(.title3.bold())
                 } else {
                     Text("Курс пройден").font(.title3.bold())
