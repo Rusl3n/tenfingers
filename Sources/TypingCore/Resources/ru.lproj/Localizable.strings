@@ -37,7 +37,12 @@
 "Слова с ошибками" = "Слова с ошибками";
 "Спринт" = "Спринт";
 "Числа" = "Числа";
+"Освежить" = "Освежить";
+"Точность пальца" = "Точность пальца";
+"Скорость пальца" = "Скорость пальца";
 "Разминка" = "Разминка";
+"Урок" = "Урок";
+"Тренировка" = "Тренировка";
 
 /* Этапы курсов */
 "Основной ряд" = "Основной ряд";
@@ -208,6 +213,14 @@
 "achievement.streak.200.detail" = "Двести дней. Слово «пропуск» вам незнакомо";
 "achievement.streak.365.title" = "Год без пропусков";
 "achievement.streak.365.detail" = "Год без пропусков. Клавиатура подумывает о пенсии";
+"achievement.spark.7.title" = "Первая искра";
+"achievement.spark.7.detail" = "Неделя заходов подряд, пусть и по минуте. Искра занялась";
+"achievement.spark.30.title" = "Месяц искр";
+"achievement.spark.30.detail" = "Месяц без единого тёмного дня. Искра не гаснет";
+"achievement.spark.100.title" = "Сто искр";
+"achievement.spark.100.detail" = "Сто дней подряд, пусть и по одному шагу. Мелочь, а горит";
+"achievement.spark.365.title" = "Год искр";
+"achievement.spark.365.detail" = "Год, и ни одного дня без искры. Клавиатура в восторге";
 "achievement.streak.iron_will.title" = "Железная воля";
 "achievement.streak.iron_will.detail" = "Тридцать полных дней без единой заморозки. Сталь, а не воля";
 "achievement.streak.fire_month.title" = "Месяц без поблажек";
@@ -388,6 +401,7 @@
 /* Ачивки: условия получения (AchievementConditionText) */
 "achievement.condition.streak" = "Дней занятий подряд: %lld";
 "achievement.condition.fullStreak" = "Полных дней подряд без заморозок: %lld";
+"achievement.condition.sparkStreak" = "Дней подряд хотя бы с одним упражнением: %lld";
 "achievement.condition.speed" = "%1$@: от %2$lld зн/мин без единой ошибки на проверке урока или тексте от %3$lld знаков";
 "achievement.condition.perfectAccuracy" = "Проверка урока или упражнение от %lld знаков без единой ошибки";
 "achievement.condition.accuracyRun" = "Упражнений подряд с точностью от %@: %lld";

@@ -123,14 +123,14 @@ BLOCKED_EXAMPLES = [
     "motherfucker", "bullshit", "goddamn", "jackass", "dumbass", "dickhead", "fuck", "shit", "damn", "ass",
     "bitch", "bastard", "asshole", "dick", "cunts",
     "сукин", "насрать", "засранец", "обосрался", "сиськи", "херня", "гондон", "пидр", "педераст", "долбоёб",
-    "долбоеб", "уёбок", "ебошить", "наёбка",
+    "долбоеб", "уёбок", "ебошить", "наёбка", "порно", "порнографический", "гей", "геи", "геев",
     "cocksucker", "blowjob", "dildo", "skank", "prostitute", "hooker", "stripper", "prick", "pricks", "bugger",
     "buggered", "pimp", "pimps", "penis", "vaginas", "sperm", "nude", "nudes",
 ]
 CLEAN_EXAMPLES = [
     "корабля", "хлеб", "сравнить", "срам", "колебать", "небо", "ребус", "убедить", "обедать", "набег", "сук",
     "педикюр", "трахея", "класс", "sushi", "essex", "scunthorpe", "assist", "class", "grass", "dickens", "cocktail", "grape",
-    "swanky", "sniggering", "сражение", "precious", "primp", "stripe",
+    "swanky", "sniggering", "сражение", "упорно", "упорный", "гейзер", "гейша", "сергей", "precious", "primp", "stripe",
 ]
 
 

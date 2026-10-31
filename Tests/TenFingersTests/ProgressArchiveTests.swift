@@ -995,13 +995,14 @@ private func fillPreferences(_ defaults: UserDefaults) {
         .map { String(body[Range($0.range(at: 1), in: body)!]) })
     #expect(keys.count > 15)
     // Не настройки: состояние окна или устройства (язык интерфейса), прежний ключ темы, служебные флаг очистки
-    // уведомлений и предел очереди уведомлений этого Mac, лист «Новый курс» показан (состояние устройства);
+    // уведомлений и предел очереди уведомлений этого Mac, лист «Новый курс» показан и тост «План выполнен» за день (состояние устройства);
     // профиль — отдельным разделом архива.
     let excluded: Set<String> = [SettingsKey.settingsSection, SettingsKey.legacyTheme, SettingsKey.interfaceLanguage,
                                  SettingsKey.onboardingCompleted, SettingsKey.achievementsFilter,
                                  SettingsKey.profileNickname, SettingsKey.profileFullName,
                                  SettingsKey.remindersResetDone, SettingsKey.reminderSystemLimit,
-                                 SettingsKey.reminderSystemLimitProbedAt, SettingsKey.newCourseIntroShown]
+                                 SettingsKey.reminderSystemLimitProbedAt, SettingsKey.newCourseIntroShown,
+                                 SettingsKey.dayPlanAnnouncedDay]
     let archived = Set(ArchivedSettings.entries.map(\.key))
     #expect(keys.subtracting(excluded).subtracting(archived).isEmpty,
             "не в архиве: \(keys.subtracting(excluded).subtracting(archived).sorted())")
@@ -1262,4 +1263,27 @@ private func fillPreferences(_ defaults: UserDefaults) {
     #expect(throws: ArchiveError.duplicate("AchievementGrant", "time.morning/2026-09-21")) {
         _ = try ProgressArchive.decode(data)
     }
+}
+
+/// Все пункты плана (`warmup…text`), записанные запуском из плана, проходят экспорт → загрузку и читаются
+/// обратно в `SessionSummary.planSlot`.
+@MainActor @Test func everyPlanSlotRoundTripsThroughArchive() throws {
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    let recorder = ResultRecorder(context: source, dayStartHour: 4)
+    for (index, slot) in PlanSlot.allCases.enumerated() {
+        let at = base.addingTimeInterval(Double(index) * 100)
+        let result = ExerciseResult(engine: TypingEngine(text: "а"), mode: .practice, language: .ru, lessonId: nil,
+                                    startedAt: at, endedAt: at, hintLevel: .full)
+        try recorder.commit { try recorder.record(result, source: "plan:text", planSlot: slot) }
+    }
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    let archive = try ProgressArchive.decode(try ProgressArchive.export(context: source, defaults: defaults, now: base))
+
+    let targetContainer = try ModelStore.makeContainer(inMemory: true)
+    try ProgressArchive.replaceAll(with: archive, context: targetContainer.mainContext)
+    let summaries = try ProgressSnapshot(context: targetContainer.mainContext).sessionSummaries()
+        .sorted { $0.endedAt < $1.endedAt }
+    #expect(summaries.map(\.planSlot) == [.warmup, .lesson, .training, .text])
 }

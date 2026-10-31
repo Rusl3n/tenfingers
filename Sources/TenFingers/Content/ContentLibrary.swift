@@ -37,4 +37,9 @@ struct LessonRun: Identifiable, Equatable {
     let lessonId: String
     /// Повтор одного шага урока по номеру в плане (`ExerciseSpec.id`): без знакомства и без продолжения урока.
     var onlyStepIndex: Int? = nil
+    /// «Освежить» (§6.3): одна проверка урока, сгенерированная заново; без знакомства и без продолжения урока.
+    /// Главнее `onlyStepIndex`.
+    var refresh: Bool = false
+    /// Пункт плана дня, из которого запущен урок; `nil` — запуск не из плана (решение 15 фазы 6c).
+    var planSlot: PlanSlot? = nil
 }

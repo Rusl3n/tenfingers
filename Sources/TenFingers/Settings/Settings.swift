@@ -8,6 +8,9 @@ enum SettingsKey {
     static let onboardingCompleted = "onboardingCompleted"
     /// Лист «Новый курс» показан (2.0.0, §11), Bool. Не архивируется: состояние устройства.
     static let newCourseIntroShown = "newCourseIntroShown"
+    /// Логический день, за который показан тост «План выполнен» (решение 14 фазы 6c), String. Не архивируется:
+    /// состояние устройства.
+    static let dayPlanAnnouncedDay = "dayPlanAnnouncedDay"
     /// Фильтр экрана «Ачивки» (`AchievementsFilter`): all | earned | locked. Не архивируется: состояние окна.
     static let achievementsFilter = "achievementsFilter"
     static let themeMode = "themeMode"

@@ -139,7 +139,7 @@ private func make(days: [String: DayActivity] = [:], sessions: [SessionSummary] 
     #expect(StreakHeader.lines(summary(current: 4, today: .half)) == [])
 }
 
-/// Строки «Заходил» и «Цель» под числом серии: только когда есть хоть один день занятий.
+/// Под числом серии остаётся только «Цель»; «Искра» вынесена в отдельный блок.
 @Test func streakHeaderDayMetrics() {
     let empty = StreakSummary(current: 0, fullInRow: 0, fullInCurrent: 0, freezes: 0, longest: 0,
                               today: .none, statuses: [:])
@@ -148,9 +148,29 @@ private func make(days: [String: DayActivity] = [:], sessions: [SessionSummary] 
                                today: .full, statuses: [:], visitCurrent: 12, visitLongest: 20, visitTotal: 40,
                                goalCurrent: 5, goalLongest: 9, goalTotal: 22)
     let lines = StreakHeader.dayMetrics(streak)
-    #expect(lines.map(\.icon) == ["figure.walk", "target"])
-    #expect(lines.map(\.text) == ["Заходил: 12 дней подряд · всего 40", "Цель: 5 дней подряд · всего 22"])
-    #expect(lines.map(\.help) == [HelpText.visitDays, HelpText.goalDays])
+    #expect(lines.map(\.icon) == ["target"])
+    #expect(lines.map(\.text) == ["Цель: 5 дней подряд · всего 22"])
+    #expect(lines.map(\.help) == [HelpText.goalDays])
+}
+
+/// Блок «Искры»: пока нет ни одного дня с занятиями — его нет; горит при полном и половинном дне сегодня.
+@Test func sparkBlockLightsUpOnlyWhenTodayCounts() {
+    func summary(today: DayStatus, current: Int = 3, longest: Int = 9, total: Int = 40) -> StreakSummary {
+        StreakSummary(current: 0, fullInRow: 0, fullInCurrent: 0, freezes: 0, longest: 0, today: today,
+                      statuses: [:], visitCurrent: current, visitLongest: longest, visitTotal: total)
+    }
+    #expect(StreakHeader.spark(summary(today: .half, current: 0, longest: 0, total: 0)) == nil)
+    let half = StreakHeader.spark(summary(today: .half))
+    #expect(half?.isLitToday == true)
+    #expect(half?.days == 3)
+    #expect(half?.subtitle == "рекорд 9 дней · всего 40")
+    #expect(StreakHeader.spark(summary(today: .full))?.isLitToday == true)
+    // Сегодня ещё не занимались, вчера был зачёт: значок серый, число сохраняется.
+    let none = StreakHeader.spark(summary(today: .none))
+    #expect(none?.isLitToday == false)
+    #expect(none?.days == 3)
+    #expect(StreakHeader.spark(summary(today: .frozen))?.isLitToday == false)
+    #expect(half?.help == HelpText.spark)
 }
 
 /// Английский текст строк берётся из Localization/en.lproj (в тестах `Bundle.main` без переводов приложения).
@@ -159,7 +179,10 @@ private func make(days: [String: DayActivity] = [:], sessions: [SessionSummary] 
         .deletingLastPathComponent().appendingPathComponent("Localization/en.lproj")
     let en = try #require(Bundle(url: url))
     let locale = Locale(identifier: "en")
-    #expect(DayMetricsText.visits(current: 1, total: 3, bundle: en, locale: locale) == "Visited: 1 day in a row · 3 total")
+    #expect(DayMetricsText.spark(current: 1, total: 3, bundle: en, locale: locale) == "Spark: 1 day in a row · 3 total")
+    #expect(DayMetricsText.spark(current: 2, total: 7, locale: Locale(identifier: "ru")) == "Искра: 2 дня подряд · всего 7")
+    #expect(DayMetricsText.sparkRecord(longest: 9, total: 40, bundle: en, locale: locale) == "best 9 days · 40 total")
+    #expect(DayMetricsText.sparkRecord(longest: 9, total: 40, locale: Locale(identifier: "ru")) == "рекорд 9 дней · всего 40")
     #expect(DayMetricsText.goals(current: 2, total: 7, bundle: en, locale: locale) == "Goal: 2 days in a row · 7 total")
 }
 

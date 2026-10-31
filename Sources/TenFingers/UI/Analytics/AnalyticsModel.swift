@@ -298,6 +298,8 @@ enum SessionHistory {
         case "words": return String(localized: "Частотные слова")
         case "symbols": return String(localized: "Цифры и символы")
         case "custom": return String(localized: "Свой текст")
+        case "plan:text": return String(localized: "Текст плана")
+        case "plan:review": return String(localized: "Повтор плана")
         case let source? where source.hasPrefix("library:"):
             let id = source.dropFirst("library:".count)
             return library.first { $0.id == id }?.title

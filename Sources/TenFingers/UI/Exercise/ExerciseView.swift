@@ -8,6 +8,8 @@ struct ExerciseView: View {
     let step: Int
     let totalSteps: Int
     var targetCpm: Double?
+    /// Вместо индикатора скорости — цель текстом («Цель: 0 ошибок» у занятия на точность пальца).
+    var goalText: String? = nil
     /// Урок продолжен с этого шага (с единицы): над текстом плашка с кнопкой «Начать урок заново».
     var resumedStep: Int?
     /// Строка над текстом упражнения («Обгоните себя: 142 зн/мин → цель 149 зн/мин» у шагов «Ускорения»).
@@ -58,8 +60,7 @@ struct ExerciseView: View {
             }
             ProgressView(value: Double(session.engine.position), total: Double(max(session.engine.target.count, 1)))
             TypingTextView(target: session.engine.target, position: session.engine.position,
-                           errorAtCursor: session.errorFlash)
-            Spacer(minLength: 0)
+                           errorAtCursor: session.errorFlash)  // занимает свободную высоту
             if session.hint == .hidden {
                 Label("Клавиатура скрыта: печатайте вслепую", systemImage: "eye.slash")
                     .foregroundStyle(.secondary)
@@ -116,9 +117,13 @@ struct ExerciseView: View {
             }
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            SpeedIndicatorView(cpm: session.engine.cpm, target: targetCpm,
-                               typedChars: session.engine.position,
-                               activeSeconds: session.engine.activeTime, unit: unit)
+            if let goalText {
+                Text(goalText).font(.title3.weight(.semibold)).foregroundStyle(.secondary)
+            } else {
+                SpeedIndicatorView(cpm: session.engine.cpm, target: targetCpm,
+                                   typedChars: session.engine.position,
+                                   activeSeconds: session.engine.activeTime, unit: unit)
+            }
             HStack(spacing: 18) {
                 HStack(spacing: 6) {
                     Text("Ошибки: \(session.engine.errorPositions.count)").monospacedDigit()

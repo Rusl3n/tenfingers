@@ -12,12 +12,12 @@ struct DayMetricRow: Identifiable, Equatable {
     let help: String
     var id: String { icon }
 
-    /// Огонь, «Заходил», «Цель выполнена».
+    /// Огонь, «Искра», «Цель выполнена».
     static func rows(_ streak: StreakSummary) -> [DayMetricRow] {
         [DayMetricRow(title: String(localized: "Огонь"), icon: "flame.fill", current: streak.current,
                       longest: streak.longest, total: nil, help: HelpText.freezes),
-         DayMetricRow(title: String(localized: "Заходил"), icon: "figure.walk", current: streak.visitCurrent,
-                      longest: streak.visitLongest, total: streak.visitTotal, help: HelpText.visitDays),
+         DayMetricRow(title: String(localized: "Искра"), icon: "sparkles", current: streak.visitCurrent,
+                      longest: streak.visitLongest, total: streak.visitTotal, help: HelpText.spark),
          DayMetricRow(title: String(localized: "Цель выполнена"), icon: "target", current: streak.goalCurrent,
                       longest: streak.goalLongest, total: streak.goalTotal, help: HelpText.goalDays)]
     }

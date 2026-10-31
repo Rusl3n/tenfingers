@@ -9,11 +9,15 @@ public enum SpeedupReference {
     /// Допуск сравнения: ровно +5% из-за двоичной арифметики не становится +6%.
     private static let tolerance = 1e-9
 
-    /// Ориентир «Ускорения» языка: лучшая скорость завершённой проверки (`check`) уроков `speedup` курса;
-    /// нет — средняя скорость последних 5 завершённых проверок курса (`mode == .course`, `check`, любое издание);
-    /// `nil` — проверок нет. `sessions` — сессии этого языка.
+    /// Ориентир «Ускорения» языка: лучшая скорость засчитанной проверки (`check`) уроков `speedup` курса;
+    /// нет — средняя скорость последних 5 засчитанных проверок курса (`mode == .course`, `check`, любое издание);
+    /// `nil` — проверок нет. `sessions` — сессии этого языка. Засчитанная — завершённая с точностью зачёта
+    /// (`LessonScoring.passAccuracy`): быстрая проверка с ошибками цель обгона не поднимает.
     public static func reference(course: Course, sessions: [SessionSummary]) -> Double? {
-        let checks = sessions.filter { $0.mode == .course && $0.completed && $0.exerciseKind == .check }
+        let checks = sessions.filter {
+            $0.mode == .course && $0.completed && ($0.exerciseKind?.isLessonCheck ?? false)
+                && $0.accuracy + LessonScoring.accuracyTolerance >= LessonScoring.passAccuracy
+        }
         let speedupIds = Set(course.lessons.filter { $0.resolvedKind == .speedup }.map(\.id))
         if let best = checks.filter({ speedupIds.contains($0.lessonId ?? "") }).map(\.speed).max() { return best }
         let recent = checks.sorted { $0.endedAt < $1.endedAt }.suffix(fallbackChecks)

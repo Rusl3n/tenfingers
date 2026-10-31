@@ -39,6 +39,8 @@ final class ToastCenter {
     @ObservationIgnored private var currentDuration: Duration = .zero
     /// Открывает карточку «Поделиться» для ачивки из тоста (задаёт `RootView`); `nil` — тосты без кнопки.
     @ObservationIgnored var shareAchievement: (@MainActor (Achievement) -> Void)?
+    /// Проверка «План выполнен» после сохранения упражнения (задаёт `RootView`, вызывает `ExerciseCoordinator.live`).
+    @ObservationIgnored var checkPlanDone: (@MainActor () -> Void)?
 
     /// Ждущее сообщение: `duration` — если за ним никого, `step` — если следом есть ещё.
     private struct Queued {
@@ -88,6 +90,29 @@ final class ToastCenter {
     func showFullFlame() {
         enqueue([Toast(icon: "flame.fill", message: String(localized: "Полный огонь! Дневная цель выполнена"),
                        tint: .orange)], duration: duration, step: duration)
+    }
+
+    static let planDoneIcon = "checklist"
+
+    /// План на сегодня выполнен (в очередь, как «Полный огонь»).
+    func showPlanDone() {
+        enqueue([Toast(icon: Self.planDoneIcon, message: String(localized: "План выполнен"), tint: .green)],
+                duration: duration, step: duration)
+    }
+
+    /// Тост «План выполнен» за логический день `today` уже показан: план можно не собирать.
+    static func isPlanDoneAnnounced(today: String, defaults: UserDefaults = .standard) -> Bool {
+        defaults.string(forKey: SettingsKey.dayPlanAnnouncedDay) == today
+    }
+
+    /// «План выполнен» один раз за логический день `today` (решение 14): флаг `dayPlanAnnouncedDay` — состояние
+    /// устройства. `true` — тост показан сейчас.
+    @discardableResult
+    func announcePlanDone(today: String, defaults: UserDefaults = .standard) -> Bool {
+        guard !Self.isPlanDoneAnnounced(today: today, defaults: defaults) else { return false }
+        defaults.set(today, forKey: SettingsKey.dayPlanAnnouncedDay)
+        showPlanDone()
+        return true
     }
 
     /// Кнопка сообщения: выполняет действие и убирает сообщение.

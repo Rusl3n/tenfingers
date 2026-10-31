@@ -30,11 +30,16 @@ struct ProgressSnapshot {
         return try context.fetch(descriptor).compactMap(Self.summary)
     }
 
+    /// Граница «вся история»: больше любого ключа логического дня.
+    static let allHistory = "9999-99-99"
+
     /// Звёзды проверок этапов курса по истории (`CourseGate.checkStars`) — для гейта на главной и в раннере.
-    func stageCheckStars(course: Course) throws -> [String: Int] {
+    /// `before` — только история до этого логического дня (не включая), как у плана дня.
+    func stageCheckStars(course: Course, before: String? = nil) throws -> [String: Int] {
         let code = course.language.rawValue
-        let descriptor = FetchDescriptor<SessionRecord>(
-            predicate: #Predicate { $0.language == code && $0.mode == "course" && $0.completed })
+        let bound = before ?? Self.allHistory
+        let descriptor = FetchDescriptor<SessionRecord>(predicate: #Predicate {
+            $0.language == code && $0.mode == "course" && $0.completed && $0.logicalDay < bound })
         return CourseGate.checkStars(course: course, sessions: try context.fetch(descriptor).compactMap(Self.summary))
     }
 
@@ -51,6 +56,76 @@ struct ProgressSnapshot {
     /// Ориентир «Ускорения» языка курса по его истории (`SpeedupReference.reference`); `nil` — проверок ещё нет.
     func speedupReference(course: Course) throws -> Double? {
         SpeedupReference.reference(course: course, sessions: try sessionSummaries(language: course.language))
+    }
+
+    /// Логический день зачёта (`LessonProgress.passedAt` по часу начала дня) каждого засчитанного урока курса:
+    /// `RefreshSchedule` отсчитывает возвраты от него. `before` — только уроки, засчитанные до этого дня.
+    func passedDays(course: Course, dayStartHour: Int = StoredSettings.dayStartHour(),
+                    calendar: Calendar = .current, before: String? = nil) throws -> [String: String] {
+        let code = course.language.rawValue
+        let ids = Set(course.lessons.map(\.id))
+        let records = try context.fetch(FetchDescriptor<LessonProgress>(predicate: #Predicate { $0.language == code }))
+        var days: [String: String] = [:]
+        for record in records where ids.contains(record.lessonId) {
+            guard let passedAt = record.passedAt else { continue }
+            let day = LogicalDay.key(for: passedAt, dayStartHour: dayStartHour, calendar: calendar)
+            if day < before ?? Self.allHistory { days[record.lessonId] = day }
+        }
+        return days
+    }
+
+    /// Исходные данные расписания возвратов курса: день зачёта, действующие звёзды и сессии курса по урокам.
+    /// `before` (`nil` — вся история) — только история до этого логического дня (не включая): состав плана дня не меняется за день.
+    private func refreshInputs(course: Course, dayStartHour: Int, calendar: Calendar, before: String?)
+        throws -> (passedDays: [String: String], stars: [String: Int], sessions: [SessionSummary]) {
+        let code = course.language.rawValue
+        let bound = before ?? Self.allHistory
+        let descriptor = FetchDescriptor<SessionRecord>(predicate: #Predicate {
+            $0.language == code && $0.mode == "course" && $0.lessonId != nil && $0.logicalDay < bound })
+        let sessions = try context.fetch(descriptor).compactMap(Self.summary)
+        let byLesson = Dictionary(grouping: sessions) { $0.lessonId! }
+        let records = try context.fetch(FetchDescriptor<LessonProgress>(predicate: #Predicate { $0.language == code }))
+        let progress = Dictionary(records.map { ($0.lessonId, $0) }, uniquingKeysWith: { first, _ in first })
+        let passedDays = try passedDays(course: course, dayStartHour: dayStartHour, calendar: calendar, before: before)
+        var stars: [String: Int] = [:]
+        for lesson in course.lessons {
+            guard let target = course.targetCpm(for: lesson.id) else { continue }
+            // Хранимые звёзды могли обновиться сегодня: до `before` их берём только у урока, засчитанного раньше.
+            let passed = passedDays[lesson.id] != nil
+            stars[lesson.id] = LessonScoring.effectiveStars(
+                sessions: byLesson[lesson.id] ?? [], lessonId: lesson.id, targetCpm: target,
+                passed: passed, storedStars: passed ? progress[lesson.id]?.bestStars ?? 0 : 0)
+        }
+        return (passedDays, stars, sessions)
+    }
+
+    /// Наступившие возвраты «Освежить» на логический день `today`: обычные, потом «трудные», самые старые первыми.
+    /// `since` — день, с которого урок ждёт возврата.
+    func refreshDue(course: Course, today: String, dayStartHour: Int = StoredSettings.dayStartHour(),
+                    calendar: Calendar = .current) throws -> [(lessonId: String, since: String)] {
+        let input = try refreshInputs(course: course, dayStartHour: dayStartHour, calendar: calendar, before: nil)
+        return RefreshSchedule.due(course: course, passedDays: input.passedDays, stars: input.stars,
+                                   sessions: input.sessions, today: today)
+    }
+
+    /// Буквы «трудных» уроков курса (`RefreshSchedule.hardLetters`) на логический день `today`.
+    func hardLetters(course: Course, today: String, dayStartHour: Int = StoredSettings.dayStartHour(),
+                     calendar: Calendar = .current) throws -> Set<Character> {
+        let input = try refreshInputs(course: course, dayStartHour: dayStartHour, calendar: calendar, before: nil)
+        return RefreshSchedule.hardLetters(course: course, passedDays: input.passedDays, stars: input.stars,
+                                           sessions: input.sessions, today: today)
+    }
+
+    /// Для плана дня за один проход по истории до `today` (решение 17): наступившие возвраты (в порядке
+    /// `RefreshSchedule.due`), урок ротации (`RefreshSchedule.rotation`, решение 8а) и буквы «трудных» уроков.
+    func planRefreshes(course: Course, today: String, dayStartHour: Int = StoredSettings.dayStartHour(),
+                       calendar: Calendar = .current) throws -> (due: [String], rotation: String?, hard: Set<Character>) {
+        let input = try refreshInputs(course: course, dayStartHour: dayStartHour, calendar: calendar, before: today)
+        return (RefreshSchedule.due(course: course, passedDays: input.passedDays, stars: input.stars,
+                                    sessions: input.sessions, today: today).map(\.lessonId),
+                RefreshSchedule.rotation(course: course, stars: input.stars, sessions: input.sessions, today: today),
+                RefreshSchedule.hardLetters(course: course, passedDays: input.passedDays, stars: input.stars,
+                                            sessions: input.sessions, today: today))
     }
 
     /// Сессии начиная с логического дня `start` (включительно): окно недели на главной.
@@ -83,7 +158,8 @@ struct ProgressSnapshot {
                               chars: record.chars, activeSeconds: record.activeSeconds,
                               accuracy: record.accuracy, completed: record.completed,
                               lessonId: record.lessonId, exerciseKind: record.exerciseKind.flatMap(ExerciseKind.init),
-                              cpm: record.cpm, errorCount: record.errorCount, stepIndex: record.stepIndex)
+                              cpm: record.cpm, errorCount: record.errorCount, stepIndex: record.stepIndex,
+                              planSlot: record.planSlot.flatMap(PlanSlot.init(rawValue:)))
     }
 
     func keyStats(language: Language) throws -> [KeyStatSummary] {

@@ -18,3 +18,12 @@ import TypingCore
     #expect(snap.shifted[22] == "^")
     #expect(snap.keyPress(for: "A") == KeyPress(keyCode: 0, shift: true))
 }
+
+@Test func fingerOfMapsLanguageLettersThroughLayout() {
+    let snapshot = LayoutSnapshot(id: "t", language: .ru, shape: .ansi,
+                                  plain: [0: "ф", 3: "а", 38: "о", 49: " "], shifted: [:])
+    let map = KeyboardLayoutService.fingerOf(snapshot: snapshot, language: .ru)
+    #expect(map == ["ф": .leftPinky, "а": .leftIndex, "о": .rightIndex])
+    // Раскладка другого языка: букв курса в ней нет — карта пуста.
+    #expect(KeyboardLayoutService.fingerOf(snapshot: snapshot, language: .en).isEmpty)
+}

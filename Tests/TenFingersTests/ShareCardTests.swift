@@ -605,7 +605,7 @@ private func progressData() -> ProgressCardData {
                               bundle: localization("ru"), locale: ru)
     #expect(month.header == "Мой прогресс")
     #expect(month.headline == "20 дней подряд")
-    #expect(month.subtitle == "Полных дней: 18\nЗаходил: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
+    #expect(month.subtitle == "Полных дней: 18\nИскра: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
     #expect(month.footnote == nil)
     #expect(month.signature == "rusl3n")
     let progress = month.progress
@@ -633,7 +633,7 @@ private func progressData() -> ProgressCardData {
                              unit: .cpm, bundle: localization("en"), locale: en)
     #expect(text.header == "My Progress")
     #expect(text.headline == "0 days in a row")
-    #expect(text.subtitle == "Full days: 0\nVisited: 0 days in a row · 0 total\nGoal: 0 days in a row · 0 total")
+    #expect(text.subtitle == "Full days: 0\nSpark: 0 days in a row · 0 total\nGoal: 0 days in a row · 0 total")
     #expect(text.progress?.periodLabel == "October 2026")
     #expect(text.progress?.weekdays.first == "Sun")
     #expect(text.progress?.metrics.map(\.title) == ["Practice time", "Best speed", "Average accuracy"])
@@ -694,14 +694,14 @@ private func progressData() -> ProgressCardData {
     #expect(text(content).subtitle == "Полных дней: 18")
     content.showsFullDays = false
     #expect(text(content).subtitle == nil)
-    #expect(text(all).subtitle == "Полных дней: 18\nЗаходил: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
-    // Каждая строка включается отдельно, порядок всегда «Полные дни», «Заходил», «Цель».
+    #expect(text(all).subtitle == "Полных дней: 18\nИскра: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
+    // Каждая строка включается отдельно, порядок всегда «Полные дни», «Искра», «Цель».
     content.showsGoalDays = true
     #expect(text(content).subtitle == "Цель: 3 дня подряд · всего 18")
     content.showsVisits = true
-    #expect(text(content).subtitle == "Заходил: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
+    #expect(text(content).subtitle == "Искра: 3 дня подряд · всего 19\nЦель: 3 дня подряд · всего 18")
     content.showsGoalDays = false
-    #expect(text(content, "en", en).subtitle == "Visited: 3 days in a row · 19 total")
+    #expect(text(content, "en", en).subtitle == "Spark: 3 days in a row · 19 total")
     content.showsVisits = false
     content.showsFullDays = true
     #expect(text(content, "en", en).subtitle == "Full days: 18")

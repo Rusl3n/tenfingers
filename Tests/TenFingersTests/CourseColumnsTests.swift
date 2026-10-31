@@ -229,3 +229,20 @@ private let lesson: Lesson = {
     #expect(!hint(check: false))
     #expect(!hint(previousPassed: true))
 }
+
+// MARK: - «Освежить» на карте
+
+/// Значок и кнопка — у урока с наступившим возвратом; «трудный» — и пока срок не наступил; остальным ничего.
+@Test func refreshMarkFollowsTheScheduleState() {
+    #expect(RefreshMark(.none) == nil && RefreshMark(.closed) == nil)
+    #expect(RefreshMark(.waiting(until: "2027-03-05", hard: false)) == nil)
+    #expect(RefreshMark(.due(since: "2027-03-05", hard: false)) == RefreshMark(isDue: true, isHard: false))
+    #expect(RefreshMark(.due(since: "2027-03-05", hard: true)) == RefreshMark(isDue: true, isHard: true))
+    #expect(RefreshMark(.waiting(until: "2027-03-05", hard: true)) == RefreshMark(isDue: false, isHard: true))
+}
+
+@Test func refreshIconExistsAndHelpTextsAreSet() {
+    #expect(NSImage(systemSymbolName: RefreshMark.symbol, accessibilityDescription: nil) != nil)
+    #expect(RefreshMark.symbol == "arrow.clockwise.circle")
+    #expect(HelpText.all.contains(HelpText.refresh) && HelpText.all.contains(HelpText.hardLesson))
+}

@@ -140,6 +140,36 @@ private let enCourse = Course(language: .en, stages: [stage("e", [lesson("e1")])
             == at("2026-10-03 12:00"))
 }
 
+// MARK: - Искра (6c)
+
+@Test func engineSparkCountsFullAndHalfDaysButNotFrozen() {
+    let full = facts(streakStatuses: ["2026-10-01": .full, "2026-10-02": .half])
+    #expect(earned(.sparkStreak(days: 2), full) == at("2026-10-02 12:00"))
+    // Замороженный день — не искра: серия рвётся, а огонь через него идёт.
+    let frozen = facts(streakStatuses: ["2026-10-01": .half, "2026-10-02": .frozen, "2026-10-03": .half])
+    #expect(earned(.sparkStreak(days: 2), frozen) == nil)
+    #expect(earned(.sparkStreak(days: 1), frozen) == at("2026-10-01 12:00"))
+    #expect(earned(.streak(days: 3), frozen) == at("2026-10-03 12:00"))
+    // День без занятий тоже рвёт.
+    let none = facts(streakStatuses: ["2026-10-01": .half, "2026-10-02": DayStatus.none, "2026-10-03": .half])
+    #expect(earned(.sparkStreak(days: 2), none) == nil)
+}
+
+@Test func engineSparkSevenHalfDaysAreDatedByTheLastExerciseOfTheSeventhDay() {
+    let days = (1...7).map { "2026-10-0\($0)" }
+    let statuses = Dictionary(uniqueKeysWithValues: days.map { ($0, DayStatus.half) })
+    let list = days.map { ex("\($0) 10:00") } + [ex("2026-10-07 20:15"), ex("2026-10-08 09:00")]
+    let f = facts(list, streakStatuses: statuses)
+    #expect(earned(.sparkStreak(days: 7), f) == at("2026-10-07 20:15"))
+    #expect(earned(.sparkStreak(days: 8), f) == nil)
+}
+
+@Test func engineSparkBreaksOnMissingDayKey() {
+    let f = facts(streakStatuses: ["2026-10-01": .half, "2026-10-02": .half, "2026-10-04": .full])
+    #expect(earned(.sparkStreak(days: 3), f) == nil)
+    #expect(earned(.sparkStreak(days: 2), f) == at("2026-10-02 12:00"))
+}
+
 @Test func engineDatesNeverExceedNow() {
     let now = at("2026-10-07 09:00")
     // Сегодня, 07.10, условие выполнено, а упражнений в фактах нет: полдень (12:00) позже момента проверки.

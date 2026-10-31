@@ -39,6 +39,10 @@ struct PracticeRunnerView: View {
     /// если сохранение не удалось и пользователь отказался повторять.
     @State private var customOffset = 0
     @State private var lastPortion = 1
+    /// «Текст» плана: урок, по которому строится текст (`PracticeTextFactory.planContext`).
+    @State private var planBasis: PlanTextBasis?
+    /// «Повтор» плана: открытые буквы с пробелом — только из них слова.
+    @State private var openLetters: Set<Character>?
 
     private var language: Language { run.language }
 
@@ -81,14 +85,7 @@ struct PracticeRunnerView: View {
                     .id(portion)
             }
         case .summary(let summary):
-            RunSummaryView(title: summaryTitle(summary),
-                           cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
-                           lines: summary.lines,
-                           newAchievements: coordinator?.newAchievements ?? [],
-                           fullFlame: coordinator?.newFullFlame,
-                           primaryTitle: primaryTitle(summary),
-                           onPrimary: { summary.textFinished ? restart(after: summary.portion) : begin(summary.portion + 1) },
-                           secondaryTitle: "Закончить", onSecondary: exit)
+            summaryView(summary)
         case .textFinished:
             VStack(spacing: 20) {
                 Text("Текст пройден").font(.largeTitle.bold())
@@ -112,7 +109,21 @@ struct PracticeRunnerView: View {
         case .library(let item): "\(item.title) — \(item.author)"
         case .symbols: String(localized: "Цифры и символы")
         case .custom: customTitle
+        case .planText: PlanSlot.text.title
+        case .planReview: String(localized: "Повтор")
         }
+    }
+
+    /// Итог порции. Запуск из плана: после последней порции — только выход (дальше ведёт промежуточный экран плана).
+    private func summaryView(_ summary: Summary) -> RunSummaryView {
+        let last = isLastPlanPortion(summary)
+        return RunSummaryView(title: summaryTitle(summary),
+                              cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
+                              lines: summary.lines,
+                              newAchievements: coordinator?.newAchievements ?? [],
+                              fullFlame: coordinator?.newFullFlame,
+                              primaryTitle: primaryTitle(summary), onPrimary: { primary(after: summary) },
+                              secondaryTitle: last ? nil : "Закончить", onSecondary: last ? nil : { exit() })
     }
 
     private func summaryTitle(_ summary: Summary) -> String {
@@ -121,13 +132,29 @@ struct PracticeRunnerView: View {
         return String(localized: "Порция \(portion) готова")
     }
 
+    private func isLastPlanPortion(_ summary: Summary) -> Bool {
+        PlanPortions.isLast(summary.portion, limit: run.portions)
+    }
+
     private func primaryTitle(_ summary: Summary) -> LocalizedStringKey {
+        if isLastPlanPortion(summary) { return "Готово" }
         if summary.textFinished { return "Начать сначала" }
         if case .library = run.source { return "Ещё раз" }
         return "Ещё"
     }
 
     // MARK: - Ход
+
+    /// Главная кнопка итога: последняя порция плана — выход, дочитанный свой текст — сначала, иначе — следующая.
+    private func primary(after summary: Summary) {
+        if isLastPlanPortion(summary) {
+            exit()
+        } else if summary.textFinished {
+            restart(after: summary.portion)
+        } else {
+            begin(summary.portion + 1)
+        }
+    }
 
     private func prepare() {
         guard coordinator == nil else { return }
@@ -141,7 +168,29 @@ struct PracticeRunnerView: View {
             customBody = text.body
             customOffset = min(max(text.offset, 0), text.body.count)
         }
+        preparePlan()
         begin(1)
+    }
+
+    /// Изученные символы для источников плана: урок-основа «Текста» и открытые буквы «Повтора».
+    private func preparePlan() {
+        switch run.source {
+        case let .planText(stageIndex, _):
+            guard let course = library.courses[language], let planner = library.planners[language] else { return }
+            let code = language.rawValue
+            let progress = (try? modelContext.fetch(
+                FetchDescriptor<LessonProgress>(predicate: #Predicate { $0.language == code }))) ?? []
+            let passed = Set(progress.filter { $0.passedAt != nil }.map(\.lessonId))
+            planBasis = PracticeTextFactory.planContext(course: course, passed: passed, stageIndex: stageIndex)
+                .map { PlanTextBasis(planner: planner, context: $0) }
+        case .planReview:
+            let open = (try? StatsReader(context: modelContext).openLetters(
+                language: language, course: library.courses[language], legacy: library.legacyCourses[language]))
+                ?? Set(AdaptiveTrainer(language: language).unlockedLetters(count: AdaptiveTrainer.initialLetters))
+            openLetters = open.union([" "])
+        default:
+            break
+        }
     }
 
     private func fetchCustomText(_ id: UUID) -> CustomText? {
@@ -156,17 +205,18 @@ struct PracticeRunnerView: View {
         lastPortion = portion
         var rng = SystemRandomNumberGenerator()
         let custom = customId == nil ? nil : (body: customBody, offset: customOffset)
-        let piece = PracticeTextFactory.text(for: run.source, language: language, allowed: allowed,
-                                             generator: generator, custom: custom, rng: &rng)
+        let piece = PracticeTextFactory.text(for: run.source, language: language, allowed: openLetters ?? allowed,
+                                             generator: generator, custom: custom, plan: planBasis, rng: &rng)
         guard !piece.text.isEmpty else {
             if customId != nil { phase = .textFinished } else { onExit() }
             return
         }
-        let spec = ExerciseSpec(id: portion, kind: .words, title: "Практика", text: piece.text)
+        let spec = ExerciseSpec(id: portion, kind: .words, title: "Практика", text: piece.text,
+                                connected: piece.connected)
         // «По курсу» для практики означает подсказку при ошибке: курсовой уровень здесь не определён.
         let hint = (HintMode(rawValue: hintMode) ?? .auto).resolve(.onError)
         _ = coordinator.start(spec: spec, language: language, mode: .practice, lessonId: nil,
-                              hint: hint, source: run.source.recordName) { session, result in
+                              hint: hint, source: run.source.recordName, planSlot: run.planSlot) { session, result in
             finish(portion: portion, next: piece.nextOffset, session: session, result: result)
         }
         phase = .exercise(portion)

@@ -192,7 +192,7 @@ struct AchievementService {
         var result: [String: Int] = [:]
         for course in Array(courses.values) + Array(legacyCourses.values) {
             for lesson in course.lessons
-            where stored[lesson.id] != nil || lessonSessions[lesson.id]?.contains(where: { $0.exerciseKind == .check }) == true {
+            where stored[lesson.id] != nil || lessonSessions[lesson.id]?.contains(where: { $0.exerciseKind?.isLessonCheck ?? false }) == true {
                 guard let target = course.targetCpm(for: lesson.id) else { continue }
                 let record = stored[lesson.id]
                 result[lesson.id] = LessonScoring.effectiveStars(

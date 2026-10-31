@@ -111,3 +111,15 @@ import Testing
     #expect(c.continueTarget(passed: ["ru.1.1"], checkStars: [:]) == .lesson(c.lessons[1]))
     #expect(c.isCompleted(passed: Set(c.lessons.map(\.id)), checkStars: [:]))
 }
+
+/// «Освежить» этапной проверки — такая же попытка проверки: звёзды для гейта и сертификат её видят.
+@Test func refreshOfAStageCheckCountsAsACheckForTheGate() throws {
+    let c = try CourseFixtures.ruMini()
+    func s(_ kind: ExerciseKind, _ cpm: Double) -> SessionSummary {
+        SessionSummary(day: "2027-01-10", endedAt: .now, language: .ru, mode: .course, chars: 60, activeSeconds: 60,
+                       accuracy: 1, completed: true, lessonId: "ru2.s1.check", exerciseKind: kind, cpm: cpm)
+    }
+    #expect(CourseGate.checkStars(course: c, sessions: [s(.check, 70)]) == ["ru2.s1.check": 2])
+    #expect(CourseGate.checkStars(course: c, sessions: [s(.check, 70), s(.refresh, 85)]) == ["ru2.s1.check": 3])
+    #expect(CourseGate.scoredChecks(course: c, checkLessonId: "ru2.s1.check", sessions: [s(.check, 70), s(.refresh, 85)]).count == 2)
+}

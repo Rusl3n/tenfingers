@@ -5,7 +5,7 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version 2.0.0">
+  <img src="https://img.shields.io/badge/version-2.1.0-blue" alt="Version 2.1.0">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -15,6 +15,7 @@
 
 ## Features
 
+- "Today's plan" on the home screen: a warm-up, a lesson, a training and a text; the items start one at a time, and after each one a screen reads "Item N of 4 done · Next: ...". The size of the plan follows your daily goal.
 - A course of 98 lessons per language in 7 stages, from the home row to long texts: 6-8 steps per lesson (words from the rows, phrases, sentences, connected text, hard letters, words with your mistakes, a sprint, numbers). "Review" is built from your own errors, "Speed-up" runs on your strong letters with a "Beat yourself" reference. Speed tiers start at stage 2. A stage check (★★ on the first stage, ★★★ on the rest) opens the next stage, and you can take it right away to skip ahead. Finish all 7 stages and the "Certificate" card shows your average speed. The old 30-lesson course is kept as an archive.
 - An on-screen keyboard that follows your actual system layout (including remapped symbols, such as Shift+6 = ":" in "Russian – PC") and is colored by finger. Keyboard size is adjustable, and the keyboard scales smoothly when you change it.
 - A mistake stops the cursor: you have to press the correct key first.
@@ -30,10 +31,12 @@
 - Settings are split into sections; dragging the keyboard size or offset slider shows a full-size keyboard preview over the screen.
 - Speed and accuracy are collected for every key while you type; the result screen shows the keys with the most errors.
 - A daily streak: a full flame for reaching your daily goal (10 minutes of active typing by default), a half flame for any finished exercise. Freezes (up to two, a new one for every 7 full days in a row) cover a missed day. The home screen shows the streak, the calendar week (the first day of the week is configurable), today's goal, and your weekly speed and accuracy.
-- Day metrics "Visited" and "Goal" (in a row and in total) next to the streak flame; Analytics has a "Days" card.
+- "Spark" is a second streak next to the flame: a day counts for any finished exercise, and freezes do not apply to it. It is also in the "Days" block of Analytics and on the "My progress" card; the Spark milestones are achievements for 7, 30, 100 and 365 days. "Goal" (in a row and in total) stays next to the flame.
+- "Refresh": weakly passed lessons (two stars or fewer) come back on the course map after 1 day, then after 3 and 7 days, "hard" ones once every 14 days; well-passed lessons are refreshed by a rotation in the plan's warm-up.
+- "Training → Fingers": a hand diagram rating each finger from your history; "Finger accuracy" for the weak ones and "Finger speed" for the strong ones.
 - Analytics: speed and accuracy charts with a trend line, a keyboard heat map of errors and slow keys, per-finger statistics, a year-long activity calendar, records, the last 100 exercises, and course progress.
 - Practice reminders: once a day, three times a day, or every N hours within a window you set; a tone for the texts (plain, funny or mixed) and escalation, where each reminder of the day is pushier than the previous one. The text depends on your streak ("Your 12-day streak is at risk", "4 min left until a full flame").
-- 89 achievements in eight categories: streak, speed, accuracy, course, volume, special, letters and funny ones. Each has a joke, and each earned one has an "Earned for" line. 28 of them are secret: until earned they show as "???" and do not reveal how to get them; an "All / Earned / Not earned" filter helps you find what you need. Everything you earned in past sessions is awarded the first time you launch a version with achievements, dated from your history, in one summary instead of an avalanche of messages. The latest achievement is on the home screen. The "Adult humor" setting hides the achievements with strong language without stopping you from earning them.
+- 93 achievements in eight categories: streak, speed, accuracy, course, volume, special, letters and funny ones. Each has a joke, and each earned one has an "Earned for" line. 28 of them are secret: until earned they show as "???" and do not reveal how to get them; an "All / Earned / Not earned" filter helps you find what you need. Everything you earned in past sessions is awarded the first time you launch a version with achievements, dated from your history, in one summary instead of an avalanche of messages. The latest achievement is on the home screen. The "Adult humor" setting hides the achievements with strong language without stopping you from earning them.
 - "Share" cards: an achievement (its joke and the optional "Earned for" line, off by default, can be switched), a speed record, a finished stage or the whole course, and "My progress" with a month or year calendar, as an image with a signature of your choice, light or dark, colored or transparent, wide, square or a vertical 1080×1920 story; optionally with a QR code of the project. Copy it, save it as PNG or send it through the system menu.
 - A profile (nickname and name) and progress transfer: all your progress, profile and settings can be saved to a file and loaded from it, for example on another Mac. Before loading, your current progress is backed up automatically.
 - Sounds synthesized inside the app: key click, error, exercise finished, lesson passed, new achievement, streak. Each sound has its own volume and switch.
@@ -68,7 +71,7 @@ cd tenfingers
 ./scripts/build-app.sh
 ```
 
-The script builds a release version, signs it ad hoc and copies it to `/Applications`. The app is installed as `/Applications/TenFingers.app`; Finder and the Dock show it as "Десять пальцев" on a Russian system and "TenFingers" on an English one. The interface language can be changed in Settings → General. The old "Десять пальцев.app" bundle is removed during installation and your progress stays in place. Version 2.0.0 introduces a new course: course progress starts over, while history, streak, achievements and backups are kept. The database schema is generation 6, as in 1.2.0. Before the first install of 2.0.0, save a copy of your progress with `./scripts/pin-backup.sh before-new-course`; if you are updating from 1.1.x, also run `./scripts/pin-backup.sh before-phase6`.
+The script builds a release version, signs it ad hoc and copies it to `/Applications`. The app is installed as `/Applications/TenFingers.app`; Finder and the Dock show it as "Десять пальцев" on a Russian system and "TenFingers" on an English one. The interface language can be changed in Settings → General. The old "Десять пальцев.app" bundle is removed during installation and your progress stays in place. Version 2.1.0 adds Spark, Today's plan, Refresh and Fingers; progress, history, streak, achievements and backups are kept, and the database schema does not change: it is generation 6, as in 1.2.0. Before the first install of 2.1.0, save a copy of your progress with `./scripts/pin-backup.sh before-phase6c`; if you are updating from 1.1.x, also run `./scripts/pin-backup.sh before-phase6`.
 
 ## Development
 

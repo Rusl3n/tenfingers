@@ -180,3 +180,48 @@ private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Doub
     #expect(before == 4 && after == 5)
     #expect(LessonOverview.starsGained(before: before, after: after) == 5)
 }
+
+// MARK: - «Освежить»
+
+@Test func lessonRunRefreshIsOffByDefault() {
+    #expect(LessonRun(language: .ru, lessonId: "ru2.s1.01").refresh == false)
+    #expect(LessonRun(language: .ru, lessonId: "ru2.s1.01", refresh: true).refresh)
+}
+
+/// «Освежить» — один шаг: проверка урока, заново сгенерированная той же длины, с номером проверки в плане.
+@MainActor @Test func refreshRunIsTheCheckStepRegeneratedAsRefresh() throws {
+    let library = ContentLibrary()
+    let course = try #require(library.courses[.ru])
+    let planner = try #require(library.planners[.ru])
+    let lesson = try #require(course.lessons.first { $0.resolvedKind == .keys })
+    let context = try #require(course.context(for: lesson.id))
+    var fullRng = SeededGenerator(seed: 5)
+    let full = planner.exercises(for: context, learner: .empty, rng: &fullRng)
+    let check = try #require(full.last { $0.kind == .check })
+    var rng = SeededGenerator(seed: 5)
+    let run = LessonRunPlan.exercises(planner: planner, context: context, learner: .empty, onlyStepIndex: nil,
+                                      refresh: true, rng: &rng)
+    #expect(run.singleStep)
+    let spec = try #require(run.exercises.first)
+    #expect(run.exercises.count == 1 && spec.kind == .refresh)
+    #expect(spec.id == check.id && spec.text.count == check.text.count)
+    // Без «refresh» план прежний.
+    var plain = SeededGenerator(seed: 5)
+    let whole = LessonRunPlan.exercises(planner: planner, context: context, learner: .empty, onlyStepIndex: nil, rng: &plain)
+    #expect(!whole.singleStep && whole.exercises == full)
+}
+
+/// «Освежить» и проверка одного шага плана — одна строка проверки на карте, а не две; звёзды считаются по обеим.
+@Test func refreshAttemptsShareTheCheckRowOnTheMap() {
+    func attempt(_ kind: ExerciseKind, cpm: Double) -> SessionSummary {
+        SessionSummary(day: "d", endedAt: .now, language: .ru, mode: .course, chars: 120, activeSeconds: 60,
+                       accuracy: 1, completed: true, lessonId: "ru2.s1.01", exerciseKind: kind, cpm: cpm,
+                       stepIndex: 5)
+    }
+    let overview = LessonOverview.make(lessonId: "ru2.s1.01", targetCpm: 60,
+                                       sessions: [attempt(.check, cpm: 50), attempt(.refresh, cpm: 95)],
+                                       storedStars: 0)
+    #expect(overview.steps.filter { $0.stepIndex == 5 }.count == 1)
+    #expect(overview.steps.first { $0.stepIndex == 5 }?.kind == .check)
+    #expect(overview.stars >= 4)
+}

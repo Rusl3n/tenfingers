@@ -31,14 +31,18 @@ public enum LessonStepStats {
     public static func summarize(sessions: [SessionSummary], lessonId: String) -> [StepStat] {
         let attempts = sessions.filter { $0.completed && $0.lessonId == lessonId && $0.exerciseKind != nil }
         let numbered = attempts.filter { $0.stepIndex != nil }
+        // «Освежить» — та же проверка урока: попытки `refresh` идут в строку `check` (лучший из двух).
+        func stepKind(_ attempt: SessionSummary) -> ExerciseKind {
+            attempt.exerciseKind == .refresh ? .check : attempt.exerciseKind!
+        }
         // Первый по номеру шаг каждого вида.
         var firstIndex: [ExerciseKind: Int] = [:]
         for attempt in numbered {
-            let kind = attempt.exerciseKind!, index = attempt.stepIndex!
+            let kind = stepKind(attempt), index = attempt.stepIndex!
             firstIndex[kind] = min(firstIndex[kind] ?? index, index)
         }
         let groups = Dictionary(grouping: attempts) { attempt in
-            GroupKey(index: attempt.stepIndex ?? firstIndex[attempt.exerciseKind!], kind: attempt.exerciseKind!)
+            GroupKey(index: attempt.stepIndex ?? firstIndex[stepKind(attempt)], kind: stepKind(attempt))
         }
         return groups.sorted { lhs, rhs in
             let l = lhs.key.index ?? kindRank(lhs.key.kind), r = rhs.key.index ?? kindRank(rhs.key.kind)

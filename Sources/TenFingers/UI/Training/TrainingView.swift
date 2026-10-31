@@ -57,10 +57,14 @@ struct TrainingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(ContentLibrary.self) private var library
     @Environment(\.palette) private var palette
+    @Environment(KeyboardLayoutService.self) private var layout
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var targetCpm = SettingsDefault.adaptiveTargetCpm
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @State private var snapshot: TrainingSnapshot?
+    @State private var fingers = FingerCardModel(cells: [])
+    /// Букв пальцев нет ни в истории клавиш, ни в раскладке: кнопок занятий нет, нужна раскладка языка.
+    @State private var fingerLettersMissing = false
 
     private var language: Language { Language(rawValue: activeLanguage) ?? .ru }
     private var unit: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
@@ -72,6 +76,10 @@ struct TrainingView: View {
                 if let snapshot {
                     adaptiveCard(snapshot)
                     weakSpotsCard(snapshot)
+                    FingerCard(model: fingers, unit: unit,
+                               layoutPrompt: fingerLettersMissing && layout.snapshot.language != language
+                                   ? LayoutPrompt.switchTo(language) : nil,
+                               start: { start(.finger(FingerRun(language: language, finger: $0, drill: $1))) })
                 }
             }
             .padding(24)
@@ -81,6 +89,7 @@ struct TrainingView: View {
         .onAppear(perform: reload)
         .onChange(of: activeLanguage) { reload() }
         .onChange(of: targetCpm) { reload() }
+        .onChange(of: layout.snapshot) { reload() }
     }
 
     private func reload() {
@@ -96,6 +105,14 @@ struct TrainingView: View {
             bigramMastery: (try? reader.bigramMastery(language: language)) ?? [:],
             targetCpm: Double(targetCpm),
             openLetters: openLetters)
+        let thresholdMs = AdaptiveTrainer(language: language, targetCpm: Double(targetCpm)).thresholdMs
+        let fingerOf = (try? reader.fingerLetters(language: language, layout: layout.fingerOf(language: language)))
+            ?? layout.fingerOf(language: language)
+        fingerLettersMissing = fingerOf.isEmpty
+        fingers = FingerCardModel.make(
+            reports: (try? reader.fingerReports(language: language, fingerOf: fingerOf, thresholdMs: thresholdMs)) ?? [],
+            // Кнопка занятия — только у пальца с открытой буквой: иначе занятия нет.
+            fingerOf: fingerOf.filter { openLetters.contains($0.key) })
     }
 
     private func adaptiveCard(_ snapshot: TrainingSnapshot) -> some View {

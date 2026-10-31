@@ -12,6 +12,7 @@ struct HomeView: View {
     @Environment(ContentLibrary.self) private var library
     @Environment(SoundPlayer.self) private var sound
     @Environment(ToastCenter.self) private var toasts
+    @Environment(KeyboardLayoutService.self) private var layout
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
     @AppStorage(SettingsKey.firstWeekday) private var firstWeekday = SettingsDefault.firstWeekday
@@ -28,6 +29,8 @@ struct HomeView: View {
     @State private var loadFailed = false
     /// Открытая карточка «Мой прогресс».
     @State private var share: ShareCard?
+    /// План на сегодня (пересобирается в каждом `reload`); `nil` — прочитать не удалось: карточка «Продолжить курс».
+    @State private var plan: DayPlan?
 
     private var language: Language { Language(rawValue: activeLanguage) ?? .ru }
 
@@ -35,6 +38,11 @@ struct HomeView: View {
         Group {
             if let data {
                 HomeContent(data: data, continueInfo: continueInfo, unit: SpeedUnit(rawValue: speedUnit) ?? .cpm,
+                            dayPlan: plan.map {
+                                DayPlanCardModel.make(plan: $0, course: library.courses[language],
+                                                      canContinue: planRun(for: $0) != nil)
+                            },
+                            startPlan: { if let plan, let run = planRun(for: plan) { start(run) } },
                             startLesson: { start(.lesson($0)) },
                             openTraining: { navigate(.training) },
                             startWeakSpots: { start(.weakSpots(TrainingRun(language: language))) },
@@ -79,6 +87,15 @@ struct HomeView: View {
         sound.play(.streak)
     }
 
+    private var planLoader: DayPlanLoader {
+        DayPlanLoader(context: modelContext, library: library, settings: .stored(layout: layout))
+    }
+
+    /// Запуск первого незасчитанного пункта плана; `nil` — план выполнен или запускать нечего.
+    private func planRun(for plan: DayPlan) -> RunKind? {
+        plan.next.flatMap { planLoader.run(for: $0, language: language) }
+    }
+
     /// Последняя полученная видимая ачивка (скрытые «взрослые» при выключенном юморе не в счёт).
     private var latestAchievement: AchievementEntry? {
         AchievementsListing.latest(catalog: AchievementCatalog.all,
@@ -113,6 +130,9 @@ struct HomeView: View {
                                  weakKeys: training?.weakKeys ?? [], canStartWeakSpots: training?.canStartWeakSpots ?? false,
                                  firstSessionDate: first, firstWeekday: StoredSettings.firstWeekday())
             loadFailed = false
+            // План — отдельно: его ошибка не прячет главную, вместо карточки плана — «Продолжить курс».
+            plan = try? planLoader.plan(language: language, today: today)
+            if plan?.isDone == true { toasts.announcePlanDone(today: today) }
         } catch {
             data = nil
             loadFailed = true
@@ -132,11 +152,14 @@ struct HomeView: View {
     }
 }
 
-/// Раскладка главной сверху вниз: серия, неделя, метрики, продолжение курса, быстрые ссылки, последняя ачивка.
+/// Раскладка главной сверху вниз: серия, неделя, метрики, план на сегодня (план выполнен или его нет — продолжение
+/// курса), быстрые ссылки, последняя ачивка.
 struct HomeContent: View {
     let data: HomeData
     let continueInfo: ContinueInfo?
     let unit: SpeedUnit
+    var dayPlan: DayPlanCardModel?
+    var startPlan: () -> Void = {}
     let startLesson: (LessonRun) -> Void
     let openTraining: () -> Void
     let startWeakSpots: () -> Void
@@ -157,7 +180,9 @@ struct HomeContent: View {
                          shareProgress: shareProgress)
             WeekStrip(days: data.week)
             MetricsCard(data: data, unit: unit)
-            if let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }
+            if let dayPlan { DayPlanCard(model: dayPlan, start: startPlan) }
+            // «Продолжить курс» — обычный запуск урока без пункта плана: после выполненного плана или без плана.
+            if dayPlan?.isDone ?? true, let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }
             QuickLinks(data: data, openTraining: openTraining, startWeakSpots: startWeakSpots,
                        openPractice: openPractice)
             if let latestAchievement { LatestAchievementCard(entry: latestAchievement, open: openAchievements) }

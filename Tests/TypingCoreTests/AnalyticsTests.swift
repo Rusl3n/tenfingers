@@ -227,3 +227,9 @@ private func session(_ day: String, chars: Int, seconds: Double, accuracy: Doubl
     #expect(StreakCalculator.dayKey("2026-03-01", offset: -1) == "2026-02-28")
     #expect(StreakCalculator.dayKey("2026-12-31", offset: 1) == "2027-01-01")
 }
+
+@Test func refreshIsAQualifyingExerciseLikeACheck() {
+    #expect(Analytics.isQualifyingLength(kind: .refresh, chars: 90) && Analytics.isQualifyingLength(kind: .check, chars: 90))
+    #expect(!Analytics.isQualifyingLength(kind: .words, chars: 90) && !Analytics.isQualifyingLength(kind: nil, chars: 90))
+    #expect(Analytics.isSpeedRecordExercise(completed: true, kind: .refresh, chars: 90, accuracy: 1))
+}

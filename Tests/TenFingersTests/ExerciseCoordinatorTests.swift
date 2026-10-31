@@ -232,3 +232,28 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     #expect(records.first { !$0.completed }?.source == "weak")
     #expect(records.count == 2)
 }
+
+/// Запуск из плана дня пишет пункт плана и в завершённое, и в брошенное упражнение; обычный запуск — `nil`.
+@MainActor @Test func planSlotFromStartIsRecorded() throws {
+    let (coordinator, container, _) = try makeCoordinator()
+    let session = coordinator.start(spec: spec, language: .ru, mode: .adaptive, lessonId: nil, hint: .full,
+                                    source: "adaptive", planSlot: .training) { s, r in coordinator.recordFinish(s, r) }
+    session.layoutLanguage = .ru
+    _ = session.handleKey(characters: "а", keyCode: 3, modifiers: [], timestamp: 0)
+    _ = session.handleKey(characters: "о", keyCode: 38, modifiers: [], timestamp: 0.3)
+    let abandoned = coordinator.start(spec: spec, language: .ru, mode: .practice, lessonId: nil, hint: .full,
+                                      planSlot: .text) { _, _ in }
+    abandoned.layoutLanguage = .ru
+    _ = abandoned.handleKey(characters: "а", keyCode: 3, modifiers: [], timestamp: 1)
+    #expect(coordinator.exit())
+    let plain = coordinator.start(spec: spec, language: .ru, mode: .course, lessonId: "ru.1.1", hint: .full) { s, r in
+        coordinator.recordFinish(s, r)
+    }
+    plain.layoutLanguage = .ru
+    _ = plain.handleKey(characters: "а", keyCode: 3, modifiers: [], timestamp: 2)
+    _ = plain.handleKey(characters: "о", keyCode: 38, modifiers: [], timestamp: 2.3)
+    let records = try container.mainContext.fetch(FetchDescriptor<SessionRecord>())
+    #expect(Dictionary(uniqueKeysWithValues: records.map { ($0.mode, $0.planSlot) })
+            == ["adaptive": "training", "practice": "text", "course": nil])
+    #expect(records.first { $0.mode == "practice" }?.completed == false)
+}

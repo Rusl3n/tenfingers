@@ -79,7 +79,8 @@ public struct PreparedLesson: Sendable {
         lessonBigrams = (lesson.focus ?? []).filter { $0.count > 1 }
 
         // «Повтор» (§6.1, решение 23) и «Ускорение» (§6.2).
-        let mostErrors = WeakSpots.mostErrors(keys: learner.keys, bigrams: learner.bigrams, allowed: allowedLetters)
+        let mostErrors = WeakSpots.mostErrors(keys: learner.keys, bigrams: learner.bigrams, allowed: allowedLetters,
+                                                 boosted: learner.hardLetters)
         let keysWithData = allowedLetters.filter { (learner.keys[$0]?.presses ?? 0) >= WeakSpots.minimumKeyPresses }
         let stageLetters = ctx.stageNewKeys.filter { $0.isLetter }
         let fallback = Array((stageLetters.isEmpty ? ctx.introducedKeys.filter { $0.isLetter } : stageLetters)
@@ -192,6 +193,16 @@ public struct PreparedLesson: Sendable {
         }
     }
 
+    /// Один шаг вида `kind` длиной `length` вне плана урока — «Текст» плана дня (§10.1, решение 12 фазы 6c):
+    /// `text` в стиле этапа урока или `phrases`. Фокус — урока; `rowWords` (нужен отбор рядов шага) — слова урока.
+    public func exercise<G: RandomNumberGenerator>(_ kind: ExerciseKind, length: Int, rng: inout G) -> ExerciseSpec {
+        let kind = kind == .rowWords ? .words : kind
+        let step = ResolvedStep(kind: kind, length: length, rows: [], minShare: nil, focus: nil, title: kind.titleKey)
+        var usedExcerpts = Set<Int>()
+        let (text, connected) = text(for: step, at: 0, usedExcerpts: &usedExcerpts, rng: &rng)
+        return ExerciseSpec(id: 0, kind: kind, title: step.title, text: text, connected: connected)
+    }
+
     // MARK: - Тексты шагов
 
     private var kind: LessonKind { context.lesson.resolvedKind }
@@ -294,7 +305,7 @@ public struct PreparedLesson: Sendable {
         case .numbers:
             text = SymbolDrill.text(language: context.language, allowed: context.allowed, generator: generator,
                                     length: length, rng: &rng)
-        case .check:
+        case .check, .refresh:
             if hasText {
                 let passage = connectedText(focus: focusSet(step), length: length, usedExcerpts: &usedExcerpts,
                                             rng: &rng)

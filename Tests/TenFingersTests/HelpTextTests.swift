@@ -25,3 +25,13 @@ private func sentences(_ text: String) -> Int {
     #expect(HelpText.fire(.frozen) == HelpText.freezes)
     #expect(HelpText.fire(.none) == HelpText.fireNone)
 }
+
+/// Подсказка «Искры»: заморозки на неё не действуют — на обоих языках.
+@Test func sparkHelpSaysFreezesDoNotApply() throws {
+    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Localization/en.lproj/Localizable.strings")
+    let en = try #require(try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
+    #expect(HelpText.spark.hasPrefix("«Искра»") && HelpText.spark.contains("Заморозки здесь не действуют"))
+    let english = try #require(en[HelpText.spark])
+    #expect(english.contains("Spark") && english.contains("Freezes don't apply"))
+}

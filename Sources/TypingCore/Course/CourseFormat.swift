@@ -39,7 +39,7 @@ public struct StepLengths: Codable, Equatable, Sendable {
     }
 
     /// drill → 100; combos → 150; words/focus/rowWords/errorWords/numbers → words → 200;
-    /// phrases/sentences → phrases → words → 250; text → text → phrases → 300; sprint → 100; check → 300.
+    /// phrases/sentences → phrases → words → 250; text → text → phrases → 300; sprint → 100; check/refresh → 300.
     public func length(for kind: ExerciseKind) -> Int {
         switch kind {
         case .drill: drill ?? 100
@@ -48,7 +48,7 @@ public struct StepLengths: Codable, Equatable, Sendable {
         case .phrases, .sentences: phrases ?? words ?? 250
         case .text: text ?? phrases ?? 300
         case .sprint: sprint ?? 100
-        case .check: check ?? 300
+        case .check, .refresh: check ?? 300
         }
     }
 

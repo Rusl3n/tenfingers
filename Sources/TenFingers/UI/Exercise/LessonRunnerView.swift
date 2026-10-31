@@ -137,7 +137,8 @@ struct LessonRunnerView: View {
                                       passed: gate.passed, checkStars: gate.checkStars)
             }
             LessonResultView(summary: summary, stars: stars, steps: steps, targetCpm: context?.targetCpm ?? 0,
-                             hasNext: next != nil, newAchievements: coordinator?.runAchievements ?? [],
+                             // Урок из плана: «Следующего урока» нет, дальше ведёт план (решение 16).
+                             hasNext: next != nil && run.planSlot == nil, newAchievements: coordinator?.runAchievements ?? [],
                              fullFlame: coordinator?.runFullFlame,
                              completion: completion,
                              certificate: ShareEvent.certificateOffer(after: completion, language: run.language,
@@ -225,14 +226,16 @@ struct LessonRunnerView: View {
         // Новый проход урока: на его итоге — ачивки только этого прохода.
         coordinator?.resetRunAchievements()
         // «Повтор», «Ускорение» и шаги `focus` строятся по статистике клавиш и сочетаний пользователя.
-        let learner = (try? StatsReader(context: modelContext).learnerStats(language: run.language)) ?? .empty
+        // Буквы «трудных» уроков курса весят ×2 в «Повторе» (решение 8 фазы 6c).
+        let learner = (try? StatsReader(context: modelContext).learnerStats(language: run.language, course: course))
+            ?? .empty
         var rng = SystemRandomNumberGenerator()
         let plan = LessonRunPlan.exercises(planner: planner, context: context, learner: learner,
-                                           onlyStepIndex: run.onlyStepIndex, rng: &rng)
+                                           onlyStepIndex: run.onlyStepIndex, refresh: run.refresh, rng: &rng)
         // Ориентир «Ускорения» — по истории до этой попытки (решение 16), один раз на проход урока.
         speedupReference = context.lesson.resolvedKind == .speedup ? course.flatMap(loadSpeedupReference(in:)) : nil
         resumedStep = nil
-        // Повтор одного шага: без знакомства и без продолжения урока.
+        // Повтор одного шага и «Освежить»: без знакомства и без продолжения урока.
         if plan.singleStep, let spec = plan.exercises.first {
             singleStep = spec
             exercises = [spec]
@@ -262,7 +265,7 @@ struct LessonRunnerView: View {
         guard let context, let coordinator else { return }
         let hint = (HintMode(rawValue: hintMode) ?? .auto).resolve(context.hint)
         _ = coordinator.start(spec: exercises[index], language: run.language, mode: .course,
-                              lessonId: run.lessonId, hint: hint) { session, result in
+                              lessonId: run.lessonId, hint: hint, planSlot: run.planSlot) { session, result in
             finish(index: index, session: session, result: result)
         }
         phase = .exercise(index)
@@ -306,15 +309,15 @@ struct LessonRunnerView: View {
         phase = isLast ? .result(summary, stars: stars, steps: steps, speedup: speedup) : .interim(index, summary)
     }
 
-    /// Повтор шага записывается как обычно; повтор проверки — полноценная проверка урока (со звёздами).
-    /// Продолжение урока (`LessonResume`) не меняется.
+    /// Повтор шага записывается как обычно; повтор проверки и «Освежить» — полноценная проверка урока (со звёздами,
+    /// `isLessonCheck`). Продолжение урока (`LessonResume`) не меняется.
     private func finishSingleStep(_ spec: ExerciseSpec, session: ExerciseSession, result: ExerciseResult) {
         // Шаги до этой попытки: «Лучший результат!» сравнивается с ними (с шагом того же номера, а у истории без
         // номеров — того же вида); для звёзд проверки остальные шаги этой попыткой не меняются.
         let steps = lessonSteps()
         let kind = spec.kind
         let previous = steps.first { $0.stepIndex == spec.id } ?? steps.first { $0.stepIndex == nil && $0.kind == kind }
-        let isCheck = kind == .check
+        let isCheck = kind.isLessonCheck
         let checkStars = isCheck ? LessonScoring.stars(cpm: result.cpm, accuracy: result.accuracy,
                                                        targetCpm: context?.targetCpm ?? 0) : nil
         let stars = checkStars.map { LessonScoring.lessonStars(checkStars: $0, steps: steps) }
@@ -390,9 +393,12 @@ enum LessonRunPlan {
     /// Упражнения запуска; `singleStep` — повтор одного шага. План строится целиком одним генератором: текст шага
     /// зависит от предыдущих (общий генератор, неповторяющиеся отрывки), поэтому повтор шага N — шаг N полного плана,
     /// а не шаг, спланированный отдельно. Номера нет в плане (или он не задан) — весь урок.
+    /// `refresh` — «Освежить»: один шаг `refresh` (проверка урока заново, с номером проверки в плане); в плане урока
+    /// проверки нет — запуск как обычно.
     static func exercises<G: RandomNumberGenerator>(planner: LessonPlanner, context: LessonContext, learner: LearnerStats,
-                                                    onlyStepIndex: Int?, rng: inout G)
+                                                    onlyStepIndex: Int?, refresh: Bool = false, rng: inout G)
         -> (exercises: [ExerciseSpec], singleStep: Bool) {
+        if refresh, let spec = planner.refreshSpec(for: context, learner: learner, rng: &rng) { return ([spec], true) }
         let plan = planner.exercises(for: context, learner: learner, rng: &rng)
         if let index = onlyStepIndex, plan.indices.contains(index) { return ([plan[index]], true) }
         return (plan, false)
@@ -401,7 +407,7 @@ enum LessonRunPlan {
     /// Итог проверки «Ускорения» против ориентира до попытки; `nil` — не проверка или ориентира нет (урок не «Ускорение»,
     /// проверок ещё не было). Одинаков для итога урока и для итога повтора одной проверки.
     static func speedupOutcome(kind: ExerciseKind, cpm: Double, reference: Double?) -> SpeedupReference.Outcome? {
-        guard kind == .check, let reference else { return nil }
+        guard kind.isLessonCheck, let reference else { return nil }
         return SpeedupReference.outcome(cpm: cpm, reference: reference)
     }
 

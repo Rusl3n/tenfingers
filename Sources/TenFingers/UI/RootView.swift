@@ -37,6 +37,22 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 struct TrainingRun: Identifiable, Equatable {
     let id = UUID()
     let language: Language
+    /// Пункт плана дня, из которого запущена тренировка; `nil` — запуск не из плана.
+    var planSlot: PlanSlot? = nil
+    /// Порций у запуска из плана: после последней — выход (`PlanPortions`); `nil` — без предела.
+    var portions: Int? = nil
+}
+
+/// Запуск занятия по пальцу («Тренировка → Пальцы»): новый `id` на каждый запуск.
+struct FingerRun: Identifiable, Equatable {
+    let id = UUID()
+    let language: Language
+    let finger: Finger
+    let drill: FingerDrill
+    /// Пункт плана дня, из которого запущено занятие; `nil` — запуск не из плана.
+    var planSlot: PlanSlot? = nil
+    /// Порций у запуска из плана (вместо круга 3 или 4); `nil` — обычный круг.
+    var portions: Int? = nil
 }
 
 /// То, что сейчас занимает окно вместо раздела: урок курса, тренировка или практика.
@@ -44,6 +60,7 @@ enum RunKind: Identifiable, Equatable {
     case lesson(LessonRun)
     case adaptive(TrainingRun)
     case weakSpots(TrainingRun)
+    case finger(FingerRun)
     case practice(PracticeRun)
 
     /// Новый на каждый запуск: по нему пересоздаётся экран и скрывается боковая панель.
@@ -51,7 +68,27 @@ enum RunKind: Identifiable, Equatable {
         switch self {
         case .lesson(let run): run.id
         case .adaptive(let run), .weakSpots(let run): run.id
+        case .finger(let run): run.id
         case .practice(let run): run.id
+        }
+    }
+
+    var language: Language {
+        switch self {
+        case .lesson(let run): run.language
+        case .adaptive(let run), .weakSpots(let run): run.language
+        case .finger(let run): run.language
+        case .practice(let run): run.language
+        }
+    }
+
+    /// Пункт плана дня запуска; `nil` — запуск не из плана.
+    var planSlot: PlanSlot? {
+        switch self {
+        case .lesson(let run): run.planSlot
+        case .adaptive(let run), .weakSpots(let run): run.planSlot
+        case .finger(let run): run.planSlot
+        case .practice(let run): run.planSlot
         }
     }
 
@@ -61,6 +98,7 @@ enum RunKind: Identifiable, Equatable {
         case .lesson: String(localized: "Текущий урок")
         case .adaptive: String(localized: "Тренировка идёт")
         case .weakSpots: String(localized: "Слабые места идут")
+        case .finger: String(localized: "Пальцы идут")
         case .practice: String(localized: "Практика идёт")
         }
     }
@@ -71,9 +109,17 @@ enum RunKind: Identifiable, Equatable {
         case .lesson: String(localized: "Текущий урок будет завершён. Начать новое занятие?")
         case .adaptive: String(localized: "Тренировка будет завершена. Начать новое занятие?")
         case .weakSpots: String(localized: "Слабые места будут завершены. Начать новое занятие?")
+        case .finger: String(localized: "Занятие по пальцу будет завершено. Начать новое занятие?")
         case .practice: String(localized: "Практика будет завершена. Начать новое занятие?")
         }
     }
+}
+
+/// Промежуточный экран плана: план после выхода из запуска пункта `finished`.
+private struct PlanStep {
+    let language: Language
+    let finished: PlanSlot
+    let plan: DayPlan
 }
 
 /// Выбор в боковой панели: активный запуск или раздел.
@@ -86,6 +132,7 @@ struct RootView: View {
     @Environment(ContentLibrary.self) private var library
     @Environment(\.modelContext) private var modelContext
     @Environment(\.palette) private var palette
+    @Environment(KeyboardLayoutService.self) private var layout
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
@@ -107,6 +154,8 @@ struct RootView: View {
     @State private var pendingRun: RunKind?
     /// Карточка «Поделиться», открытая из тоста ачивки.
     @State private var shareCard: ShareCard?
+    /// Промежуточный экран плана вместо раздела: после выхода из запуска плана (решение 16).
+    @State private var planStep: PlanStep?
 
     /// Экран запуска показан вместо раздела.
     private var isRunVisible: Bool { activeRun != nil && presence.isVisible }
@@ -198,6 +247,7 @@ struct RootView: View {
             NewCourseSheet(start: {
                 NewCourseIntro.markShown(.standard)
                 selection = .course
+                planStep = nil
                 if activeRun != nil { presence.isVisible = false }
             })
         }
@@ -210,6 +260,7 @@ struct RootView: View {
         .task {
             purgeStaleLessonResume()
             toasts.shareAchievement = { shareCard = ShareCard(.achievement($0, .now)) }
+            toasts.checkPlanDone = checkPlanDone
             AchievementAnnouncer.launchCheck(service: .live(context: modelContext), toasts: toasts,
                                              adultHumor: StoredSettings.adultHumor(), open: openAchievements)
         }
@@ -237,6 +288,7 @@ struct RootView: View {
                 case .run: presence.isVisible = true
                 case .section(let item):
                     selection = item
+                    planStep = nil
                     if activeRun != nil { presence.isVisible = false }
                 case nil: break
                 }
@@ -259,7 +311,9 @@ struct RootView: View {
                         .disabled(!visible)
                         .accessibilityHidden(!visible)
                 }
-                if !isRunVisible { section }
+                if !isRunVisible {
+                    if let planStep { interstitial(planStep) } else { section }
+                }
             }
             .environment(\.openAchievements, OpenAchievementsAction(openAchievements))
         }
@@ -277,14 +331,28 @@ struct RootView: View {
         }
     }
 
+    private func interstitial(_ step: PlanStep) -> some View {
+        let next = step.plan.next.flatMap { planLoader.run(for: $0, language: step.language) }
+        return PlanInterstitialView(plan: step.plan, finished: step.finished, course: library.courses[step.language],
+                                    canContinue: next != nil,
+                                    onContinue: { if let next { start(next) } },
+                                    onHome: {
+                                        planStep = nil
+                                        selection = .home
+                                    })
+    }
+
     @ViewBuilder private func runner(_ run: RunKind) -> some View {
         switch run {
         case .lesson(let lesson):
             LessonRunnerView(run: lesson, onExit: end, onStart: { start(.lesson($0)) })
         case .adaptive(let training):
-            AdaptiveRunnerView(language: training.language, onExit: end)
+            AdaptiveRunnerView(language: training.language, planSlot: training.planSlot, portions: training.portions,
+                               onExit: end)
         case .weakSpots(let training):
-            WeakSpotsRunnerView(language: training.language, onExit: end)
+            WeakSpotsRunnerView(language: training.language, planSlot: training.planSlot, onExit: end)
+        case .finger(let finger):
+            FingerRunnerView(run: finger, onExit: end)
         case .practice(let practice):
             PracticeRunnerView(run: practice, onExit: end)
         }
@@ -303,6 +371,7 @@ struct RootView: View {
     /// Состояние сбрасываем до показа, чтобы новый экран не появился скрытым и на паузе.
     private func replaceRun(with run: RunKind) {
         pendingRun = nil
+        planStep = nil
         presence.reset()
         activeRun = run
     }
@@ -318,13 +387,37 @@ struct RootView: View {
     /// Раздел «Ачивки»; идущий запуск при этом скрывается (как при выборе раздела в боковой панели).
     private func openAchievements() {
         selection = .achievements
+        planStep = nil
         if activeRun != nil { presence.isVisible = false }
     }
 
-    /// «Выйти» или итог запуска закрыт.
+    /// «Выйти» или итог запуска закрыт. Запуск плана ведёт на промежуточный экран (план прочитан заново: пункт мог
+    /// засчитаться); план не прочитать — сразу раздел.
     private func end() {
+        let finished = activeRun.flatMap { run in run.planSlot.map { (run.language, $0) } }
         presence.reset()
         activeRun = nil
+        planStep = finished.flatMap { language, slot in
+            (try? planLoader.plan(language: language, today: today)).map {
+                PlanStep(language: language, finished: slot, plan: $0)
+            }
+        }
+    }
+
+    private var planLoader: DayPlanLoader {
+        DayPlanLoader(context: modelContext, library: library, settings: .stored(layout: layout))
+    }
+
+    private var today: String { LogicalDay.key(for: .now, dayStartHour: StoredSettings.dayStartHour()) }
+
+    /// После каждого сохранения упражнения: план активного языка выполнен — тост «План выполнен» (раз в день).
+    /// Тост сегодня уже был — план не собираем.
+    private func checkPlanDone() {
+        let today = self.today
+        guard !ToastCenter.isPlanDoneAnnounced(today: today) else { return }
+        let language = Language(rawValue: activeLanguage) ?? .ru
+        guard (try? planLoader.plan(language: language, today: today))?.isDone == true else { return }
+        toasts.announcePlanDone(today: today)
     }
 
     /// Esc на экране другого раздела возвращает к скрытому запуску. В текстовом поле, листе, алерте,

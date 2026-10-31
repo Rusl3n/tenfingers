@@ -92,10 +92,11 @@ enum ShareEvent: Equatable {
         return .certificate(language: language, averageCpm: average)
     }
 
-    /// Повтор одного шага: этап или курс засчитывает только проверка (`stars` — её звёзды).
+    /// Повтор одного шага: этап или курс засчитывает только проверка, в том числе «Освежить» (`isLessonCheck`:
+    /// её звёзды тоже идут в гейт); `stars` — звёзды проверки.
     static func stepCompletion(course: Course, lessonId: String, kind: ExerciseKind, stars: Int?, passed: Set<String>,
                                checkStars: [String: Int]) -> ShareEvent? {
-        guard kind == .check, let stars else { return nil }
+        guard kind.isLessonCheck, let stars else { return nil }
         return completion(course: course, lessonId: lessonId, stars: stars, passed: passed, checkStars: checkStars)
     }
 }

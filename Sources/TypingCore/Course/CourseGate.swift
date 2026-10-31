@@ -44,13 +44,13 @@ public enum CourseGate {
         let stars: Int
     }
 
-    /// Завершённые шаги `check` урока `checkLessonId` с оценкой по цели урока (решение 14). Правило «чистого урока» к
+    /// Завершённые шаги `check` и `refresh` урока `checkLessonId` с оценкой по цели урока (решение 14). Правило «чистого урока» к
     /// порогу этапа (не выше ★★★) не относится, поэтому остальные шаги не смотрятся. Одно место для «звёзд проверки»
     /// (`checkStars`) и «Сертификата» (`Certificate.averageCheckCpm`); целей урока нет — попыток нет.
     static func scoredChecks(course: Course, checkLessonId: String, sessions: [SessionSummary]) -> [ScoredCheck] {
         guard let target = course.targetCpm(for: checkLessonId) else { return [] }
         return sessions
-            .filter { $0.completed && $0.lessonId == checkLessonId && $0.exerciseKind == .check }
+            .filter { $0.completed && $0.lessonId == checkLessonId && ($0.exerciseKind?.isLessonCheck ?? false) }
             .map { ScoredCheck(speed: $0.speed,
                                stars: LessonScoring.stars(cpm: $0.speed, accuracy: $0.accuracy, targetCpm: target)) }
     }

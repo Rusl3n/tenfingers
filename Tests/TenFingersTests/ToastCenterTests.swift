@@ -179,3 +179,20 @@ private final class ManualToastTimer {
     clock.fire(0)
     #expect(toasts.current?.icon == "flame.fill")
 }
+
+/// «План выполнен» — один раз за логический день (флаг `dayPlanAnnouncedDay`); на другой день — снова.
+@MainActor @Test func planDoneToastOncePerDay() {
+    let (defaults, name) = makeTestDefaults("planDone")
+    defer { removeTestDefaults(name) }
+    let clock = ManualToastTimer()
+    let toasts = ToastCenter(timer: clock.timer)
+    #expect(toasts.announcePlanDone(today: "2026-10-31", defaults: defaults))
+    #expect(toasts.current?.icon == ToastCenter.planDoneIcon && toasts.current?.message == "План выполнен")
+    clock.fire(0)
+    #expect(!toasts.announcePlanDone(today: "2026-10-31", defaults: defaults))
+    #expect(toasts.current == nil)
+    #expect(defaults.string(forKey: SettingsKey.dayPlanAnnouncedDay) == "2026-10-31")
+    #expect(ToastCenter.isPlanDoneAnnounced(today: "2026-10-31", defaults: defaults))
+    #expect(!ToastCenter.isPlanDoneAnnounced(today: "2026-11-01", defaults: defaults))
+    #expect(toasts.announcePlanDone(today: "2026-11-01", defaults: defaults))
+}

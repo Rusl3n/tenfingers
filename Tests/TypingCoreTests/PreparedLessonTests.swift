@@ -256,3 +256,42 @@ private func isSentences(_ text: String, from pieces: Set<String>) -> Bool {
         }
     }
 }
+
+// MARK: - «Трудные» уроки и «Освежить» (§6.3)
+
+@Test func hardLettersOutweighTheirErrorShareInReview() throws {
+    var keys: [Character: KeyMastery] = [:]
+    for letter in "аовлке" { keys[letter] = mastery(0) }
+    keys["л"] = mastery(0.05)
+    keys["в"] = mastery(0.08)
+    keys["о"] = mastery(0.04)
+    #expect(try prepare("ru2.s1.04", learner: LearnerStats(keys: keys)).weakKeys.prefix(3) == ["в", "л", "о"])
+    let boosted = LearnerStats(keys: keys, hardLetters: ["л"])
+    #expect(try prepare("ru2.s1.04", learner: boosted).weakKeys.prefix(3) == ["л", "в", "о"])
+}
+
+@Test func refreshSpecIsTheLessonsCheckAsRefresh() throws {
+    for (fixture, lessonId, connected) in [("mini", "ru2.s1.03", false), ("text", "ru2.s4.02", true)] {
+        let course = try fixture == "mini" ? CourseFixtures.ruMini() : CourseFixtures.ruText()
+        let ctx = try #require(course.context(for: lessonId))
+        let planner = LessonPlanner(generator: generator, corpus: corpus, library: pushkin + [chekhov])
+        var rng = SeededGenerator(seed: 5), same = SeededGenerator(seed: 5)
+        let spec = try #require(planner.refreshSpec(for: ctx, learner: .empty, rng: &rng))
+        let check = try #require(planner.exercises(for: ctx, rng: &same).last { $0.kind == .check })
+        #expect(spec.kind == .refresh && spec.title == "Освежить" && spec.localizedTitle == CoreText.localized("Освежить"))
+        #expect(spec.id == check.id && spec.text == check.text && !spec.text.isEmpty, "\(lessonId)")
+        #expect(spec.connected == check.connected && spec.connected == connected, "\(lessonId)")
+        let length = try #require(ctx.stage.lengths).length(for: .check)
+        #expect(Double(spec.text.count) >= 0.85 * Double(length), "\(lessonId): \(spec.text.count) из \(length)")
+    }
+}
+
+@Test func refreshSpecOfAnEditionOneLessonHasTheCheckLength() throws {
+    let course = try CourseFixtures.editionOne(.ru)
+    let planner = LessonPlanner(generator: TextGenerator(wordList: try WordList.load(.ru)))
+    let ctx = try #require(course.context(for: "ru.1.1"))
+    var rng = SeededGenerator(seed: 3)
+    let spec = try #require(planner.refreshSpec(for: ctx, rng: &rng))
+    #expect(spec.kind == .refresh && !spec.connected)
+    #expect(Double(spec.text.count) >= 0.85 * Double(LessonPlanner.checkLength(targetCpm: ctx.targetCpm)))
+}

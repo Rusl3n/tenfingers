@@ -225,6 +225,28 @@ public struct TextGenerator: Sendable {
         }
     }
 
+    /// Слова для занятия по пальцу (§6.4): из открытых букв `letters`, в каждом не меньше 40% букв из `fingerLetters`.
+    /// Таких слов меньше 20 — `focusedWords` с упором на буквы пальца; нет и обычных слов — псевдослова.
+    /// `pool` — готовый `focusPool(letters:)`. Текст не короче `length`.
+    public func fingerWords<G: RandomNumberGenerator>(letters: Set<Character>, fingerLetters: Set<Character>,
+                                                      length: Int, pool: [String]? = nil, rng: inout G) -> String {
+        let pool = pool ?? focusPool(letters: letters)
+        let matching = pool.filter { word in
+            Double(word.filter(fingerLetters.contains).count) >= Self.fingerWordShare * Double(word.count)
+        }
+        if matching.count >= Self.minimumFingerWords {
+            return fill(length: length + 1, initial: [], rng: &rng) { rng in matching.randomElement(using: &rng)! }
+        }
+        let text = focusedWords(letters: letters, focusKeys: fingerLetters.sorted(), focusBigrams: [],
+                                length: length + 1, pool: pool, rng: &rng)
+        if !text.isEmpty { return text }
+        return words(allowed: letters.union([" "]), focus: fingerLetters, length: length + 1, capitalRate: 0,
+                     minimumRealWords: Self.minimumRealWords, rng: &rng)
+    }
+
+    static let fingerWordShare = 0.4
+    static let minimumFingerWords = 20
+
     /// Пул `focusedWords` и `errorWords`: первые 8000 слов словаря из букв `letters`.
     public func focusPool(letters: Set<Character>) -> [String] {
         Array(wordList.words.lazy.filter { $0.allSatisfy(letters.contains) }.prefix(8000))

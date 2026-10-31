@@ -3,6 +3,12 @@ public enum ExerciseKind: String, CaseIterable, Codable, Sendable {
     case drill, combos, words, check
     /// Виды шагов издания 2 (спецификация фазы 6, §2.2); генераторы для них — в Task 2.
     case rowWords, phrases, sentences, text, focus, errorWords, sprint, numbers
+    /// Интервальный возврат к уроку (§6.3): заново сгенерированная проверка урока. Для звёзд, гейта и строки проверки
+    /// считается проверкой (`isLessonCheck`).
+    case refresh
+
+    /// Проверка урока: `check` или `refresh` — единое правило для звёзд, гейта, шагов и «подходящих» упражнений.
+    public var isLessonCheck: Bool { self == .check || self == .refresh }
 
     /// Ключ перевода названия упражнения (русский текст).
     var titleKey: String {
@@ -19,6 +25,7 @@ public enum ExerciseKind: String, CaseIterable, Codable, Sendable {
         case .errorWords: "Слова с ошибками"
         case .sprint: "Спринт"
         case .numbers: "Числа"
+        case .refresh: "Освежить"
         }
     }
 
@@ -89,6 +96,18 @@ public struct LessonPlanner: Sendable {
         return steps.enumerated().map { index, step in
             ExerciseSpec(id: index, kind: step.0, title: step.0.titleKey, text: step.1)
         }
+    }
+
+    /// «Освежить» (§6.3): проверка урока, сгенерированная заново — того же вида и длины, что и в плане урока
+    /// (`connected` — как у проверки). `id` — номер проверки в плане урока (в `SessionRecord.stepIndex`).
+    /// `nil` — в плане урока проверки нет.
+    public func refreshSpec<G: RandomNumberGenerator>(for ctx: LessonContext, learner: LearnerStats = .empty,
+                                                      rng: inout G) -> ExerciseSpec? {
+        guard let check = exercises(for: ctx, learner: learner, rng: &rng).last(where: { $0.kind == .check }) else {
+            return nil
+        }
+        return ExerciseSpec(id: check.id, kind: .refresh, title: ExerciseKind.refresh.titleKey, text: check.text,
+                            connected: check.connected)
     }
 
     /// Издание 2: пулы слов, предложений и отрывков считаются один раз (тест каталога строит 20 планов).

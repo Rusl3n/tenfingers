@@ -209,3 +209,75 @@ private func courseStep(_ lessonId: String, kind: ExerciseKind, language: Langua
     defer { withExtendedLifetime(empty) {} }
     #expect(try ProgressSnapshot(context: empty.mainContext).firstSessionDate() == nil)
 }
+
+// MARK: - «Освежить» (возвраты слабо сданных уроков)
+
+/// Шаг урока на логический день `day` (полдень этого дня по UTC).
+private func datedStep(_ lessonId: String, _ kind: ExerciseKind, day: String, cpm: Double) -> SessionRecord {
+    let end = Date(timeIntervalSince1970: Double(RefreshSchedule.dayNumber(day)! * 86400 + 43_200))
+    let record = courseStep(lessonId, kind: kind, cpm: cpm, endedAt: end)
+    record.logicalDay = day
+    return record
+}
+
+private func passedProgress(_ lessonId: String, language: String = "ru", at date: Date?, stars: Int = 2) -> LessonProgress {
+    let progress = LessonProgress(lessonId: lessonId, language: language)
+    progress.bestStars = stars
+    progress.passedAt = date
+    return progress
+}
+
+/// День зачёта — логический день `passedAt` по часу начала дня: ночью до него зачёт ещё вчерашний.
+@MainActor @Test func passedDaysUseTheLogicalDayOfPassedAt() throws {
+    let container = try makeContainer()
+    defer { withExtendedLifetime(container) {} }
+    let context = container.mainContext
+    let course = try CourseFixtureApp.ruMini()
+    let night = Date(timeIntervalSince1970: 1_773_108_000)     // 2026-03-10 02:00 UTC
+    let morning = Date(timeIntervalSince1970: 1_773_122_400)   // 2026-03-10 06:00 UTC
+    context.insert(passedProgress("ru2.s1.01", at: night))
+    context.insert(passedProgress("ru2.s1.02", at: morning))
+    context.insert(passedProgress("ru2.s1.03", at: nil))                       // не засчитан
+    context.insert(passedProgress("en2.s1.01", language: "en", at: morning))   // чужой язык
+    let days = try ProgressSnapshot(context: context).passedDays(course: course, dayStartHour: 4, calendar: utc())
+    #expect(days == ["ru2.s1.01": "2026-03-09", "ru2.s1.02": "2026-03-10"])
+}
+
+/// Урок, сданный на ★★ вчера, ждёт «Освежить»; «Освежить» на ★★★ закрывает возврат.
+@MainActor @Test func refreshDueAppearsForWeakLessonAndGoesAwayAfterThreeStars() throws {
+    let container = try makeContainer()
+    defer { withExtendedLifetime(container) {} }
+    let context = container.mainContext
+    let course = try CourseFixtureApp.ruMini()
+    // Цель урока ru2.s1.01 — 60 зн/мин: 50 — ★★, 62 — ★★★.
+    context.insert(passedProgress("ru2.s1.01", at: Date(timeIntervalSince1970: 1_772_971_200)))   // 2026-03-08 12:00 UTC
+    context.insert(datedStep("ru2.s1.01", .check, day: "2026-03-08", cpm: 50))
+    let snapshot = ProgressSnapshot(context: context)
+    let due = try snapshot.refreshDue(course: course, today: "2026-03-10", dayStartHour: 4, calendar: utc())
+    #expect(due.map(\.lessonId) == ["ru2.s1.01"])
+    #expect(due.map(\.since) == ["2026-03-09"])
+    // Срок ещё не наступил — возврата нет.
+    #expect(try snapshot.refreshDue(course: course, today: "2026-03-08", dayStartHour: 4, calendar: utc()).isEmpty)
+    context.insert(datedStep("ru2.s1.01", .refresh, day: "2026-03-10", cpm: 62))
+    #expect(try snapshot.refreshDue(course: course, today: "2026-03-10", dayStartHour: 4, calendar: utc()).isEmpty)
+}
+
+/// Буквы «трудного» урока попадают в `LearnerStats.hardLetters`; без курса или без «трудных» — пусто.
+@MainActor @Test func learnerStatsCarryHardLetters() throws {
+    let container = try makeContainer()
+    defer { withExtendedLifetime(container) {} }
+    let context = container.mainContext
+    let course = try CourseFixtureApp.ruMini()
+    context.insert(passedProgress("ru2.s1.01", at: Date(timeIntervalSince1970: 1_769_947_200)))   // 2026-02-01 12:00 UTC
+    context.insert(datedStep("ru2.s1.01", .check, day: "2026-02-01", cpm: 50))
+    for day in ["2026-02-02", "2026-02-05", "2026-02-12"] {
+        context.insert(datedStep("ru2.s1.01", .refresh, day: day, cpm: 50))   // три «Освежить» на ★★ — урок «трудный»
+    }
+    let reader = StatsReader(context: context)
+    let now = noon   // 2026-03-10
+    #expect(try reader.learnerStats(language: .ru, course: course, now: now, dayStartHour: 4, calendar: utc())
+        .hardLetters == ["а", "о"])
+    #expect(try reader.learnerStats(language: .ru).hardLetters.isEmpty)
+    #expect(try reader.learnerStats(language: .ru, course: nil, now: now, dayStartHour: 4, calendar: utc())
+        .hardLetters.isEmpty)
+}

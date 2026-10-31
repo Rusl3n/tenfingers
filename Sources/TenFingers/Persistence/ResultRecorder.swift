@@ -57,8 +57,9 @@ struct ResultRecorder {
         }
     }
 
-    /// `source` — откуда текст вне курса (см. `SessionRecord.source`).
-    func record(_ result: ExerciseResult, source: String? = nil) throws {
+    /// `source` — откуда текст вне курса (см. `SessionRecord.source`); `planSlot` — пункт плана дня, из которого
+    /// запущено упражнение (`nil` — запуск не из плана, решение 15 фазы 6c).
+    func record(_ result: ExerciseResult, source: String? = nil, planSlot: PlanSlot? = nil) throws {
         let day = LogicalDay.key(for: result.endedAt, dayStartHour: dayStartHour())
         let pinky = KeyStats.pinkyCounts(from: result)
         let fingers = KeyStats.fingerCounts(from: result)
@@ -71,7 +72,7 @@ struct ResultRecorder {
             wrongKeystrokes: result.wrongKeystrokes, exerciseKind: result.exerciseKind?.rawValue,
             pinkyPresses: pinky.presses, pinkyErrors: pinky.errors, source: source,
             fingerPresses: FingerCounts.data(fingers.presses), fingerErrors: FingerCounts.data(fingers.errors),
-            yoPresses: KeyStats.yoCorrect(from: result), stepIndex: result.stepIndex,
+            yoPresses: KeyStats.yoCorrect(from: result), stepIndex: result.stepIndex, planSlot: planSlot?.rawValue,
             textTraits: result.textTraits.union(TextTraits.connected(source: source)).rawValue
         ))
 

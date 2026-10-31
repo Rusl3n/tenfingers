@@ -265,3 +265,23 @@ private func summary(_ kind: ExerciseKind, lessonId: String = "ru.1.5", accuracy
     let hint = LessonScoring.nextStarHint(cpm: 100, accuracy: 1, errors: 0, chars: 120, targetCpm: 60, steps: steps)
     #expect(hint?.stars == 5 && hint?.blockingStep?.stepIndex == 3)
 }
+
+// «Освежить» считается проверкой урока (§6.3, решение 7): одно правило `isLessonCheck`.
+
+@Test func refreshIsALessonCheckForStars() {
+    #expect(ExerciseKind.check.isLessonCheck && ExerciseKind.refresh.isLessonCheck)
+    #expect(ExerciseKind.allCases.filter(\.isLessonCheck) == [.check, .refresh])
+    let sessions = [summary(.check, lessonId: "ru2.s1.01", accuracy: 0.97, errors: 4, cpm: 50),   // ★★
+                    summary(.refresh, lessonId: "ru2.s1.01", accuracy: 1, errors: 0, cpm: 70),    // ★★★ при цели 60
+                    summary(.refresh, lessonId: "ru2.s1.01", accuracy: 1, errors: 0, cpm: 200, completed: false)]
+    func stars(_ list: [SessionSummary]) -> Int {
+        LessonScoring.effectiveStars(sessions: list, lessonId: "ru2.s1.01", targetCpm: 60, passed: true, storedStars: 2)
+    }
+    #expect(stars(Array(sessions.prefix(1))) == 2)
+    #expect(stars(sessions) == 3)
+    // Шаги урока для пятой звезды: «Освежить» — не шаг, мешать чистоте не может.
+    let dirty = summary(.words, lessonId: "ru2.s1.01", accuracy: 0.9, errors: 12, cpm: 70)
+    #expect(stars(sessions + [summary(.refresh, lessonId: "ru2.s1.01", accuracy: 0.5, errors: 50, cpm: 200), dirty]) == 3)
+    #expect(LessonScoring.uncleanSteps([StepStat(kind: .refresh, bestAccuracy: 0.5, errorsInBest: 9, cpmInBest: 1,
+                                                  bestCpm: 1)]).isEmpty)
+}

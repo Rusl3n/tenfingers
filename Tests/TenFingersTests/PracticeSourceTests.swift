@@ -205,6 +205,9 @@ func everyLibrarySourceHasAHumanLink(language: Language) throws {
     #expect(PracticeSource.custom(UUID()).recordName == "custom")
     #expect(PracticeSource.symbols.recordName == "symbols")
     #expect(PracticeSource.frequentWords.recordName == "words")
+    #expect(PracticeSource.planText(stageIndex: 4, chars: 450).recordName == "plan:text")
+    #expect(PracticeSource.planText(stageIndex: nil, chars: 450).recordName == "plan:text")
+    #expect(PracticeSource.planReview(focus: ["а"], chars: 300).recordName == "plan:review")
 }
 
 /// UTF-16 без BOM: «Привет» в UTF-16LE — это байты 1F 04 40 04 …, формально корректный UTF-8 из управляющих символов.
@@ -237,4 +240,102 @@ func everyLibrarySourceHasAHumanLink(language: Language) throws {
     #expect(!CustomTextEditor.cancelNeedsConfirmation(text: ""))
     #expect(!CustomTextEditor.cancelNeedsConfirmation(text: "  \n\t"))
     #expect(CustomTextEditor.cancelNeedsConfirmation(text: "Мой текст"))
+}
+
+// MARK: - План на сегодня: «Текст» и «Повтор» (§10.1, решение 12)
+
+/// Основа «Текста» плана: курс издания 2, пройдены этапы до `stages` целиком и `lessons` уроков этапа `stages`.
+private func planBasis(_ language: Language, stages: Int, lessons: Int,
+                       stageIndex: Int?) throws -> (basis: PlanTextBasis, lessonId: String, next: Lesson) {
+    let course = try CourseCatalog.load(language)
+    let passed = course.stages.prefix(stages).flatMap(\.lessons).map(\.id)
+        + course.stages[stages].lessons.prefix(lessons).map(\.id)
+    let context = try #require(PracticeTextFactory.planContext(course: course, passed: Set(passed),
+                                                              stageIndex: stageIndex))
+    let planner = LessonPlanner(generator: TextGenerator(wordList: try WordList.load(language)),
+                                corpus: try SentenceCorpus.load(language), library: try TextLibrary.load(language))
+    return (PlanTextBasis(planner: planner, context: context), try #require(passed.last),
+            course.stages[stages].lessons[lessons])
+}
+
+/// До этапа 4 «Текст» — фразы из изученных символов: без заглавных и знаков, только строчные буквы и пробел.
+@Test(arguments: Language.allCases)
+func planTextBeforeStageFourIsPhrasesOfLearnedLetters(language: Language) throws {
+    let fixture = try Fixture(language)
+    let plan = try planBasis(language, stages: 1, lessons: 3, stageIndex: nil)
+    #expect(plan.basis.context.lesson.id == plan.lessonId)
+    // Новые клавиши следующего урока ещё не изучены: в тексте их нет.
+    let unknown = Set(plan.next.newCharacters).subtracting(plan.basis.context.allowed)
+    #expect(!unknown.isEmpty)
+    var rng = SeededGenerator(seed: 3)
+    let piece = PracticeTextFactory.text(for: .planText(stageIndex: nil, chars: 450), language: language,
+                                         allowed: fixture.allowed, generator: fixture.generator, custom: nil,
+                                         plan: plan.basis, rng: &rng)
+    #expect(piece.text.count >= 400)
+    #expect(piece.text.allSatisfy(plan.basis.context.allowed.contains))
+    let hasUnknown = piece.text.contains(where: unknown.contains)
+    #expect(!hasUnknown)
+    #expect(piece.text.allSatisfy { $0 == " " || ($0.isLetter && !$0.isUppercase) })
+    #expect(piece.nextOffset == nil && !piece.connected)
+}
+
+/// С этапа 5 «Текст» — связный текст в стиле этапа 5 (заглавные и знаки), только из изученных символов.
+@Test(arguments: Language.allCases)
+func planTextOnStageFiveHasStageStyle(language: Language) throws {
+    let fixture = try Fixture(language)
+    let plan = try planBasis(language, stages: 4, lessons: 2, stageIndex: 4)
+    #expect(plan.basis.context.lesson.id == plan.lessonId)
+    #expect(plan.basis.context.stage.textStyle?.case == .mixed)
+    var rng = SeededGenerator(seed: 4)
+    let piece = PracticeTextFactory.text(for: .planText(stageIndex: 4, chars: 450), language: language,
+                                         allowed: fixture.allowed, generator: fixture.generator, custom: nil,
+                                         plan: plan.basis, rng: &rng)
+    #expect(piece.text.count >= 400)
+    // Заглавные — изученные строчные (заглавные открыты на этапе 5).
+    let context = plan.basis.context
+    #expect(context.capitals)
+    let learned = piece.text.allSatisfy {
+        context.allowed.contains($0) || ($0.isUppercase && $0.lowercased().first.map(context.allowed.contains) == true)
+    }
+    #expect(learned)
+    let hasCapitals = piece.text.contains(where: \.isUppercase)
+    let hasPunctuation = piece.text.contains { $0.isPunctuation }
+    #expect(hasCapitals && hasPunctuation)
+    #expect(piece.connected)
+}
+
+/// «Текст» без основы (курс не прочитан) — пусто: раннер выходит, а не набирает чужой текст.
+@Test func planTextWithoutBasisIsEmpty() throws {
+    let fixture = try Fixture(.ru)
+    var rng = SeededGenerator(seed: 1)
+    let piece = PracticeTextFactory.text(for: .planText(stageIndex: 4, chars: 450), language: .ru,
+                                         allowed: fixture.allowed, generator: fixture.generator, custom: nil, rng: &rng)
+    #expect(piece.text.isEmpty)
+}
+
+/// Основа «Текста»: последний пройденный урок этапа; без этапа — последний пройденный урок курса; ничего не
+/// пройдено — первый урок.
+@Test func planContextTakesLastPassedLesson() throws {
+    let course = try CourseCatalog.load(.ru)
+    let stage = course.stages[4].lessons
+    let passed: Set<String> = [course.lessons[0].id, stage[0].id, stage[3].id]
+    #expect(PracticeTextFactory.planContext(course: course, passed: passed, stageIndex: 4)?.lesson.id == stage[3].id)
+    #expect(PracticeTextFactory.planContext(course: course, passed: passed, stageIndex: nil)?.lesson.id == stage[3].id)
+    #expect(PracticeTextFactory.planContext(course: course, passed: [], stageIndex: nil)?.lesson.id
+            == course.lessons[0].id)
+}
+
+/// «Повтор» плана: слова из открытых букв с упором на буквы `focus`.
+@Test func planReviewUsesOpenLettersAndFocus() throws {
+    let fixture = try Fixture(.ru)
+    let open: Set<Character> = Set("фывапролджэ")
+    var rng = SeededGenerator(seed: 6)
+    let piece = PracticeTextFactory.text(for: .planReview(focus: ["ж", "э"], chars: 300), language: .ru,
+                                         allowed: open.union([" "]), generator: fixture.generator, custom: nil,
+                                         rng: &rng)
+    #expect(piece.text.count >= 280)
+    #expect(piece.text.allSatisfy(open.union([" "]).contains))
+    let words = piece.text.split(separator: " ")
+    #expect(words.filter { $0.contains("ж") || $0.contains("э") }.count * 2 > words.count)
+    #expect(piece.nextOffset == nil && !piece.connected)
 }

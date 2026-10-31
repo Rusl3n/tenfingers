@@ -4,9 +4,9 @@ import Testing
 
 /// Завершённая (или брошенная) попытка шага курса со скоростью `cpm`; `minute` — порядок по `endedAt`.
 private func attempt(_ lessonId: String, _ kind: ExerciseKind = .check, cpm: Double, minute: Int = 0,
-                     completed: Bool = true, mode: ExerciseMode = .course) -> SessionSummary {
+                     completed: Bool = true, mode: ExerciseMode = .course, accuracy: Double = 0.98) -> SessionSummary {
     SessionSummary(day: "2026-10-25", endedAt: Date(timeIntervalSince1970: Double(minute) * 60), language: .ru,
-                   mode: mode, chars: 300, activeSeconds: 60, accuracy: 0.98, completed: completed,
+                   mode: mode, chars: 300, activeSeconds: 60, accuracy: accuracy, completed: completed,
                    lessonId: lessonId, exerciseKind: kind, cpm: cpm)
 }
 
@@ -33,6 +33,18 @@ private func attempt(_ lessonId: String, _ kind: ExerciseKind = .check, cpm: Dou
     #expect(SpeedupReference.reference(course: course, sessions: sessions) == 170) // 120 … 260
 }
 
+@Test func failedChecksAreNotAReference() throws {
+    let course = try CourseFixtures.ruMini()
+    // Быстрая проверка с ошибками (не засчитана, точность ниже 96%) цель обгона не поднимает; ровно 96% — засчитана.
+    var sessions = [attempt("ru2.s2.02", cpm: 150, minute: 1), attempt("ru2.s2.02", cpm: 300, minute: 2, accuracy: 0.95),
+                    attempt("ru2.s2.02", cpm: 160, minute: 3, accuracy: 0.96)]
+    #expect(SpeedupReference.reference(course: course, sessions: sessions) == 160)
+    // Без засчитанных проверок «Ускорения» — среднее засчитанных проверок курса.
+    sessions = [attempt("ru2.s2.02", cpm: 300, minute: 1, accuracy: 0.9), attempt("ru2.s1.01", cpm: 120, minute: 2),
+                attempt("ru2.s1.01", cpm: 400, minute: 3, accuracy: 0.9)]
+    #expect(SpeedupReference.reference(course: course, sessions: sessions) == 120)
+}
+
 @Test func speedupWordsStepIsNotAReference() throws {
     let course = try CourseFixtures.ruMini()
     let sessions = [attempt("ru2.s2.02", .words, cpm: 150), attempt("ru2.s1.01", cpm: 90, minute: 1)]
@@ -54,4 +66,10 @@ private func attempt(_ lessonId: String, _ kind: ExerciseKind = .check, cpm: Dou
     #expect(SpeedupReference.outcome(cpm: 142, reference: 142) == .short(cpm: 1))
     // Ровно +5% не превращается в +6% из-за двоичной арифметики.
     #expect(SpeedupReference.outcome(cpm: 149.1, reference: 142) == .beaten(percent: 5))
+}
+
+@Test func refreshCountsAsACheckForTheReference() throws {
+    let course = try CourseFixtures.ruMini()
+    #expect(SpeedupReference.reference(course: course, sessions: [attempt("ru2.s2.02", .check, cpm: 120),
+                                                                   attempt("ru2.s2.02", .refresh, cpm: 140)]) == 140)
 }

@@ -54,6 +54,9 @@ start педераст
 start педик(?!ю)
 start трах(?:а|н|у)
 start секс
+start порн
+word ге(?:й|и|я|ю|ев|ям|ями|ях)
+start гейск
 start наркот
 start ублюд
 start задниц

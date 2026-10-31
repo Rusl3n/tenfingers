@@ -20,11 +20,13 @@ public struct SessionSummary: Equatable, Sendable {
     public let errorCount: Int
     /// Номер шага в плане урока; `nil` вне курса и у записей до 6a.
     public let stepIndex: Int?
+    /// Пункт плана дня, из которого запущено упражнение; `nil` — запуск не из плана (решение 15).
+    public let planSlot: PlanSlot?
 
     public init(day: String, endedAt: Date, language: Language, mode: ExerciseMode, chars: Int,
                 activeSeconds: Double, accuracy: Double, completed: Bool,
                 lessonId: String? = nil, exerciseKind: ExerciseKind? = nil, cpm: Double? = nil, errorCount: Int = 0,
-                stepIndex: Int? = nil) {
+                stepIndex: Int? = nil, planSlot: PlanSlot? = nil) {
         self.day = day
         self.endedAt = endedAt
         self.language = language
@@ -38,6 +40,7 @@ public struct SessionSummary: Equatable, Sendable {
         self.cpm = cpm
         self.errorCount = errorCount
         self.stepIndex = stepIndex
+        self.planSlot = planSlot
     }
 
     /// Скорость упражнения: сохранённая или знаки за минуту чистого времени.
@@ -145,7 +148,7 @@ public enum Analytics {
     /// «Подходящее» упражнение: проверка урока (любой длины: шаги курса короче порога) или текст от
     /// `recordMinimumChars` знаков. На нём держатся скорость, «Снайпер» и «Без подглядывания»; завершённость проверяет вызывающий.
     public static func isQualifyingLength(kind: ExerciseKind?, chars: Int) -> Bool {
-        kind == .check || chars >= recordMinimumChars
+        (kind?.isLessonCheck ?? false) || chars >= recordMinimumChars
     }
 
     /// Единое правило рекорда скорости и ачивок скорости (`speed.*`): завершённое подходящее упражнение

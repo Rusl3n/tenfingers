@@ -186,6 +186,8 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
     #expect(title("custom") == "Свой текст")
     #expect(title("library:\(text.id)") == text.title)
     #expect(title("library:missing") == nil)
+    #expect(title("plan:text") == "Текст плана")
+    #expect(title("plan:review") == "Повтор плана")
     #expect(title("adaptive") == nil)
     #expect(title(nil) == nil)
 }
@@ -500,23 +502,23 @@ private func session(day: String, language: Language = .ru, mode: ExerciseMode =
 
 // MARK: - Карточка «Дни»
 
-@Test func dayMetricRowsListFlameVisitsAndGoal() {
+@Test func dayMetricRowsListFlameSparkAndGoal() {
     let streak = StreakSummary(current: 7, fullInRow: 3, fullInCurrent: 3, freezes: 1, longest: 15, today: .full,
                                statuses: [:], visitCurrent: 4, visitLongest: 9, visitTotal: 40,
                                goalCurrent: 2, goalLongest: 5, goalTotal: 22)
     let rows = DayMetricRow.rows(streak)
-    #expect(rows.map(\.icon) == ["flame.fill", "figure.walk", "target"])
-    #expect(rows.map(\.title) == ["Огонь", "Заходил", "Цель выполнена"])
+    #expect(rows.map(\.icon) == ["flame.fill", "sparkles", "target"])
+    #expect(rows.map(\.title) == ["Огонь", "Искра", "Цель выполнена"])
     #expect(rows.map(\.current) == [7, 4, 2])
     #expect(rows.map(\.longest) == [15, 9, 5])
     #expect(rows.map(\.total) == [nil, 40, 22])
-    #expect(rows.map(\.help) == [HelpText.freezes, HelpText.visitDays, HelpText.goalDays])
+    #expect(rows.map(\.help) == [HelpText.freezes, HelpText.spark, HelpText.goalDays])
 }
 
 @Test func dayMetricIconsAreExistingSymbols() {
     let streak = StreakSummary(current: 0, fullInRow: 0, fullInCurrent: 0, freezes: 0, longest: 0, today: .none,
                                statuses: [:])
-    for name in DayMetricRow.rows(streak).map(\.icon) + ["figure.walk", "target"] {
+    for name in DayMetricRow.rows(streak).map(\.icon) + ["sparkles", "target"] {
         #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
     }
 }

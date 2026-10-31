@@ -153,3 +153,16 @@ private func numbered(_ kind: ExerciseKind, _ index: Int?, accuracy: Double = 1,
                                           lessonId: "ru2.s1.01")
     #expect(stats.map(\.kind) == [.phrases, .combos])
 }
+
+@Test func refreshJoinsTheCheckRowAndTakesTheBetterOfTheTwo() {
+    let stats = LessonStepStats.summarize(sessions: [
+        numbered(.words, 0), numbered(.check, 1, accuracy: 0.96, cpm: 50, errors: 4),
+        numbered(.refresh, 1, accuracy: 0.99, cpm: 60, errors: 1),
+    ], lessonId: "ru2.s1.01")
+    #expect(stats == [
+        StepStat(kind: .words, bestAccuracy: 1, errorsInBest: 0, cpmInBest: 60, bestCpm: 60, stepIndex: 0),
+        StepStat(kind: .check, bestAccuracy: 0.99, errorsInBest: 1, cpmInBest: 60, bestCpm: 60, stepIndex: 1),
+    ])
+    // «Освежить» без самой проверки и без номера — тоже строка проверки.
+    #expect(LessonStepStats.summarize(sessions: [numbered(.refresh, nil)], lessonId: "ru2.s1.01").map(\.kind) == [.check])
+}

@@ -49,8 +49,74 @@ struct StatsReader {
     }
 
     /// Статистика клавиш и сочетаний для планировщика: «Повтор», «Ускорение» и шаги `focus` строятся по ней.
-    func learnerStats(language: Language) throws -> LearnerStats {
-        LearnerStats(keys: try keyMastery(language: language), bigrams: try bigramMastery(language: language))
+    /// `course` — курс издания 2 языка: по нему считаются буквы «трудных» уроков (вес ×2 в «Повторе»); без курса
+    /// (издание 1, тренировки) их нет.
+    func learnerStats(language: Language, course: Course? = nil, now: Date = .now,
+                      dayStartHour: Int = StoredSettings.dayStartHour(), calendar: Calendar = .current) throws -> LearnerStats {
+        var hard = Set<Character>()
+        if let course, course.edition >= 2 {
+            let today = LogicalDay.key(for: now, dayStartHour: dayStartHour, calendar: calendar)
+            hard = try ProgressSnapshot(context: context).hardLetters(course: course, today: today,
+                                                                      dayStartHour: dayStartHour, calendar: calendar)
+        }
+        return LearnerStats(keys: try keyMastery(language: language), bigrams: try bigramMastery(language: language),
+                            hardLetters: hard)
+    }
+
+    /// Время и нажатия каждой клавиши курса: буква → (`ewmaMs`, нажатия). Клавиши без времени пропускаются.
+    func keyEwma(language: Language) throws -> [Character: (ms: Double, presses: Int)] {
+        var result: [Character: (ms: Double, presses: Int)] = [:]
+        for (letter, mastery) in try keyMastery(language: language) {
+            if let ms = mastery.ewmaMs { result[letter] = (ms: ms, presses: mastery.presses) }
+        }
+        return result
+    }
+
+    /// Буква → палец языка: по коду клавиши в истории (`KeyStat.keyCode`), раскладка `layout` — запасом для букв без
+    /// истории. От активной раскладки основная карта не зависит.
+    func fingerLetters(language: Language, layout: [Character: Finger]) throws -> [Character: Finger] {
+        let code = language.rawValue
+        let stats = try context.fetch(FetchDescriptor<KeyStat>(predicate: #Predicate { $0.language == code }))
+        return FingerTraining.letterFingers(
+            keys: stats.map { (character: $0.character, keyCode: $0.keyCode, presses: $0.presses) },
+            language: language, fallback: layout)
+    }
+
+    /// Нажатия и ошибки пальцев за `days` логических дней по `today` включительно (поля сессий `fingerPresses` и
+    /// `fingerErrors`; у сессий без них пальцы не учитываются).
+    func fingerTotals(language: Language, days: Int,
+                      today: String) throws -> (presses: [Finger: Int], errors: [Finger: Int]) {
+        let code = language.rawValue
+        let start = StreakCalculator.dayKey(today, offset: -(days - 1))
+        let sessions = try context.fetch(FetchDescriptor<SessionRecord>(
+            predicate: #Predicate { $0.language == code && $0.logicalDay >= start && $0.logicalDay <= today }))
+        var presses: [Finger: Int] = [:], errors: [Finger: Int] = [:]
+        for session in sessions {
+            for (finger, count) in FingerCounts.counts(session.fingerPresses) ?? [:] where finger != .thumb {
+                presses[finger, default: 0] += count
+            }
+            for (finger, count) in FingerCounts.counts(session.fingerErrors) ?? [:] where finger != .thumb {
+                errors[finger, default: 0] += count
+            }
+        }
+        return (presses, errors)
+    }
+
+    /// Оценка пальцев за `FingerTraining.days` дней: нажатия сессий, скорость клавиш и буквы пальцев по истории клавиш (запасом — раскладка) (§6.4).
+    func fingerReports(language: Language, fingerOf: [Character: Finger], thresholdMs: Double, now: Date = .now,
+                       dayStartHour: Int = StoredSettings.dayStartHour(),
+                       calendar: Calendar = .current) throws -> [FingerReport] {
+        try fingerReports(language: language, fingerOf: fingerOf, thresholdMs: thresholdMs,
+                          today: LogicalDay.key(for: now, dayStartHour: dayStartHour, calendar: calendar))
+    }
+
+    /// То же на логический день `today` (план дня).
+    func fingerReports(language: Language, fingerOf: [Character: Finger], thresholdMs: Double,
+                       today: String) throws -> [FingerReport] {
+        let totals = try fingerTotals(language: language, days: FingerTraining.days, today: today)
+        return FingerTraining.reports(presses: totals.presses, errors: totals.errors,
+                                      keyEwma: try keyEwma(language: language), fingerOf: fingerOf,
+                                      thresholdMs: thresholdMs)
     }
 
     func unlockedCount(language: Language) throws -> Int {

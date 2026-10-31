@@ -160,3 +160,80 @@ import TypingCore
     try recorder.commit { try AdaptiveProgress.record(recorder: recorder, trainer: trainer, language: .ru, at: date) }
     #expect(try context.fetchCount(FetchDescriptor<AdaptiveUnlock>()) == 1)
 }
+
+// MARK: - «Пальцы»
+
+private func fingerReports() -> [FingerReport] {
+    // Левый мизинец — слабый (90%), правый указательный — сильный (100% на 200 нажатиях, быстрые клавиши),
+    // левый безымянный — норма (98%), остальные — мало данных.
+    FingerTraining.reports(
+        presses: [.leftPinky: 100, .rightIndex: 200, .leftRing: 100, .leftMiddle: 10],
+        errors: [.leftPinky: 10, .leftRing: 2],
+        keyEwma: ["о": (ms: 200, presses: 200)], fingerOf: ["о": .rightIndex], thresholdMs: 343)
+}
+
+private let allFingerLetters: [Character: Finger] = ["й": .leftPinky, "о": .rightIndex, "в": .leftMiddle, "ы": .leftRing]
+
+@Test func fingerCardColorsAndButtonsFollowFingerClass() {
+    let model = FingerCardModel.make(reports: fingerReports(), fingerOf: allFingerLetters)
+    #expect(model.cells.map(\.finger) == [.leftPinky, .leftRing, .leftMiddle, .leftIndex,
+                                          .rightIndex, .rightMiddle, .rightRing, .rightPinky])
+    func cell(_ finger: Finger) -> FingerCardModel.Cell { model.cells.first { $0.finger == finger }! }
+    #expect(cell(.leftPinky).tone == .weak && cell(.leftPinky).drill == .accuracy)
+    #expect(cell(.rightIndex).tone == .strong && cell(.rightIndex).drill == .speed)
+    #expect(cell(.leftRing).tone == .normal && cell(.leftRing).drill == nil)
+    #expect(cell(.leftMiddle).tone == .noData && cell(.leftMiddle).drill == nil)
+    #expect(model.hasData)
+}
+
+@Test func fingerCardWithoutDataHasNoButtons() {
+    let empty = FingerTraining.reports(presses: [.leftPinky: 49], errors: [:], keyEwma: [:], fingerOf: [:],
+                                       thresholdMs: 343)
+    let model = FingerCardModel.make(reports: empty, fingerOf: allFingerLetters)
+    #expect(!model.hasData)
+    #expect(model.cells.allSatisfy { $0.tone == .noData && $0.drill == nil })
+}
+
+@Test func fingerCardWithoutLettersHasNoButtons() {
+    // Слабый и сильный пальцы есть, но букв пальцев не определить (карта пуста): кнопок упражнений нет.
+    let model = FingerCardModel.make(reports: fingerReports(), fingerOf: [:])
+    #expect(model.hasData)
+    #expect(model.cells.allSatisfy { $0.drill == nil })
+    #expect(model.cells.first { $0.finger == .leftPinky }?.tone == .weak)
+    // Буквы только слабого пальца: кнопка только у него.
+    let partial = FingerCardModel.make(reports: fingerReports(), fingerOf: ["й": .leftPinky])
+    #expect(partial.cells.compactMap(\.drill) == [.accuracy])
+}
+
+@Test func fingerCardHasNoButtonWithoutOpenFingerLetters() {
+    // Карта букв, ограниченная открытыми: у слабого мизинца ни одна буква не открыта — кнопки нет, у сильного есть.
+    let open: Set<Character> = ["о", "в"]
+    let model = FingerCardModel.make(reports: fingerReports(),
+                                     fingerOf: allFingerLetters.filter { open.contains($0.key) })
+    #expect(model.cells.first { $0.finger == .leftPinky }?.drill == nil)
+    #expect(model.cells.first { $0.finger == .rightIndex }?.drill == .speed)
+}
+
+@Test func fingerCellWithoutDataShowsNoAccuracy() {
+    // 10 нажатий, 2 ошибки: точность в отчёте есть (80%), но класс «мало данных» — в клетке «—».
+    let few = FingerTraining.reports(presses: [.leftPinky: 10, .leftRing: 100], errors: [.leftPinky: 2],
+                                     keyEwma: [:], fingerOf: [:], thresholdMs: 343)
+    let model = FingerCardModel.make(reports: few, fingerOf: allFingerLetters)
+    let pinky = model.cells.first { $0.finger == .leftPinky }!
+    #expect(pinky.tone == .noData && pinky.report.accuracy != nil)
+    #expect(pinky.accuracyText == "—")
+    #expect(model.cells.first { $0.finger == .leftRing }?.accuracyText == Formatting.percent(1))
+}
+
+@Test func fingerRunKindHasFreshIdTitleAndAlert() {
+    let a = RunKind.finger(FingerRun(language: .ru, finger: .leftPinky, drill: .accuracy))
+    let b = RunKind.finger(FingerRun(language: .ru, finger: .leftPinky, drill: .accuracy))
+    #expect(a.id != b.id)
+    #expect(a.sidebarTitle == String(localized: "Пальцы идут"))
+    #expect(a.replaceAlertTitle == String(localized: "Занятие по пальцу будет завершено. Начать новое занятие?"))
+}
+
+@MainActor @Test func fingerRunnerGoalFollowsDrill() {
+    #expect(FingerRunnerView.goalText(.accuracy) == String(localized: "Цель: 0 ошибок"))
+    #expect(FingerRunnerView.goalText(.speed) == nil)
+}

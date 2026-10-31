@@ -27,11 +27,13 @@ extension WeakSpots {
     /// «Повтор» (§6.1): до `limit` букв из `allowed` с наибольшей долей ошибок (`errorRate`, не меньше
     /// `minimumKeyPresses` нажатий), при равенстве — больше ошибок (`errorRate · presses`), затем по алфавиту;
     /// буквы с долей 0 не берутся. Сочетания — то же с `minimumBigramCount`, только из букв `allowed`.
+    /// Доля ошибок букв из `boosted` («трудные» уроки, §6.3) весит ×`boostWeight`; на сочетания вес не действует.
     public static func mostErrors(keys: [Character: KeyMastery], bigrams: [String: KeyMastery],
-                                  allowed: Set<Character>, limit: Int = 5) -> (keys: [Character], bigrams: [String]) {
+                                  allowed: Set<Character>, limit: Int = 5,
+                                  boosted: Set<Character> = []) -> (keys: [Character], bigrams: [String]) {
         let keyList = rankByErrors(keys.filter {
             allowed.contains($0.key) && $0.value.presses >= minimumKeyPresses
-        }, limit: limit)
+        }, limit: limit, weight: { boosted.contains($0) ? boostWeight : 1 })
         let bigramList = rankByErrors(bigrams.filter {
             $0.key.allSatisfy(allowed.contains) && $0.value.presses >= minimumBigramCount
         }, limit: limit)
@@ -53,10 +55,16 @@ extension WeakSpots {
         return (strong.count < strongMinimumCount ? open : strong).sorted()
     }
 
-    private static func rankByErrors<K: Comparable>(_ stats: [K: KeyMastery], limit: Int) -> [K] {
-        stats.filter { $0.value.errorRate > 0 }.sorted { lhs, rhs in
-            if lhs.value.errorRate != rhs.value.errorRate { return lhs.value.errorRate > rhs.value.errorRate }
-            let l = lhs.value.errorRate * Double(lhs.value.presses), r = rhs.value.errorRate * Double(rhs.value.presses)
+    /// Вес доли ошибок «трудных» букв в рейтинге «Повтора».
+    public static let boostWeight = 2.0
+
+    private static func rankByErrors<K: Comparable>(_ stats: [K: KeyMastery], limit: Int,
+                                                    weight: (K) -> Double = { _ in 1 }) -> [K] {
+        func rate(_ key: K, _ mastery: KeyMastery) -> Double { mastery.errorRate * weight(key) }
+        return stats.filter { $0.value.errorRate > 0 }.sorted { lhs, rhs in
+            let lr = rate(lhs.key, lhs.value), rr = rate(rhs.key, rhs.value)
+            if lr != rr { return lr > rr }
+            let l = lr * Double(lhs.value.presses), r = rr * Double(rhs.value.presses)
             return l != r ? l > r : lhs.key < rhs.key
         }.prefix(limit).map(\.key)
     }

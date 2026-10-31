@@ -41,6 +41,7 @@ public enum AchievementConditionText {
         switch condition {
         case .streak(let days): return line("streak", days)
         case .fullStreakNoFreeze(let days): return line("fullStreak", days)
+        case .sparkStreak(let days): return line("sparkStreak", days)
         case .speed(let language, let cpm): return line("speed", name(language), cpm, Analytics.recordMinimumChars)
         case .perfectAccuracy: return line("perfectAccuracy", Analytics.recordMinimumChars)
         case .accuracyRun(let count, let minimum): return line("accuracyRun", percent(minimum), count)

@@ -26,6 +26,22 @@ final class KeyboardLayoutService {
         snapshot = Self.snapshot(for: source, shape: Self.currentShape())
     }
 
+    /// Буква языка → палец по текущей раскладке (`FingerMap` по клавише буквы). Букв, которых в раскладке нет
+    /// (например, раскладка другого языка), в карте нет.
+    func fingerOf(language: Language) -> [Character: Finger] {
+        Self.fingerOf(snapshot: snapshot, language: language)
+    }
+
+    nonisolated static func fingerOf(snapshot: LayoutSnapshot, language: Language) -> [Character: Finger] {
+        var result: [Character: Finger] = [:]
+        for letter in language.letters {
+            if let press = snapshot.keyPress(for: letter), let finger = FingerMap.finger(for: press.keyCode) {
+                result[letter] = finger
+            }
+        }
+        return result
+    }
+
     static func currentShape() -> KeyboardShape {
         KBGetLayoutType(Int16(LMGetKbdType())) == PhysicalKeyboardLayoutType(kKeyboardISO) ? .iso : .ansi
     }

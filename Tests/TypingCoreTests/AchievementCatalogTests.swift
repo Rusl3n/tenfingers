@@ -30,7 +30,7 @@ private func cyrillicWords(_ s: String) -> [String] {
     }
 }
 
-/// Все 89 id как есть в базах пользователей: переименование или удаление должно ронять тест
+/// Все 93 id как есть в базах пользователей: переименование или удаление должно ронять тест
 /// (новая ачивка — осознанное дополнение этого списка).
 private let goldenIds: [String] = [
     "streak.3", "streak.7", "streak.14", "streak.30",
@@ -57,11 +57,13 @@ private let goldenIds: [String] = [
     "special.own_words", "fun.pi", "fun.answer42", "fun.yo_master",
     "fun.learning_from_mistakes", "fun.cinderella", "fun.friday_night", "fun.weekend_warrior",
     "fun.almost",
+    // Фаза 6c (4): ступени «Искры».
+    "spark.7", "spark.30", "spark.100", "spark.365",
 ]
 
 @Test func catalogIdsMatchTheGoldenList() {
     let ids = AchievementCatalog.all.map(\.id)
-    #expect(goldenIds.count == 89 && Set(goldenIds).count == 89)
+    #expect(goldenIds.count == 93 && Set(goldenIds).count == 93)
     #expect(Set(ids) == Set(goldenIds),
             "пропали: \(Set(goldenIds).subtracting(ids).sorted()); лишние: \(Set(ids).subtracting(goldenIds).sorted())")
     #expect(ids.count == goldenIds.count)
@@ -73,6 +75,8 @@ private let goldenIds: [String] = [
         switch achievement.condition {
         case .streak(let days):
             #expect(id == "streak.\(days)")
+        case .sparkStreak(let days):
+            #expect(id == "spark.\(days)")
         case .speed(let language, let cpm):
             #expect(id == "speed.\(language.rawValue).\(cpm)")
         case .volumeChars(let count):
@@ -104,6 +108,9 @@ private let goldenIds: [String] = [
         // У серии числовые id — только `streak.<дни>` (`streak.iron_will`, `streak.fire_month` — по названию).
         if id.hasPrefix("streak."), Int(id.dropFirst("streak.".count)) != nil {
             guard case .streak = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
+        }
+        if id.hasPrefix("spark.") {
+            guard case .sparkStreak = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
         }
         if id.hasPrefix("speed.growth.") {
             guard case .speedGrowth = achievement.condition else { Issue.record("«\(id)»: условие \(achievement.condition)"); continue }
@@ -183,7 +190,7 @@ private let goldenIds: [String] = [
     func count(_ category: AchievementCategory) -> Int {
         AchievementCatalog.all.filter { $0.category == category }.count
     }
-    #expect(count(.streak) == 11)
+    #expect(count(.streak) == 15)
     #expect(count(.speed) == 12)
     #expect(count(.accuracy) == 4)
     #expect(count(.course) == 7)
@@ -191,7 +198,7 @@ private let goldenIds: [String] = [
     #expect(count(.special) == 7)
     #expect(count(.letters) == 16)
     #expect(count(.fun) == 20)
-    #expect(AchievementCatalog.all.count == 89)
+    #expect(AchievementCatalog.all.count == 93)
 }
 
 @Test func everyAchievementHasRussianAndEnglishTexts() throws {
@@ -374,6 +381,23 @@ private let goldenIds: [String] = [
     }
     let secret = Set(AchievementCatalog.all.filter(\.secret).map(\.id))
     for item in planned { #expect(secret.contains(item.id) == (item.category == .fun), "\(item.id)") }
+}
+
+/// Ступени «Искры» (6c): разовые ачивки серии после `streak.365`, не секретные, со значками из плана.
+@Test func sparkAchievementsAreStreakCategoryWithPlannedIcons() throws {
+    let planned: [(id: String, days: Int, icon: String)] = [
+        ("spark.7", 7, "sparkle"), ("spark.30", 30, "sparkles"),
+        ("spark.100", 100, "wand.and.stars"), ("spark.365", 365, "sparkles.rectangle.stack"),
+    ]
+    let streak = AchievementCatalog.all.filter { $0.category == .streak }
+    let start = try #require(streak.firstIndex { $0.id == "streak.365" }) + 1
+    #expect(streak[start..<(start + planned.count)].map(\.id) == planned.map(\.id))
+    for item in planned {
+        let achievement = try #require(AchievementCatalog.all.first { $0.id == item.id })
+        #expect(achievement.category == .streak && !achievement.secret && !achievement.adult)
+        #expect(achievement.condition == .sparkStreak(days: item.days))
+        #expect(achievement.icon == item.icon)
+    }
 }
 
 /// Условия-просьбы («Откройте буквы…») у полученной ачивки читаются утверждением («Открыты буквы…»).

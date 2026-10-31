@@ -66,6 +66,8 @@ final class ExerciseCoordinator {
     @ObservationIgnored private var announceAfterSave = true
     /// Источник текста текущей сессии (`SessionRecord.source`).
     @ObservationIgnored private var source: String?
+    /// Пункт плана дня текущей сессии (`SessionRecord.planSlot`); `nil` — запуск не из плана.
+    @ObservationIgnored private var planSlot: PlanSlot?
     /// Записало ли последнее сохранение сессию: запись вне упражнения без сессии ачивки не проверяет.
     @ObservationIgnored private var bodyRecordedSession = true
 
@@ -89,19 +91,25 @@ final class ExerciseCoordinator {
         }
     }
 
-    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» (только при «Начать урок заново») и проверка ачивок.
+    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» (только при «Начать урок заново»), проверка
+    /// ачивок и плана дня (тост «План выполнен»).
     static func live(context: ModelContext, sound: SoundPlayer, toasts: ToastCenter,
                      reminders: ReminderScheduler? = nil) -> ExerciseCoordinator {
         let coordinator = ExerciseCoordinator(recorder: .live(context: context), playSound: { sound.play($0) })
         coordinator.onDayCompleted = { [toasts] in toasts.showFullFlame() }
-        coordinator.onSaved = { [weak reminders] in reminders?.rescheduleSoon() }
+        coordinator.onSaved = { [weak reminders, toasts] in
+            reminders?.rescheduleSoon()
+            toasts.checkPlanDone?()
+        }
         coordinator.achievements = .live(context: context)
         return coordinator
     }
 
-    /// Создаёт сессию и подписывается на её завершение.
+    /// Создаёт сессию и подписывается на её завершение. `planSlot` — запуск из плана дня: пишется в запись
+    /// упражнения, в том числе брошенного.
     func start(spec: ExerciseSpec, language: Language, mode: ExerciseMode, lessonId: String?, hint: HintLevel,
-               source: String? = nil, onFinish: @escaping (ExerciseSession, ExerciseResult) -> Void) -> ExerciseSession {
+               source: String? = nil, planSlot: PlanSlot? = nil,
+               onFinish: @escaping (ExerciseSession, ExerciseResult) -> Void) -> ExerciseSession {
         let next = ExerciseSession(spec: spec, language: language, mode: mode, lessonId: lessonId, hint: hint)
         next.onSound = { [playSound] in playSound($0) }
         next.onFinish = { [weak next] result in
@@ -110,6 +118,7 @@ final class ExerciseCoordinator {
         }
         session = next
         self.source = source
+        self.planSlot = planSlot
         return next
     }
 
@@ -121,11 +130,11 @@ final class ExerciseCoordinator {
         session.onFinish = nil
         session.markRecorded()
         let recorder = self.recorder
-        let source = self.source
+        let source = self.source, planSlot = self.planSlot
         exitAfterSave = false
         announceAfterSave = true
         return save(trackingDay(endedAt: result.endedAt) {
-            try recorder.record(result, source: source)
+            try recorder.record(result, source: source, planSlot: planSlot)
             try Self.recordCounters(session, recorder)
             try extra(recorder)
         })
@@ -159,7 +168,7 @@ final class ExerciseCoordinator {
         // Результат собирается один раз: его же время конца определяет логический день для «полного огня».
         let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
         return save(trackingDay(endedAt: abandoned?.endedAt,
-                                Self.abandonment(abandoned, of: session, source: source, recorder)))
+                                Self.abandonment(abandoned, of: session, source: source, planSlot: planSlot, recorder)))
     }
 
     /// Уход без кнопки (меню, закрытие окна, выход из приложения, «Начать урок заново»): показать ошибку уже негде,
@@ -174,7 +183,7 @@ final class ExerciseCoordinator {
         let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
         dayCompletedKey = nil
         let body = trackingDay(endedAt: abandoned?.endedAt,
-                               Self.abandonment(abandoned, of: session, source: source, recorder))
+                               Self.abandonment(abandoned, of: session, source: source, planSlot: planSlot, recorder))
         guard (try? recorder.commit(body)) != nil else {
             dayCompletedKey = nil
             return
@@ -249,9 +258,9 @@ final class ExerciseCoordinator {
 
     /// Запись брошенного упражнения: результат (`nil`, если набор не начинался) и счётчики.
     private static func abandonment(_ abandoned: ExerciseResult?, of session: ExerciseSession, source: String?,
-                                    _ recorder: ResultRecorder) -> () throws -> Void {
+                                    planSlot: PlanSlot?, _ recorder: ResultRecorder) -> () throws -> Void {
         {
-            if let abandoned { try recorder.record(abandoned, source: source) }
+            if let abandoned { try recorder.record(abandoned, source: source, planSlot: planSlot) }
             try recordCounters(session, recorder)
         }
     }

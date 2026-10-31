@@ -145,7 +145,7 @@ struct ShareSheetView: View {
                 Toggle("Лучшая скорость", isOn: content.showsSpeed)
             }
             GridRow {
-                Toggle("Заходил", isOn: content.showsVisits)
+                Toggle("Искра", isOn: content.showsVisits)
                 Toggle("Средняя точность", isOn: content.showsAccuracy)
             }
             GridRow {

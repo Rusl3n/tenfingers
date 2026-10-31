@@ -81,6 +81,8 @@ private struct Evaluator {
             return streakDate(days) { $0 != .none }
         case .fullStreakNoFreeze(let days):
             return streakDate(days) { $0 == .full }
+        case .sparkStreak(let days):
+            return streakDate(days) { $0 == .full || $0 == .half }
         case let .speed(language, cpm):
             return firstCompleted {
                 $0.language == language && $0.cpm >= Double(cpm)
@@ -513,7 +515,7 @@ private struct Evaluator {
         guard course.edition >= 2 else { return passDate(of: stage.lessons) }
         guard let check = stage.checkLesson, let target = course.targetCpm(for: check.id) else { return nil }
         return completed.first {
-            $0.lessonId == check.id && $0.exerciseKind == .check
+            $0.lessonId == check.id && ($0.exerciseKind?.isLessonCheck ?? false)
                 && LessonScoring.stars(cpm: $0.cpm, accuracy: $0.accuracy, targetCpm: target) >= stage.gate
         }?.endedAt
     }
@@ -548,7 +550,7 @@ private struct Evaluator {
         for lesson in course.lessons {
             guard let target = course.targetCpm(for: lesson.id) else { return nil }
             let excellentCheck = completed.first {
-                $0.lessonId == lesson.id && $0.exerciseKind == .check
+                $0.lessonId == lesson.id && ($0.exerciseKind?.isLessonCheck ?? false)
                     && LessonScoring.stars(cpm: $0.cpm, accuracy: $0.accuracy, targetCpm: target) >= excellent
             }
             guard let date = excellentCheck?.endedAt else { return facts.now }

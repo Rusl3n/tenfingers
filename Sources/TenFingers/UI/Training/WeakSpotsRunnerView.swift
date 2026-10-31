@@ -30,6 +30,8 @@ struct WeakSpotsSessionTotals: Equatable {
 /// Пятиминутная сессия: порции по 250 знаков идут одна за другой с паузой в секунду.
 struct WeakSpotsRunnerView: View {
     let language: Language
+    /// Пункт плана дня (`TrainingRun.planSlot`): пишется в каждую порцию.
+    var planSlot: PlanSlot? = nil
     let onExit: () -> Void
 
     static let portionLength = 250
@@ -152,7 +154,7 @@ struct WeakSpotsRunnerView: View {
         let spec = ExerciseSpec(id: portion, kind: .words, title: "Слабые места", text: text)
         let hint = (HintMode(rawValue: hintMode) ?? .auto).resolve(.full)
         _ = coordinator.start(spec: spec, language: language, mode: .weak, lessonId: nil,
-                              hint: hint, source: "weak") { session, result in
+                              hint: hint, source: "weak", planSlot: planSlot) { session, result in
             finish(portion: portion, session: session, result: result)
         }
         phase = .exercise(portion)

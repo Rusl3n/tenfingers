@@ -68,7 +68,7 @@ public enum LessonScoring {
     /// в `steps` не входит (`LessonStepStats.summarize`), поэтому не мешает: урок мог быть пройден до того,
     /// как шаги стали записываться.
     public static func uncleanSteps(_ steps: [StepStat]) -> [StepStat] {
-        steps.filter { $0.kind != .check && $0.bestAccuracy + accuracyTolerance < cleanLessonStepAccuracy }
+        steps.filter { !$0.kind.isLessonCheck && $0.bestAccuracy + accuracyTolerance < cleanLessonStepAccuracy }
     }
 
     /// Звёзды урока по звёздам проверки `checkStars` и шагам урока: пятая — только если все шаги чистые,
@@ -132,13 +132,13 @@ public enum LessonScoring {
         return passed ? max(base, 1) : base
     }
 
-    /// То же по сессиям: в историю идут завершённые проверки (`exerciseKind == .check`) этого урока, а шаги —
+    /// То же по сессиям: в историю идут завершённые проверки (`check` и `refresh`, `isLessonCheck`) этого урока, а шаги —
     /// лучшие попытки всех его шагов (`LessonStepStats`, те же, что в деталях урока на карте курса).
     /// Шкала хранимых звёзд — по изданию урока (`CourseCatalog.edition(ofLessonId:)`).
     public static func effectiveStars(sessions: [SessionSummary], lessonId: String, targetCpm: Int, passed: Bool,
                                       storedStars: Int) -> Int {
         let history = sessions
-            .filter { $0.completed && $0.lessonId == lessonId && $0.exerciseKind == .check }
+            .filter { $0.completed && $0.lessonId == lessonId && ($0.exerciseKind?.isLessonCheck ?? false) }
             .map { (cpm: $0.speed, accuracy: $0.accuracy) }
         return effectiveStars(history: history, steps: LessonStepStats.summarize(sessions: sessions, lessonId: lessonId),
                               targetCpm: targetCpm, passed: passed, storedStars: storedStars,

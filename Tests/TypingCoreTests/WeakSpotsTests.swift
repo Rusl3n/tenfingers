@@ -127,3 +127,20 @@ private let smallGenerator = TextGenerator(wordList: WordList(words: [
     keys["е"] = nil
     #expect(WeakSpots.strongKeys(keys, allowed: allowed) == ["а", "б", "в", "г", "д", "е", "ж", "з"])
 }
+
+// MARK: - Вес «трудных» букв (§6.3)
+
+@Test func boostedLettersCountTheirErrorShareTwice() {
+    let keys: [Character: KeyMastery] = [
+        "а": KeyMastery(ewmaMs: 300, errorRate: 0.05, presses: 40),
+        "б": KeyMastery(ewmaMs: 300, errorRate: 0.08, presses: 40),
+        "в": KeyMastery(ewmaMs: 300, errorRate: 0.03, presses: 40),
+    ]
+    let allowed = Set("абв")
+    #expect(WeakSpots.mostErrors(keys: keys, bigrams: [:], allowed: allowed).keys == ["б", "а", "в"])
+    #expect(WeakSpots.mostErrors(keys: keys, bigrams: [:], allowed: allowed, boosted: ["а"]).keys == ["а", "б", "в"])
+    // Вес только переставляет: буква без ошибок в рейтинг не попадает, вес 2 у «в» (0,06) обгоняет 0,05 у «а».
+    let clean = keys.merging(["г": KeyMastery(ewmaMs: 300, errorRate: 0, presses: 40)]) { $1 }
+    #expect(WeakSpots.mostErrors(keys: clean, bigrams: [:], allowed: Set("абвг"), boosted: ["г"]).keys == ["б", "а", "в"])
+    #expect(WeakSpots.mostErrors(keys: keys, bigrams: [:], allowed: allowed, boosted: ["в"]).keys == ["б", "в", "а"])
+}

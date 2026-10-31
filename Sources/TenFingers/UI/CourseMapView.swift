@@ -9,6 +9,7 @@ struct CourseMapView: View {
     @Environment(\.palette) private var palette
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
+    @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
     @Query private var progress: [LessonProgress]
     /// Завершённые упражнения курса: из них считаются звёзды и детали по шагам.
     @Query(filter: #Predicate<SessionRecord> { $0.mode == "course" && $0.completed })
@@ -33,6 +34,7 @@ struct CourseMapView: View {
             let passed = passed
             // Гейт этапов издания 2: звёзды проверок по тем же сессиям (у издания 1 порога нет).
             let checkStars = CourseGate.checkStars(course: course, sessions: summaries)
+            let today = LogicalDay.key(for: .now, dayStartHour: dayStartHour)
             // ScrollView, а не List: строки List — отдельные NSHostingView, и при масштабе интерфейса
             // (`uiScaled`) клики в них попадают мимо кнопок.
             ScrollView {
@@ -53,11 +55,17 @@ struct CourseMapView: View {
                                     isStageCheck: lesson.resolvedKind == .stageCheck,
                                     previousPassed: lessonIndex > 0 ? passed.contains(stage.lessons[lessonIndex - 1].id) : true,
                                     bestCheckStars: checkStars[lesson.id] ?? 0, gate: stage.gate)
+                                // «Освежить»: возврат слабо сданного урока (издание 2); день зачёта — логический.
+                                let refresh = RefreshMark(RefreshSchedule.state(
+                                    lessonId: lesson.id,
+                                    passedDay: record?.passedAt.map { LogicalDay.key(for: $0, dayStartHour: dayStartHour) },
+                                    currentStars: overview.stars, sessions: sessions[lesson.id] ?? [],
+                                    targetCpm: target, today: today))
                                 CourseLessonRow(lesson: lesson, language: language, overview: overview,
                                                 targetCpm: target, bestCpm: record?.bestCpm ?? 0, isPassed: record?.passedAt != nil,
                                                 isUnlocked: isUnlocked, unit: unit,
                                                 stepPlan: stepPlan(course, lesson, isExpanded: expanded.contains(lesson.id)),
-                                                isExtern: isExtern,
+                                                isExtern: isExtern, refresh: refresh,
                                                 isExpanded: expandedBinding(lesson.id), start: start)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
@@ -123,6 +131,8 @@ struct CourseLessonRow: View {
     var stepPlan: [ResolvedStep] = []
     /// Проверка этапа, которую можно сдать сразу (предыдущий урок этапа не засчитан): подсказка «экстерном».
     var isExtern = false
+    /// Возврат слабо сданного урока (`RefreshMark`): значок, «трудный» и кнопка «Освежить»; `nil` — возврата нет.
+    var refresh: RefreshMark? = nil
     @Binding var isExpanded: Bool
     let start: (LessonRun) -> Void
 
@@ -145,6 +155,17 @@ struct CourseLessonRow: View {
                                 .help(LessonKindIcon.help(lesson.resolvedKind) ?? "")
                         }
                         Text(lesson.localizedTitle)
+                        if let refresh {
+                            if refresh.isDue {
+                                Image(systemName: RefreshMark.symbol)
+                                    .foregroundStyle(Color.accentColor)
+                                    .help(HelpText.refresh)
+                            }
+                            if refresh.isHard {
+                                Text("трудный").font(.caption).foregroundStyle(.secondary)
+                                    .help(HelpText.hardLesson)
+                            }
+                        }
                         Spacer()
                         // Слева направо: ошибки, скорость, звёзды. Ширина колонок не зависит от значений,
                         // у строки без попыток ячейки пусты, но места не теряют.
@@ -181,6 +202,18 @@ struct CourseLessonRow: View {
                 } else {
                     Color.clear.frame(width: CourseColumns.chevronWidth, height: 18).courseColumnFrame("chevron")
                 }
+            }
+            // Кнопка — отдельной строкой под уроком: колонки строки урока остаются на своих местах.
+            if refresh?.isDue == true {
+                Button {
+                    start(LessonRun(language: language, lessonId: lesson.id, refresh: true))
+                } label: {
+                    Label("Освежить", systemImage: RefreshMark.symbol)
+                }
+                .buttonStyle(.borderless)
+                .disabled(!isUnlocked)
+                .help(HelpText.refresh)
+                .padding(.leading, 32)
             }
             if isExpanded, !overview.steps.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -233,6 +266,28 @@ struct CourseLessonRow: View {
         if step.errorsInBest == 0 { return .green }
         if step.bestAccuracy + LessonScoring.accuracyTolerance < LessonScoring.cleanLessonStepAccuracy { return .orange }
         return .secondary
+    }
+}
+
+/// Что карта курса показывает о возврате урока (`RefreshState`): значок и кнопка «Освежить» — когда возврат наступил,
+/// подпись «трудный» — у «трудного» урока, пока он на расписании (в том числе до срока). Остальным — ничего.
+struct RefreshMark: Equatable {
+    static let symbol = "arrow.clockwise.circle"
+
+    let isDue: Bool
+    let isHard: Bool
+
+    init(isDue: Bool, isHard: Bool) {
+        self.isDue = isDue
+        self.isHard = isHard
+    }
+
+    init?(_ state: RefreshState) {
+        switch state {
+        case .due(_, let hard): self.init(isDue: true, isHard: hard)
+        case .waiting(_, true): self.init(isDue: false, isHard: true)
+        case .waiting(_, false), .none, .closed: return nil
+        }
     }
 }
 

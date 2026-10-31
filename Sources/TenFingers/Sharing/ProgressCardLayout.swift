@@ -18,6 +18,21 @@ private struct ProgressMetrics {
                                        metricTitle: 30, weekday: 30, spacing: 36)
 }
 
+/// «Без календаря»: сколько всего под огнём. От этого — размер огня и заголовка: каждая галочка уменьшает их
+/// понемногу, а не сразу до самого мелкого.
+private enum SummaryLoad {
+    case flameOnly, subtitles, metrics
+
+    init(_ text: ProgressCardText) {
+        self = text.isFlameOnly ? .flameOnly : text.metrics.isEmpty ? .subtitles : .metrics
+    }
+
+    /// Доля от крупного огня и заголовка (только огонь); подписи, наоборот, крупнее, когда показателей нет.
+    var icon: CGFloat { switch self { case .flameOnly: 1; case .subtitles: 0.85; case .metrics: 0.7 } }
+    var headline: CGFloat { switch self { case .flameOnly: 1.2; case .subtitles: 1; case .metrics: 0.9 } }
+    var subtitle: CGFloat { self == .subtitles ? 1.15 : 1 }
+}
+
 /// Широкая раскладка: поля карточки, левая колонка с огнём и показателями и промежуток до календаря.
 private enum WideProgress {
     static let padding: CGFloat = 72
@@ -91,26 +106,26 @@ extension ShareCardView {
 
     /// «Без календаря»: огонь, полные дни и показатели по центру карточки.
     private func wideSummaryOnly(_ text: ProgressCardText) -> some View {
-        let flameOnly = text.isFlameOnly
+        let load = SummaryLoad(text)
         let inner = ShareFormat.wide.size.width - 2 * WideProgress.padding
-        let iconSize: CGFloat = flameOnly ? 200 : 130
+        let iconSize = 200 * load.icon
         return VStack(spacing: 22) {
             if text.showsStreak {
                 HStack(spacing: 36) {
                     eventIcon(size: iconSize)
                     VStack(alignment: .leading, spacing: 10) {
                         header(size: 28)
-                        headline(size: flameOnly ? 92 : 68, alignment: .leading, width: inner - iconSize - 36)
+                        headline(size: 77 * load.headline, alignment: .leading, width: inner - iconSize - 36)
                     }
                 }
             } else {
                 header(size: 28)
             }
-            subtitle(size: 30, alignment: .center, width: inner)
+            subtitle(size: 30 * load.subtitle, alignment: .center, width: inner)
             if !text.metrics.isEmpty {
                 VStack(spacing: 14) {
                     captionLabel(size: 24)
-                    metricsRow(text.metrics, valueSize: 44, titleSize: 22)
+                    metricsRow(text.metrics, valueSize: 46, titleSize: 22)
                 }
             }
         }
@@ -176,21 +191,20 @@ extension ShareCardView {
         }
     }
 
-    /// «Без календаря»: включённые блоки собираются в центре карточки; один только огонь — крупно.
+    /// «Без календаря»: включённые блоки собираются в центре карточки; огонь тем крупнее, чем меньше под ним.
     @ViewBuilder
     private func verticalSummaryOnly(_ text: ProgressCardText, metrics: Metrics, progress: ProgressMetrics)
         -> some View {
-        let flameOnly = text.isFlameOnly
+        let load = SummaryLoad(text)
         let contentWidth = options.format.size.width - 2 * metrics.padding
         Spacer(minLength: 0)
         VStack(spacing: progress.spacing) {
             if text.showsStreak {
-                eventIcon(size: flameOnly ? metrics.icon : progress.icon * 1.5)
+                eventIcon(size: metrics.icon * load.icon)
                 VStack(spacing: 18) {
                     header(size: metrics.header)
-                    headline(size: flameOnly ? metrics.headline * 1.2 : progress.headline, alignment: .center,
-                             width: contentWidth)
-                    subtitle(size: progress.subtitle, alignment: .center, width: contentWidth)
+                    headline(size: metrics.headline * load.headline, alignment: .center, width: contentWidth)
+                    subtitle(size: metrics.subtitle * load.subtitle, alignment: .center, width: contentWidth)
                 }
             } else {
                 header(size: metrics.header)
@@ -199,7 +213,7 @@ extension ShareCardView {
             if !text.metrics.isEmpty {
                 VStack(spacing: progress.spacing * 0.6) {
                     captionLabel(size: progress.metricTitle)
-                    metricsRow(text.metrics, valueSize: progress.metricValue, titleSize: progress.metricTitle)
+                    metricsRow(text.metrics, valueSize: progress.metricValue * 1.2, titleSize: progress.metricTitle)
                 }
             }
         }

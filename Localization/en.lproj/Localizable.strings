@@ -22,10 +22,12 @@
 /* Главная: серия */
 "Займитесь сегодня, чтобы начать серию" = "Practice today to start a streak";
 "Займитесь сегодня, чтобы не прервать серию" = "Practice today to keep your streak going";
-"Заходил: %@ подряд · всего %lld" = "Visited: %@ in a row · %lld total";
+"Искра: %@ подряд · всего %lld" = "Spark: %@ in a row · %lld total";
+"рекорд %@ · всего %lld" = "best %@ · %lld total";
 "Цель: %@ подряд · всего %lld" = "Goal: %@ in a row · %lld total";
 "Заморозки: %lld из %lld" = "Freezes: %lld of %lld";
 "Серия: %@" = "Streak: %@";
+"Искра: %@" = "Spark: %@";
 "Скорость за 7 дней" = "Speed, last 7 days";
 "Точность за 7 дней" = "Accuracy, last 7 days";
 "Адаптивные упражнения" = "Adaptive exercises";
@@ -143,6 +145,7 @@
 /* Тренировка */
 "Тренировка" = "Training";
 "Практика" = "Practice";
+"Повтор" = "Review";
 "Раздел появится в ближайшем обновлении" = "This section will arrive in an upcoming update";
 "Тренировка: %@" = "Training: %@";
 "Адаптивная тренировка" = "Adaptive training";
@@ -292,7 +295,7 @@
 "Самая длинная серия" = "Longest streak";
 "Дни" = "Days";
 "Огонь" = "Flame";
-"Заходил" = "Visited";
+"Искра" = "Spark";
 "Цель выполнена" = "Goal met";
 "Сейчас" = "Now";
 "Рекорд" = "Best";
@@ -551,7 +554,7 @@
 "Половинный огонь: упражнение завершено, но дневная цель ещё не набрана. Серия всё равно продолжается." = "Half flame: you finished an exercise but haven't reached the daily goal yet. The streak still goes on.";
 "Пропуск: в этот день не завершено ни одного упражнения. Серия прервётся, если нет заморозки." = "Missed: no exercise was finished that day. The streak breaks unless a freeze covers it.";
 "Заморозка закрывает один пропущенный день, и серия не прерывается. Новая выдаётся за каждые 7 полных дней подряд, больше двух не копится. Тратится сама, если день пропущен." = "A freeze covers one missed day so your streak survives. You earn one for every 7 full days in a row and can hold up to two. It's used automatically when you miss a day.";
-"«Заходил» — дни, когда завершено хотя бы одно упражнение. Заморозки здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни." = "\"Visited\" counts days with at least one finished exercise. Freezes don't apply here: a missed day resets the run, while \"total\" counts every such day.";
+"«Искра» — дни, когда завершено хотя бы одно упражнение, в том числе один шаг урока. Заморозки здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни." = "\"Spark\" counts days with at least one finished exercise, including a single lesson step. Freezes don't apply here: a missed day resets the run, while \"total\" counts every such day.";
 "«Цель» — дни, когда набрано время дневной цели того дня, то есть полный огонь. Заморозки здесь не действуют: «подряд» — полные дни без перерыва, «всего» — все полные дни." = "\"Goal\" counts days when you reached that day's goal time, that is, a full flame. Freezes don't apply here: \"in a row\" means full days without a break, \"total\" counts every full day.";
 "Текущая неделя: огонь — день с занятиями, снежинка — заморозка, кружок — пропуск. Сегодня обведено пунктиром, дни впереди бледные." = "The current week: a flame is a day with practice, a snowflake a freeze, a circle a missed day. Today has a dashed outline, days ahead are faded.";
 "Цель дня — сколько минут чистого времени нужно набрать, чтобы день стал полным огнём." = "The daily goal is how many minutes of active typing turn a day into a full flame.";
@@ -633,3 +636,43 @@
 "Русский" = "Russian";
 "English" = "English";
 "Курс «Десять пальцев» (%@) пройден · средняя скорость проверок этапов %@" = "TenFingers course (%@) completed · average stage-check speed %@";
+"Освежить" = "Refresh";
+"трудный" = "hard";
+"«Освежить» — одна проверка урока заново. Урок сдан не выше ★★, поэтому он возвращается через 1, 3 и 7 дней; результат ★★★ и выше закрывает возврат." = "“Refresh” is one check of the lesson again. The lesson was passed at ★★ or lower, so it comes back after 1, 3 and 7 days; ★★★ or higher closes the return.";
+"«Трудный» — урок не дался с трёх «Освежить» подряд. Он возвращается раз в 14 дней, пока проверка не наберёт ★★★, а его буквы чаще попадают в «Повтор»." = "“Hard” means the lesson did not go well in three “Refresh” runs in a row. It comes back every 14 days until the check reaches ★★★, and its letters weigh more in “Review”.";
+
+/* Пальцы (6c) */
+"Пальцы идут" = "Fingers in progress";
+"Занятие по пальцу будет завершено. Начать новое занятие?" = "The finger drill will be ended. Start something new?";
+"Точность пальца" = "Finger accuracy";
+"Скорость пальца" = "Finger speed";
+"Цель: 0 ошибок" = "Goal: 0 errors";
+"Хватит" = "Enough";
+"Палец: %@" = "Finger: %@";
+"слабый" = "weak";
+"норма" = "normal";
+"сильный" = "strong";
+"мало данных" = "not enough data";
+"Мало данных: занимайтесь, и здесь появятся пальцы" = "Not enough data yet: keep practicing and your fingers will show up here";
+"Слабый палец — точность ниже 97% за последние 14 дней (не меньше 50 нажатий). Кнопка «Точность» запускает 3 порции слов с буквами этого пальца." = "A weak finger has accuracy below 97% over the last 14 days (at least 50 presses). The “Accuracy” button starts 3 portions of words with this finger's letters.";
+"Сильный палец — точность от 99% (не меньше 100 нажатий) и скорость не ниже порога адаптивной тренировки. Кнопка «Скорость» запускает 4 порции с целью на 10% выше вашей скорости на этом пальце." = "A strong finger has accuracy of 99% or better (at least 100 presses) and speed at or above the adaptive-training threshold. The “Speed” button starts 4 portions aiming 10% above your speed on this finger.";
+
+/* План на сегодня (6c) */
+"Разминка" = "Warm-up";
+"Новый урок" = "New lesson";
+"Текст" = "Text";
+"Освежить «%@»" = "Refresh “%@”";
+"Повтор: %@" = "Review: %@";
+"Фразы из изученных букв" = "Phrases from learned letters";
+"Ещё: Освежить «%@»" = "More: refresh “%@”";
+"План на сегодня" = "Today's plan";
+"План выполнен" = "Plan complete";
+"План на сегодня выполнен" = "Today's plan is complete";
+"Пункт %lld из %lld готов" = "Step %lld of %lld done";
+"Пункт не засчитан" = "Step not counted";
+"Ещё раз: %@" = "Again: %@";
+"Хватит на сегодня" = "Enough for today";
+"На главную" = "Back to Home";
+"Текст плана" = "Plan text";
+"Повтор плана" = "Plan review";
+"План на сегодня собирается из истории каждый день: разминка, урок, тренировка и текст под вашу цель дня. Пункт засчитан, когда упражнение из него завершено. Урок засчитывает проверка урока или половина шагов урока — из плана или с карты курса." = "Today's plan is built from your history every day: a warm-up, a lesson, training and a text sized to your daily goal. A step counts once an exercise from it is finished. The lesson counts after a lesson check or half of the lesson's steps, from the plan or from the course map.";

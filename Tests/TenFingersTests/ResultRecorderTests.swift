@@ -253,3 +253,38 @@ private func textResult(_ text: String, typed: Int? = nil, mode: ExerciseMode = 
     #expect(!session.completed)
     #expect(session.textTraits == 7)
 }
+
+/// «Освежить»: сессия курса вида `refresh` с номером проверки; `recordLesson` засчитывает звёзды, как повтор проверки.
+@MainActor @Test func refreshIsRecordedAsCourseExerciseWithCheckStepIndex() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    var engine = TypingEngine(text: "ао")
+    _ = engine.handle(Keystroke(character: "а", keyCode: 3, timestamp: 0))
+    _ = engine.handle(Keystroke(character: "о", keyCode: 38, timestamp: 0.4))
+    let refreshed = ExerciseResult(engine: engine, mode: .course, language: .ru, lessonId: "ru2.s1.01",
+                                   startedAt: date(23, 12), endedAt: date(23, 12), hintLevel: .full,
+                                   exerciseKind: .refresh, stepIndex: 5)
+    try recorder.commit {
+        try recorder.record(refreshed)
+        try recorder.recordLesson(refreshed, stars: 3)
+    }
+    let session = try #require(try container.mainContext.fetch(FetchDescriptor<SessionRecord>()).first)
+    #expect(session.mode == "course" && session.exerciseKind == "refresh" && session.stepIndex == 5)
+    #expect(session.lessonId == "ru2.s1.01")
+    #expect(try container.mainContext.fetch(FetchDescriptor<LessonProgress>()).first?.bestStars == 3)
+}
+
+/// Пункт плана пишется строкой `PlanSlot.rawValue` и читается обратно в `SessionSummary.planSlot`; без него — `nil`.
+@MainActor @Test func planSlotIsStoredAndReadIntoSummary() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit {
+        try recorder.record(textResult("ао"), source: "plan:text", planSlot: .training)
+        try recorder.record(textResult("оа", mode: .course, lessonId: "ru.1.1", stepIndex: 1))
+    }
+    let records = try container.mainContext.fetch(FetchDescriptor<SessionRecord>())
+    #expect(Set(records.map(\.planSlot)) == ["training", nil])
+    let summaries = try ProgressSnapshot(context: container.mainContext).sessionSummaries()
+    #expect(summaries.first { $0.mode == .practice }?.planSlot == .training)
+    #expect(summaries.first { $0.mode == .course }?.planSlot == nil)
+}

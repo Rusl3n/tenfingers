@@ -11,6 +11,9 @@ public enum AchievementCondition: Equatable, Sendable {
     case streak(days: Int)
     /// N полных дней подряд без заморозок.
     case fullStreakNoFreeze(days: Int)
+    /// «Искра»: N дней подряд с хотя бы одним завершённым упражнением (`.full` или `.half`); замороженный день
+    /// не считается.
+    case sparkStreak(days: Int)
     /// Подходящее упражнение (завершённая проверка урока или завершённое упражнение ≥ 300 знаков) на языке
     /// без единой ошибки (точность 100%) с cpm ≥ N.
     case speed(Language, cpm: Int)

@@ -8,6 +8,10 @@ import TypingCore
 /// (переход в другой раздел запуск только скрывает).
 struct AdaptiveRunnerView: View {
     let language: Language
+    /// Пункт плана дня (`TrainingRun.planSlot`): пишется в каждую порцию.
+    var planSlot: PlanSlot? = nil
+    /// Порций у запуска из плана (`TrainingRun.portions`): итог последней ведёт только к выходу.
+    var portions: Int? = nil
     let onExit: () -> Void
 
     private struct PortionSummary {
@@ -65,14 +69,21 @@ struct AdaptiveRunnerView: View {
                     .id(portion)
             }
         case .summary(let summary):
-            RunSummaryView(title: String(localized: "Порция \(summary.portion) готова"),
-                           cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
-                           lines: lines(for: summary),
-                           newAchievements: coordinator?.newAchievements ?? [],
-                           fullFlame: coordinator?.newFullFlame,
-                           primaryTitle: "Дальше", onPrimary: { begin(summary.portion + 1) },
-                           secondaryTitle: "Закончить", onSecondary: exit)
+            summaryView(summary)
         }
+    }
+
+    /// Итог порции. Запуск из плана: итог последней порции — только «Готово» (дальше ведёт промежуточный экран плана).
+    private func summaryView(_ summary: PortionSummary) -> RunSummaryView {
+        let last = PlanPortions.isLast(summary.portion, limit: portions)
+        return RunSummaryView(title: String(localized: "Порция \(summary.portion) готова"),
+                              cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
+                              lines: lines(for: summary),
+                              newAchievements: coordinator?.newAchievements ?? [],
+                              fullFlame: coordinator?.newFullFlame,
+                              primaryTitle: last ? "Готово" : "Дальше",
+                              onPrimary: { if last { exit() } else { begin(summary.portion + 1) } },
+                              secondaryTitle: last ? nil : "Закончить", onSecondary: last ? nil : { exit() })
     }
 
     private func lines(for summary: PortionSummary) -> [String] {
@@ -113,7 +124,7 @@ struct AdaptiveRunnerView: View {
         // В режиме «По курсу» подсказка всегда полная.
         let hint = (HintMode(rawValue: hintMode) ?? .auto).resolve(.full)
         _ = coordinator.start(spec: spec, language: language, mode: .adaptive, lessonId: nil,
-                              hint: hint, source: "adaptive") { session, result in
+                              hint: hint, source: "adaptive", planSlot: planSlot) { session, result in
             finish(portion: portion, unlockedBefore: count, session: session, result: result)
         }
         phase = .exercise(portion)

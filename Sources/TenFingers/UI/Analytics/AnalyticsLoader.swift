@@ -81,9 +81,10 @@ struct AnalyticsLoader {
     /// или проверка урока любой длины (скорость). Точный отбор — в `Analytics.records`.
     private func recordCandidates() throws -> [SessionSummary] {
         let minimum = Analytics.recordMinimumChars
-        let check: String? = ExerciseKind.check.rawValue
+        // Проверка урока — `check` и `refresh` (`ExerciseKind.isLessonCheck`, как в `Analytics.records`).
+        let check: String? = ExerciseKind.check.rawValue, refresh: String? = ExerciseKind.refresh.rawValue
         let descriptor = FetchDescriptor<SessionRecord>(predicate: #Predicate {
-            $0.completed && ($0.chars >= minimum || $0.exerciseKind == check)
+            $0.completed && ($0.chars >= minimum || $0.exerciseKind == check || $0.exerciseKind == refresh)
         })
         return try context.fetch(descriptor).compactMap(ProgressSnapshot.summary)
     }

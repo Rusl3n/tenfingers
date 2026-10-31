@@ -12,7 +12,7 @@ private func en(_ condition: AchievementCondition) -> String {
 
 /// Условие каждого вида: по одному примеру (порядок — как в `AchievementCondition`).
 private let samples: [AchievementCondition] = [
-    .streak(days: 7), .fullStreakNoFreeze(days: 30), .speed(.ru, cpm: 150), .speed(.en, cpm: 250),
+    .streak(days: 7), .fullStreakNoFreeze(days: 30), .sparkStreak(days: 30), .speed(.ru, cpm: 150), .speed(.en, cpm: 250),
     .perfectAccuracy, .accuracyRun(count: 10, minimum: 0.98), .cleanDay(exercises: 5, minimum: 0.97),
     .firstLesson, .firstStage, .courseCompleted(.ru), .courseCompleted(.en), .polyglot,
     .allLessonsExcellent(.ru), .volumeChars(100_000), .volumeHours(1), .volumeHours(0.5),
@@ -56,6 +56,11 @@ private let samples: [AchievementCondition] = [
     #expect(en(.streak(days: 7)) == "Practice streak, days: 7")
     #expect(ru(.fullStreakNoFreeze(days: 30)) == "Полных дней подряд без заморозок: 30")
     #expect(en(.fullStreakNoFreeze(days: 30)) == "Full days in a row without freezes: 30")
+}
+
+@Test func sparkStreakCondition() {
+    #expect(ru(.sparkStreak(days: 7)) == "Дней подряд хотя бы с одним упражнением: 7")
+    #expect(en(.sparkStreak(days: 7)) == "Days in a row with at least one exercise: 7")
 }
 
 @Test func speedNamesLanguageAndMinimumLength() {

@@ -15,8 +15,8 @@ enum HelpText {
     static var freezes: String {
         String(localized: "Заморозка закрывает один пропущенный день, и серия не прерывается. Новая выдаётся за каждые 7 полных дней подряд, больше двух не копится. Тратится сама, если день пропущен.")
     }
-    static var visitDays: String {
-        String(localized: "«Заходил» — дни, когда завершено хотя бы одно упражнение. Заморозки здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни.")
+    static var spark: String {
+        String(localized: "«Искра» — дни, когда завершено хотя бы одно упражнение, в том числе один шаг урока. Заморозки здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни.")
     }
     static var goalDays: String {
         String(localized: "«Цель» — дни, когда набрано время дневной цели того дня, то есть полный огонь. Заморозки здесь не действуют: «подряд» — полные дни без перерыва, «всего» — все полные дни.")
@@ -45,6 +45,18 @@ enum HelpText {
     }
     static var weakSpots: String {
         String(localized: "Слабые места — клавиши и сочетания, на которых вы чаще ошибаетесь или медленнее печатаете. Упражнение собирает текст из них.")
+    }
+    static var fingerWeak: String {
+        String(localized: "Слабый палец — точность ниже 97% за последние 14 дней (не меньше 50 нажатий). Кнопка «Точность» запускает 3 порции слов с буквами этого пальца.")
+    }
+    static var fingerStrong: String {
+        String(localized: "Сильный палец — точность от 99% (не меньше 100 нажатий) и скорость не ниже порога адаптивной тренировки. Кнопка «Скорость» запускает 4 порции с целью на 10% выше вашей скорости на этом пальце.")
+    }
+    static var refresh: String {
+        String(localized: "«Освежить» — одна проверка урока заново. Урок сдан не выше ★★, поэтому он возвращается через 1, 3 и 7 дней; результат ★★★ и выше закрывает возврат.")
+    }
+    static var hardLesson: String {
+        String(localized: "«Трудный» — урок не дался с трёх «Освежить» подряд. Он возвращается раз в 14 дней, пока проверка не наберёт ★★★, а его буквы чаще попадают в «Повтор».")
     }
     static var speedUnits: String {
         String(localized: "Знаки в минуту — сколько символов, включая пробелы, вы набираете за минуту; считаются знаки после первого — первый запускает таймер. WPM — слова в минуту, слово считается за 5 знаков.")
@@ -106,10 +118,14 @@ enum HelpText {
         }
     }
 
+    static var dayPlan: String {
+        String(localized: "План на сегодня собирается из истории каждый день: разминка, урок, тренировка и текст под вашу цель дня. Пункт засчитан, когда упражнение из него завершено. Урок засчитывает проверка урока или половина шагов урока — из плана или с карты курса.")
+    }
+
     /// Все тексты — для теста длины.
     static var all: [String] {
         [fireFull, fireHalf, fireNone, freezes, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots,
          speedUnits, dayStart, hintMode, spaceThumb, adaptiveTarget, keyboardSize, keyboardOffset, quitOnClose, interfaceLanguage,
-         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, visitDays, goalDays, futureDay, firstWeekday, reminderTest]
+         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, spark, goalDays, futureDay, firstWeekday, reminderTest, refresh, hardLesson, fingerWeak, fingerStrong, dayPlan]
     }
 }

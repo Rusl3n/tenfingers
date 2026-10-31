@@ -37,7 +37,12 @@
 "Слова с ошибками" = "Error words";
 "Спринт" = "Sprint";
 "Числа" = "Numbers";
+"Освежить" = "Refresh";
+"Точность пальца" = "Finger accuracy";
+"Скорость пальца" = "Finger speed";
 "Разминка" = "Warm-up";
+"Урок" = "Lesson";
+"Тренировка" = "Training";
 
 /* Этапы курсов */
 "Основной ряд" = "Home row";
@@ -208,6 +213,14 @@
 "achievement.streak.200.detail" = "Two hundred days. The word \"skip\" is unfamiliar to you";
 "achievement.streak.365.title" = "A Year Without a Miss";
 "achievement.streak.365.detail" = "A year without a miss. The keyboard is thinking about retirement";
+"achievement.spark.7.title" = "First Spark";
+"achievement.spark.7.detail" = "A week of visits in a row, even brief ones. The spark has caught";
+"achievement.spark.30.title" = "Month of Sparks";
+"achievement.spark.30.detail" = "A month without a single dark day. The spark isn't going out";
+"achievement.spark.100.title" = "A Hundred Sparks";
+"achievement.spark.100.detail" = "A hundred days in a row, even one step each. Small, but it keeps burning";
+"achievement.spark.365.title" = "A Year of Sparks";
+"achievement.spark.365.detail" = "A year, and not one day without a spark. The keyboard is delighted";
 "achievement.streak.iron_will.title" = "Iron Will";
 "achievement.streak.iron_will.detail" = "Thirty full days without a single freeze. Pure steel";
 "achievement.streak.fire_month.title" = "No-Excuses Month";
@@ -387,6 +400,7 @@
 
 /* Ачивки: условия получения (AchievementConditionText) */
 "achievement.condition.streak" = "Practice streak, days: %lld";
+"achievement.condition.sparkStreak" = "Days in a row with at least one exercise: %lld";
 "achievement.condition.fullStreak" = "Full days in a row without freezes: %lld";
 "achievement.condition.speed" = "%1$@: a lesson check or an exercise of at least %3$lld characters with no errors at %2$lld cpm or faster";
 "achievement.condition.perfectAccuracy" = "A lesson check or an exercise of at least %lld characters with no errors";

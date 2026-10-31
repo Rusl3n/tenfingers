@@ -28,7 +28,7 @@ struct ProgressCardContent: Equatable {
     var showsTime = true
     var showsSpeed = true
     var showsAccuracy = true
-    /// Строка «Заходил: … подряд · всего …».
+    /// Строка «Искра: … подряд · всего …» (ключ настройки прежний — `shareProgressShowVisits`).
     var showsVisits = true
     /// Строка «Цель: … подряд · всего …».
     var showsGoalDays = true
@@ -119,7 +119,7 @@ struct ProgressCardData: Equatable {
     /// Серия: дней подряд и полных дней в ней.
     let streak: Int
     let fullDays: Int
-    /// «Заходил» и «Цель»: дней подряд и всего (`StreakSummary`).
+    /// «Искра» и «Цель»: дней подряд и всего (`StreakSummary`).
     let visitCurrent: Int
     let visitTotal: Int
     let goalCurrent: Int
@@ -204,7 +204,7 @@ struct ProgressCardText: Equatable {
     var showsCalendar: Bool { period.showsCalendar }
     var showsStreak: Bool { content.showsStreak }
 
-    /// Есть строки под огнём: полные дни, «Заходил» или «Цель».
+    /// Есть строки под огнём: полные дни, «Искра» или «Цель».
     var hasSubtitle: Bool { content.showsFullDays || content.showsVisits || content.showsGoalDays }
 
     /// Остался один огонь: ни строк под ним, ни показателей (и, значит, при «Без календаря» — крупная карточка с одним числом).
@@ -213,7 +213,7 @@ struct ProgressCardText: Equatable {
     /// Есть что показать слева от календаря (или вместо него): огонь, строки под ним или показатели.
     var hasSummary: Bool { content.showsStreak || hasSubtitle || !metrics.isEmpty }
 
-    /// Строки под огнём в порядке «Полные дни», «Заходил», «Цель» — только включённые.
+    /// Строки под огнём в порядке «Полные дни», «Искра», «Цель» — только включённые.
     static func subtitleLines(data: ProgressCardData, content: ProgressCardContent, bundle: Bundle,
                               locale: Locale) -> [String] {
         var lines: [String] = []
@@ -221,8 +221,8 @@ struct ProgressCardText: Equatable {
             lines.append(String(localized: "Полных дней: \(data.fullDays)", bundle: bundle, locale: locale))
         }
         if content.showsVisits {
-            lines.append(DayMetricsText.visits(current: data.visitCurrent, total: data.visitTotal, bundle: bundle,
-                                               locale: locale))
+            lines.append(DayMetricsText.spark(current: data.visitCurrent, total: data.visitTotal, bundle: bundle,
+                                              locale: locale))
         }
         if content.showsGoalDays {
             lines.append(DayMetricsText.goals(current: data.goalCurrent, total: data.goalTotal, bundle: bundle,
