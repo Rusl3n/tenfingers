@@ -178,13 +178,13 @@ public enum DayPlanner {
         // `refresh`) или половина шагов урока пункта (с округлением вверх), с планом или без (решение пользователя
         // 2026-10-31): один шаг из плана урок ещё не засчитывает.
         let done = input.todaySessions.filter { $0.completed && $0.day == input.today }
-        let lessonCheck = done.contains { $0.mode == .course && $0.exerciseKind == .check }
+        let lessonCheck = done.contains { lessonCheckCounts(mode: $0.mode, kind: $0.exerciseKind) }
         let lessonDone: Bool
         if case let .lesson(lessonId, retake) = lesson, !retake {
             let steps = Set(done.filter { $0.mode == .course && $0.lessonId == lessonId && $0.exerciseKind != .refresh }
                 .compactMap(\.stepIndex))
             let count = input.lessonStepCounts[lessonId] ?? 0
-            lessonDone = lessonCheck || (count > 0 && steps.count >= (count + 1) / 2)
+            lessonDone = lessonItemDone(hasCheck: lessonCheck, distinctSteps: steps.count, stepCount: count)
         } else if case .lesson = lesson {
             // «Пересдать проверку»: пункт засчитывает только сама проверка, не её шаги.
             lessonDone = lessonCheck
@@ -201,6 +201,18 @@ public enum DayPlanner {
         let extra = input.dueRefreshes.count > 1 ? input.dueRefreshes[1] : nil
         let extraDone = extra.map { id in done.contains { $0.exerciseKind == .refresh && $0.lessonId == id } } ?? false
         return DayPlan(day: input.today, items: items, extraRefresh: extraDone ? nil : extra)
+    }
+
+    /// Засчитывает ли завершённое упражнение пункт «Урок» как проверка: `check` (не `refresh`) в режиме курса.
+    /// Одно правило для плана дня и для дней с выполненным планом по истории (`AchievementEngine`, 6d).
+    static func lessonCheckCounts(mode: ExerciseMode, kind: ExerciseKind?) -> Bool {
+        mode == .course && kind == .check
+    }
+
+    /// Пункт «Урок» засчитан: была проверка или набрана половина шагов урока (с округлением вверх, число шагов
+    /// известно). Одно правило для плана дня и для дней с выполненным планом по истории.
+    static func lessonItemDone(hasCheck: Bool, distinctSteps: Int, stepCount: Int) -> Bool {
+        hasCheck || (stepCount > 0 && distinctSteps >= (stepCount + 1) / 2)
     }
 
     /// Неотрицательный остаток (номер дня до 1970 года отрицателен).

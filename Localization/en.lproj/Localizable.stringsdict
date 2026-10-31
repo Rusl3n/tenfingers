@@ -34,6 +34,38 @@
 			<string>%lld achievements earned for past practice</string>
 		</dict>
 	</dict>
+	<key>achievement.visits %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld visit</string>
+			<key>other</key>
+			<string>%lld visits</string>
+		</dict>
+	</dict>
+	<key>achievement.grants.more %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>and %lld more</string>
+			<key>other</key>
+			<string>and %lld more</string>
+		</dict>
+	</dict>
 	<key>errors.atMost %lld</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>

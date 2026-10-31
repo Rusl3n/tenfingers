@@ -9,7 +9,7 @@ struct LessonResultView: View {
     let targetCpm: Int
     let hasNext: Bool
     /// Ачивки, полученные за весь урок (и на промежуточных шагах).
-    var newAchievements: [Achievement] = []
+    var newAchievements: [EarnedCard] = []
     /// Полный огонь на любом шаге этого прохода урока.
     var fullFlame: FullFlame?
     /// Пройден последний урок этапа или курса (`ShareEvent.completion`): строка с предложением поделиться.

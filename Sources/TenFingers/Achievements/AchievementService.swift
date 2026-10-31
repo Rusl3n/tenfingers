@@ -18,6 +18,18 @@ struct AchievementService {
     struct Outcome {
         let new: [Achievement]
         let isBackfill: Bool
+        /// Новые выдачи повторяемых ачивок (6d) по возрастанию даты; при `isGrantBackfill` — вся история.
+        var grants: [NewGrant] = []
+        /// Таблица выдач была пуста при запуске: выдачи записаны просмотренными, показывается одна сводка (решение 15).
+        var isGrantBackfill = false
+    }
+
+    /// Новая выдача повторяемой ачивки; `count` — «×N» после неё (первое получение — 1).
+    struct NewGrant: Equatable {
+        let achievement: Achievement
+        let occurrence: String
+        let value: Double?
+        let count: Int
     }
 
     let recorder: ResultRecorder
@@ -83,21 +95,53 @@ struct AchievementService {
     /// откатывает все новые записи (их выдаст следующая проверка).
     func check(reason: Reason) throws -> Outcome {
         let existing = try context.fetch(FetchDescriptor<AchievementRecord>())
+        let existingGrants = try context.fetch(FetchDescriptor<AchievementGrant>())
         let isBackfill = reason == .launch && existing.isEmpty
+        let isGrantBackfill = reason == .launch && existingGrants.isEmpty
         let owned = Set(existing.map(\.achievementId))
-        // Проверяются только ещё не полученные: полученные навсегда.
+        // Разовые проверяются, только пока не получены: полученные навсегда.
         let pending = catalog.filter { !owned.contains($0.id) }
-        guard !pending.isEmpty else { return Outcome(new: [], isBackfill: isBackfill) }
-        let earned = AchievementEngine.evaluate(try facts(), catalog: pending)
-        guard !earned.isEmpty else { return Outcome(new: [], isBackfill: isBackfill) }
+        guard !pending.isEmpty || catalog.contains(where: \.repeatable) else {
+            return Outcome(new: [], isBackfill: isBackfill, isGrantBackfill: isGrantBackfill)
+        }
+        let facts = try facts()
+        // Один `Evaluator`: разовые — по их условию, повторяемые — по первому получению; все получения каталога.
+        let evaluation = AchievementEngine.evaluate(facts, pending: pending, catalog: catalog)
+        let earned = evaluation.earned
+        let byId = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+        // Повторные получения: вставляются только недостающие пары, существующие строки не трогаются.
+        var known = Set(existingGrants.map { Self.grantKey($0.achievementId, $0.occurrence) })
+        var counts: [String: Int] = [:]
+        for grant in existingGrants { counts[grant.achievementId, default: 0] += 1 }
+        var missing: [AchievementOccurrence] = []
+        var grants: [NewGrant] = []
+        for occurrence in evaluation.occurrences
+        where known.insert(Self.grantKey(occurrence.id, occurrence.key)).inserted {
+            guard let achievement = byId[occurrence.id] else { continue }
+            counts[occurrence.id, default: 0] += 1
+            missing.append(occurrence)
+            grants.append(NewGrant(achievement: achievement, occurrence: occurrence.key, value: occurrence.value,
+                                   count: counts[occurrence.id] ?? 1))
+        }
+        guard !earned.isEmpty || !missing.isEmpty else {
+            return Outcome(new: [], isBackfill: isBackfill, isGrantBackfill: isGrantBackfill)
+        }
         try recorder.commit {
             for item in earned {
                 context.insert(AchievementRecord(achievementId: item.id, unlockedAt: item.date, seen: isBackfill))
             }
+            for occurrence in missing {
+                context.insert(AchievementGrant(achievementId: occurrence.id, occurrence: occurrence.key,
+                                                grantedAt: occurrence.date, value: occurrence.value,
+                                                seen: isGrantBackfill))
+            }
         }
-        let byId = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return Outcome(new: earned.compactMap { byId[$0.id] }, isBackfill: isBackfill)
+        return Outcome(new: earned.compactMap { byId[$0.id] }, isBackfill: isBackfill, grants: grants,
+                       isGrantBackfill: isGrantBackfill)
     }
+
+    private static func grantKey(_ id: String, _ occurrence: String) -> String { "\(id)\u{0}\(occurrence)" }
 
     /// То же, но без ошибок: при сбое пишет в журнал и возвращает пустой итог.
     func checkLogging(reason: Reason) -> Outcome {
@@ -130,9 +174,12 @@ struct AchievementService {
             if !known.isEmpty { languages[record.logicalDay] = known }
         }
         let today = LogicalDay.key(for: now, dayStartHour: recorder.dayStartHour(), calendar: calendar)
-        let streak = StreakCalculator.summarize(days: days, today: today, goalSeconds: goalSeconds())
+        let currentGoal = goalSeconds()
+        let streak = StreakCalculator.summarize(days: days, today: today, goalSeconds: currentGoal)
 
         let progress = try context.fetch(FetchDescriptor<LessonProgress>())
+        let lessonSessions = Self.lessonSessions(exercises)
+        let lessonStars = lessonStars(progress: progress, lessonSessions: lessonSessions)
         var passes: [String: Date] = [:]
         var attempts: [String: Int] = [:]
         for record in progress {
@@ -152,10 +199,13 @@ struct AchievementService {
         return AchievementFacts(
             exercises: exercises, days: days, abandonedByDay: abandoned, languagesByDay: languages,
             streakStatuses: streak.statuses, lessonPasses: passes, lessonAttempts: attempts,
-            starsByLesson: stars(progress: progress, exercises: exercises), courses: courses,
+            starsByLesson: lessonStars.stars, courses: courses,
             legacyCourses: legacyCourses,
             openLetterDates: try openLetterDates(passes: passes, exercises: exercises, now: now),
-            counters: counters, yoKeyStatCorrect: yoKeyStatCorrect, timeZone: timeZone, now: now)
+            counters: counters, yoKeyStatCorrect: yoKeyStatCorrect,
+            lessonStarSteps: lessonStars.steps,
+            lessonStepCounts: stepCounts(exercises), timeZone: timeZone, now: now,
+            currentGoalSeconds: currentGoal, today: today)
     }
 
     /// Запись → факт; запись с неизвестным режимом или языком (из более новой версии) пропускается.
@@ -171,14 +221,41 @@ struct AchievementService {
             pinkyPresses: record.pinkyPresses, pinkyErrors: record.pinkyErrors, source: record.source,
             fingerPresses: FingerCounts.counts(record.fingerPresses),
             fingerErrors: FingerCounts.counts(record.fingerErrors), yoCorrect: record.yoPresses,
-            stepIndex: record.stepIndex)
+            stepIndex: record.stepIndex, sessionId: record.id.uuidString, startedAt: record.startedAt,
+            textTraits: record.textTraits, planSlot: record.planSlot.flatMap(PlanSlot.init(rawValue:)))
     }
 
     /// Звёзды уроков обоих изданий — только `LessonScoring.effectiveStars` с целью урока `Course.targetCpm(for:)`
     /// (как карта курса и аналитика): история — завершённые шаги урока (проверки дают звёзды, остальные шаги —
-    /// чистоту урока для ★★★★★, шаги — по номеру в плане).
-    private func stars(progress: [LessonProgress], exercises: [ExerciseFact]) -> [String: Int] {
+    /// чистоту урока для ★★★★★, шаги — по номеру в плане). Для уроков издания 2 текущих курсов в том же проходе
+    /// по урокам считаются и шаги изменения звёзд (`starSteps`).
+    private func lessonStars(progress: [LessonProgress], lessonSessions: [String: [SessionSummary]])
+        -> (stars: [String: Int], steps: [String: [LessonStarStep]]) {
         let stored = Dictionary(progress.map { ($0.lessonId, $0) }, uniquingKeysWith: { first, _ in first })
+        var stars: [String: Int] = [:]
+        var steps: [String: [LessonStarStep]] = [:]
+        let sources = courses.values.map { (course: $0, isCurrent: true) }
+            + legacyCourses.values.map { (course: $0, isCurrent: false) }
+        for (course, isCurrent) in sources {
+            for lesson in course.lessons {
+                let sessions = lessonSessions[lesson.id] ?? []
+                let hasCheck = sessions.contains { $0.exerciseKind?.isLessonCheck ?? false }
+                guard stored[lesson.id] != nil || hasCheck, let target = course.targetCpm(for: lesson.id) else { continue }
+                let record = stored[lesson.id]
+                stars[lesson.id] = LessonScoring.effectiveStars(
+                    sessions: sessions, lessonId: lesson.id, targetCpm: target,
+                    passed: record?.passedAt != nil, storedStars: record?.bestStars ?? 0)
+                if isCurrent, hasCheck, CourseCatalog.edition(ofLessonId: lesson.id) >= 2 {
+                    let lessonSteps = Self.starSteps(sessions: sessions, lessonId: lesson.id, targetCpm: target)
+                    if !lessonSteps.isEmpty { steps[lesson.id] = lessonSteps }
+                }
+            }
+        }
+        return (stars, steps)
+    }
+
+    /// Завершённые шаги уроков по урокам (по возрастанию времени, как в `exercises`) — вход `LessonScoring`.
+    private static func lessonSessions(_ exercises: [ExerciseFact]) -> [String: [SessionSummary]] {
         var lessonSessions: [String: [SessionSummary]] = [:]
         for fact in exercises where fact.completed && fact.exerciseKind != nil {
             guard let lessonId = fact.lessonId else { continue }
@@ -189,16 +266,45 @@ struct AchievementService {
                 lessonId: lessonId, exerciseKind: fact.exerciseKind, cpm: fact.cpm,
                 errorCount: Int((Double(fact.chars) * (1 - fact.accuracy)).rounded()), stepIndex: fact.stepIndex))
         }
-        var result: [String: Int] = [:]
-        for course in Array(courses.values) + Array(legacyCourses.values) {
-            for lesson in course.lessons
-            where stored[lesson.id] != nil || lessonSessions[lesson.id]?.contains(where: { $0.exerciseKind?.isLessonCheck ?? false }) == true {
-                guard let target = course.targetCpm(for: lesson.id) else { continue }
-                let record = stored[lesson.id]
-                result[lesson.id] = LessonScoring.effectiveStars(
-                    sessions: lessonSessions[lesson.id] ?? [], lessonId: lesson.id, targetCpm: target,
-                    passed: record?.passedAt != nil, storedStars: record?.bestStars ?? 0)
+        return lessonSessions
+    }
+
+    /// Изменения звёзд урока издания 2 (6d) по его завершённым упражнениям (по возрастанию времени). Шаги начинаются
+    /// с первой завершённой проверки (`isLessonCheck`): до неё звёзд нет, а хранимые в базе звёзды и зачёт не
+    /// подмешиваются (`storedStars: 0, passed: false`) — они итог всей истории, а не состояние на префиксе.
+    /// Дата шага — упражнение, на котором действующие звёзды (`LessonScoring.effectiveStars` на префиксе, вход как у
+    /// итоговых звёзд) стали другим числом; звёзды могут и убыть (пятая — за чистоту шагов, шаг после проверки
+    /// её отнимает). `checkCpm` — скорость проверки, давшей лучшие звёзды (первой из равных). Пересчёт — только там,
+    /// где звёзды могут измениться: на проверках и на шагах, пока лучшая проверка на пять звёзд (только пятая
+    /// зависит от шагов).
+    private static func starSteps(sessions: [SessionSummary], lessonId: String, targetCpm: Int) -> [LessonStarStep] {
+        var steps: [LessonStarStep] = []
+        var current = 0
+        var best: (stars: Int, cpm: Double)?
+        for (index, session) in sessions.enumerated() {
+            let isCheck = session.exerciseKind?.isLessonCheck ?? false
+            if isCheck {
+                let stars = LessonScoring.stars(cpm: session.speed, accuracy: session.accuracy, targetCpm: targetCpm)
+                if stars > (best?.stars ?? -1) { best = (stars, session.speed) }
             }
+            guard let top = best, isCheck || top.stars >= LessonScoring.maxStars else { continue }
+            let stars = LessonScoring.effectiveStars(
+                sessions: Array(sessions[...index]), lessonId: lessonId, targetCpm: targetCpm,
+                passed: false, storedStars: 0)
+            guard stars != current else { continue }
+            current = stars
+            steps.append(LessonStarStep(date: session.endedAt, stars: stars, checkCpm: top.cpm))
+        }
+        return steps
+    }
+
+    /// Число шагов уроков пункта «Урок» плана — та же функция, что у плана дня (`DayPlanLoader.stepCounts`).
+    private func stepCounts(_ exercises: [ExerciseFact]) -> [String: Int] {
+        let lessonIds = Set(exercises.compactMap { $0.planSlot == .lesson ? $0.lessonId : nil })
+        guard !lessonIds.isEmpty else { return [:] }
+        var result: [String: Int] = [:]
+        for course in courses.values {
+            result.merge(DayPlanLoader.stepCounts(course: course, ids: Array(lessonIds))) { first, _ in first }
         }
         return result
     }

@@ -431,6 +431,27 @@ private func check(_ time: String, _ lessonId: String, cpm: Double, accuracy: Do
     #expect(earned(.polyglot, all) == at("2026-10-03 10:00"))
 }
 
+/// Решение 20: ступени скорости (`tier`) в «Отличнике курса» не считаются; обычный урок ★★★ — по-прежнему «нет».
+@Test func engineAllLessonsExcellentIgnoresSpeedTiers() throws {
+    let course = try CourseFixtures.ruMini()
+    try #require(course.lessons.contains { $0.id == "ru2.s2.04" && $0.resolvedKind == .tier })
+    var stars = Dictionary(uniqueKeysWithValues: course.lessons.map { ($0.id, 4) })
+    let checks = course.lessons.filter { $0.resolvedKind != .tier }.map { check("2026-10-01 10:00", $0.id, cpm: 300) }
+    // Ступень ★★★, остальные ★★★★: получено; даты берутся по обычным урокам, проверки ступени не нужны.
+    stars["ru2.s2.04"] = 3
+    #expect(earned(.allLessonsExcellent(.ru), facts(checks, starsByLesson: stars, courses: [.ru: course]))
+            == at("2026-10-01 10:00"))
+    // Обычный урок ★★★ — нет, даже если ступень ★★★★★.
+    stars["ru2.s2.04"] = 5
+    stars["ru2.s2.03"] = 3
+    #expect(earned(.allLessonsExcellent(.ru), facts(checks, starsByLesson: stars, courses: [.ru: course])) == nil)
+    // Ступени без звёзд вовсе (не начата) — тоже не мешают.
+    stars["ru2.s2.03"] = 4
+    stars["ru2.s2.04"] = nil
+    #expect(earned(.allLessonsExcellent(.ru), facts(checks, starsByLesson: stars, courses: [.ru: course]))
+            == at("2026-10-01 10:00"))
+}
+
 /// «Отличник курса»: издание 1 — как раньше; издание 2 — цель проверки урока `course.targetCpm(for:)`:
 /// у «ru2.s2.03» это 110 (не «от» этапа 90), ★★★★ — от 143 при 100%.
 @Test func engineAllLessonsExcellentUsesLessonTargetOfEitherEdition() throws {
@@ -748,6 +769,12 @@ private func check(_ time: String, _ lessonId: String, cpm: Double, accuracy: Do
         EarnedAchievement(id: "course.first_lesson", date: at("2026-10-23 21:42:30")),
         EarnedAchievement(id: "special.night_owl", date: at("2026-10-24 02:24:09")),
         EarnedAchievement(id: "special.steel_pinkies", date: at("2026-10-24 04:15:30")),
+        // 6d: время суток и заходы (дата — первое получение).
+        EarnedAchievement(id: "time.afternoon", date: at("2026-10-23 15:18:32")),
+        EarnedAchievement(id: "time.evening", date: at("2026-10-23 21:40:34")),
+        EarnedAchievement(id: "habit.visits.2", date: at("2026-10-23 15:18:32")),
+        EarnedAchievement(id: "habit.visits.3", date: at("2026-10-23 17:33:39")),
+        EarnedAchievement(id: "habit.visits.5", date: at("2026-10-24 02:24:09")),
         EarnedAchievement(id: "fun.not_today", date: at("2026-10-24 02:26:56")),
         // 23.10.2026 — пятница, урок в 21:40 (фаза 5).
         EarnedAchievement(id: "fun.friday_night", date: at("2026-10-23 21:40:34")),
@@ -1121,4 +1148,274 @@ private func syntheticHistory() -> (exercises: [ExerciseFact], statuses: [String
     for id in ["accuracy.all_fingers", "fun.yo_master", "volume.exercises.500"] {
         #expect(new[id] == nil, "\(id)")
     }
+}
+
+// MARK: - Вехи курса и «Вайбкодер» (6d, Task 4)
+
+private func catalogCondition(_ id: String) -> AchievementCondition {
+    AchievementCatalog.all.first { $0.id == id }!.condition
+}
+
+@Test func engineDigitsNeedAllTenOfTheLanguage() {
+    let digits = Array("0123456789")
+    var dates: [Character: Date] = [:]
+    for (i, digit) in digits.enumerated() { dates[digit] = at("2026-10-01 10:00").addingTimeInterval(Double(i) * 60) }
+    // Все десять — дата открытия последней по времени, а не по порядку цифр.
+    dates["3"] = at("2026-10-02 10:00")
+    #expect(earned(.keysUnlocked(.ru, .digits), facts(openLetterDates: [.ru: dates])) == at("2026-10-02 10:00"))
+    // Девять из десяти и цифры другого языка не считаются.
+    dates["7"] = nil
+    #expect(earned(.keysUnlocked(.ru, .digits), facts(openLetterDates: [.ru: dates])) == nil)
+    dates["7"] = at("2026-10-01 10:00")
+    #expect(earned(.keysUnlocked(.en, .digits), facts(openLetterDates: [.ru: dates])) == nil)
+    #expect(earned(.keysUnlocked(.en, .digits), facts(openLetterDates: [.en: dates])) == at("2026-10-02 10:00"))
+}
+
+@Test func engineSymbolsAreTheNewKeysOfTheEditionTwoCourseWithoutLettersAndDigits() {
+    let course = Course(language: .ru, edition: 2, stages: [
+        stage("s1", [lesson("l1", ["а", "1"]), lesson("l2", [".", ",", "?"])]),
+        stage("s2", [lesson("l3", ["о", "%", "№"])]),
+    ])
+    var dates: [Character: Date] = ["а": at("2026-10-09 10:00"), "1": at("2026-10-09 10:00"),
+                                    ".": at("2026-10-01 10:00"), ",": at("2026-10-03 10:00"),
+                                    "?": at("2026-10-02 10:00"), "%": at("2026-10-04 10:00")]
+    // «№» ещё не открыт.
+    #expect(earned(.keysUnlocked(.ru, .symbols), facts(courses: [.ru: course], openLetterDates: [.ru: dates])) == nil)
+    dates["№"] = at("2026-10-05 10:00")
+    // Буквы и цифры не требуются (и не сдвигают дату): последний нужный знак — «№».
+    #expect(earned(.keysUnlocked(.ru, .symbols), facts(courses: [.ru: course], openLetterDates: [.ru: dates]))
+            == at("2026-10-05 10:00"))
+    // Нет курса языка, курс без знаков и издание 1 — набора знаков нет, ачивка не выдаётся.
+    #expect(earned(.keysUnlocked(.ru, .symbols), facts(openLetterDates: [.ru: dates])) == nil)
+    #expect(earned(.keysUnlocked(.en, .symbols), facts(courses: [.ru: course], openLetterDates: [.en: dates])) == nil)
+    let bare = Course(language: .ru, edition: 2, stages: [stage("s1", [lesson("l1", ["а", "1"])])])
+    #expect(earned(.keysUnlocked(.ru, .symbols), facts(courses: [.ru: bare], openLetterDates: [.ru: dates])) == nil)
+    let old = Course(language: .ru, edition: 1, stages: [stage("s1", [lesson("l1", [".", ","])])])
+    #expect(earned(.keysUnlocked(.ru, .symbols), facts(courses: [.ru: old], openLetterDates: [.ru: dates])) == nil)
+}
+
+/// Завершённое упражнение-текст: знаки, ошибки, источник и свойства текста (`textTraits`).
+private func textFact(_ time: String, chars: Int, wrong: Int = 0, traits: Int? = nil, source: String? = nil,
+                      completed: Bool = true) -> ExerciseFact {
+    let endedAt = at(time)
+    return ExerciseFact(endedAt: endedAt, logicalDay: logicalDay(endedAt), language: .ru, mode: .practice,
+                        chars: chars, activeSeconds: 60, accuracy: wrong == 0 ? 1 : 0.95, cpm: 200,
+                        completed: completed, wrongKeystrokes: wrong, source: source, textTraits: traits)
+}
+
+@Test func engineCleanTextNeedsCoherentTextOfTheLengthWithoutErrors() {
+    let clean = AchievementCondition.cleanText(minChars: 200, hard: false)
+    #expect(earned(clean, facts([textFact("2026-10-01 10:00", chars: 199, source: "library:x")])) == nil)
+    #expect(earned(clean, facts([textFact("2026-10-01 10:00", chars: 200, source: "library:x")]))
+            == at("2026-10-01 10:00"))
+    // С ошибкой, брошенный и несвязный (нет ни источника, ни признака «связный») — не считаются.
+    #expect(earned(clean, facts([textFact("2026-10-01 10:00", chars: 300, wrong: 1, source: "library:x")])) == nil)
+    #expect(earned(clean, facts([textFact("2026-10-01 10:00", chars: 300, source: "library:x", completed: false)])) == nil)
+    #expect(earned(clean, facts([textFact("2026-10-01 10:00", chars: 300), textFact("2026-10-01 11:00", chars: 300, traits: 7)])) == nil)
+    // Связный — по признаку 8 или по источнику (библиотека, свой текст); берётся первый подходящий.
+    #expect(earned(clean, facts([textFact("2026-10-02 10:00", chars: 200, traits: 8),
+                                 textFact("2026-10-01 10:00", chars: 200, source: "custom")])) == at("2026-10-01 10:00"))
+    #expect(earned(clean, facts([textFact("2026-10-02 10:00", chars: 200, traits: 8)])) == at("2026-10-02 10:00"))
+}
+
+@Test func engineHardTextNeedsCapitalsPunctuationAndDigits() {
+    let hard = AchievementCondition.cleanText(minChars: 200, hard: true)
+    // 1 заглавные, 2 пунктуация, 4 цифры, 8 связный.
+    #expect(earned(hard, facts([textFact("2026-10-01 10:00", chars: 200, traits: 1 | 2 | 4 | 8)])) == at("2026-10-01 10:00"))
+    #expect(earned(hard, facts([textFact("2026-10-01 10:00", chars: 200, traits: 1 | 2 | 8)])) == nil)
+    #expect(earned(hard, facts([textFact("2026-10-01 10:00", chars: 200, traits: 1 | 4 | 8)])) == nil)
+    // До 6a свойств нет: отрывок библиотеки — просто связный текст, а не сложный.
+    #expect(earned(hard, facts([textFact("2026-10-01 10:00", chars: 200, traits: nil, source: "library:x")])) == nil)
+    #expect(earned(hard, facts([textFact("2026-10-01 10:00", chars: 199, traits: 15)])) == nil)
+    #expect(earned(hard, facts([textFact("2026-10-01 10:00", chars: 300, wrong: 2, traits: 15)])) == nil)
+    // Три признака без «связного» и без источника — это не текст.
+    #expect(earned(hard, facts([textFact("2026-10-01 10:00", chars: 300, traits: 7)])) == nil)
+}
+
+@Test func engineLongTextStartsAtSixHundredCharacters() {
+    let long = AchievementCondition.cleanText(minChars: 600, hard: false)
+    #expect(earned(long, facts([textFact("2026-10-01 10:00", chars: 599, traits: 8)])) == nil)
+    #expect(earned(long, facts([textFact("2026-10-01 10:00", chars: 200, traits: 8),
+                                textFact("2026-10-02 10:00", chars: 600, traits: 8)])) == at("2026-10-02 10:00"))
+    #expect(earned(long, facts([textFact("2026-10-01 10:00", chars: 700, wrong: 1, traits: 8)])) == nil)
+}
+
+@Test func engineBlindStageCheckNeedsHiddenHintAndTheStageGate() throws {
+    let course = try CourseFixtures.ruMini()
+    func blind(_ time: String, _ lessonId: String, cpm: Double, accuracy: Double = 1, hint: HintLevel = .hidden,
+               kind: ExerciseKind = .check) -> ExerciseFact {
+        ex(time, mode: .course, lessonId: lessonId, kind: kind, accuracy: accuracy, cpm: cpm, hint: hint)
+    }
+    // Этап 2: цель 110, порог ★★★ — от 110; этап 1: цель 80, порог ★★ — от 64.
+    #expect(earned(.blindStageCheck, facts([blind("2026-10-01 10:00", "ru2.s2.check", cpm: 100)],
+                                           courses: [.ru: course])) == nil, "ниже порога")
+    #expect(earned(.blindStageCheck, facts([blind("2026-10-01 10:00", "ru2.s2.check", cpm: 300, hint: .full),
+                                            blind("2026-10-01 11:00", "ru2.s2.check", cpm: 300, hint: .onError)],
+                                           courses: [.ru: course])) == nil, "подсказка не скрыта")
+    #expect(earned(.blindStageCheck, facts([blind("2026-10-01 10:00", "ru2.s2.01", cpm: 300),
+                                            blind("2026-10-01 11:00", "ru2.s2.check", cpm: 300, kind: .text)],
+                                           courses: [.ru: course])) == nil, "не проверка этапа")
+    #expect(earned(.blindStageCheck, facts([blind("2026-10-01 10:00", "ru2.s2.check", cpm: 110)],
+                                           courses: [.ru: course])) == at("2026-10-01 10:00"))
+    // Любой этап: самый ранний из подходящих.
+    #expect(earned(.blindStageCheck, facts([blind("2026-10-03 10:00", "ru2.s2.check", cpm: 110),
+                                            blind("2026-10-02 10:00", "ru2.s1.check", cpm: 70, accuracy: 0.97)],
+                                           courses: [.ru: course])) == at("2026-10-02 10:00"))
+    // Без курса этапы неизвестны.
+    #expect(earned(.blindStageCheck, facts([blind("2026-10-01 10:00", "ru2.s2.check", cpm: 300)])) == nil)
+}
+
+@Test func engineVibeCoderNeedsEveryLetterOfTheFourWords() throws {
+    func achievement(_ id: String) throws -> Achievement { try #require(AchievementCatalog.all.first { $0.id == id }) }
+    let ruLetters = Set("сделайисправьпродолжайдавай")
+    var dates = Dictionary(uniqueKeysWithValues: ruLetters.map { ($0, at("2026-10-01 10:00")) })
+    dates["ж"] = nil
+    func result(_ id: String, _ open: [Language: [Character: Date]]) throws -> [EarnedAchievement] {
+        AchievementEngine.evaluate(facts(openLetterDates: open), catalog: [try achievement(id)])
+    }
+    #expect(try result("fun.vibe_coder.ru", [.ru: dates]).isEmpty)
+    dates["ж"] = at("2026-10-04 10:00")
+    #expect(try result("fun.vibe_coder.ru", [.ru: dates]).map(\.date) == [at("2026-10-04 10:00")])
+    let enLetters = Set("fixcheckmakerefactor")
+    var enDates = Dictionary(uniqueKeysWithValues: enLetters.map { ($0, at("2026-10-02 10:00")) })
+    #expect(try result("fun.vibe_coder.en", [.en: enDates]).map(\.date) == [at("2026-10-02 10:00")])
+    enDates["x"] = nil
+    #expect(try result("fun.vibe_coder.en", [.en: enDates]).isEmpty)
+    #expect(try result("fun.vibe_coder.en", [.ru: dates]).isEmpty)
+}
+
+@Test func engineMilestoneCatalogConditionsAreWiredToTheEngine() {
+    // Каждое условие вех в каталоге понятно движку: без истории — не получена, с пустыми фактами не падает.
+    for achievement in AchievementCatalog.all where achievement.category == .milestone {
+        #expect(AchievementEngine.evaluate(facts(), catalog: [achievement]).isEmpty, "«\(achievement.id)»")
+    }
+    #expect(catalogCondition("milestone.first_plan") == .firstPlanDay)
+    #expect(catalogCondition("milestone.first_tier") == .firstTier)
+}
+
+// MARK: - Дистанция и новые ступени (6d, Task 5)
+
+/// Момент i-го упражнения подряд: по десять упражнений в день, с 1 ноября 2026, с шагом 5 минут от 10:00.
+private func slot(_ index: Int) -> String {
+    String(format: "2026-11-%02d 10:%02d", 1 + index / 10, (index % 10) * 5)
+}
+
+@Test func distanceSpacesCountOnlySessionsWithFingerStatistics() {
+    func spaces(_ n: Int) -> (presses: [Finger: Int], errors: [Finger: Int]) { ([.thumb: n, .leftIndex: 5], [:]) }
+    let list = [
+        ex("2026-11-01 10:00", fingers: spaces(40)),
+        ex("2026-11-01 10:05"),                        // до 1.1.0: статистики пальцев нет — не считается
+        ex("2026-11-01 10:10", completed: false, fingers: spaces(40)),  // брошенное считается, как объём
+        ex("2026-11-01 10:15", fingers: spaces(40)),
+    ]
+    let f = facts(list)
+    #expect(earned(.distance(.spaces, 100), f) == at("2026-11-01 10:15"))
+    #expect(earned(.distance(.spaces, 80), f) == at("2026-11-01 10:10"))
+    #expect(earned(.distance(.spaces, 121), f) == nil)
+    // Без статистики пробелов нет вовсе, как бы много ни было упражнений.
+    #expect(earned(.distance(.spaces, 1), facts((0..<20).map { ex(slot($0), chars: 1000) })) == nil)
+}
+
+@Test func distancePinkiesSumPinkyPressesOfAllExercises() {
+    let f = facts([ex("2026-11-01 10:00", pinkyPresses: 30), ex("2026-11-01 10:05", pinkyPresses: 30, pinkyErrors: 2),
+                   ex("2026-11-01 10:10", completed: false, pinkyPresses: 30)])
+    #expect(earned(.distance(.pinkies, 60), f) == at("2026-11-01 10:05"))
+    #expect(earned(.distance(.pinkies, 90), f) == at("2026-11-01 10:10"))
+    #expect(earned(.distance(.pinkies, 91), f) == nil)
+}
+
+@Test func distanceTrainingsCountFinishedAdaptiveAndWeakRounds() {
+    let list = [
+        ex("2026-11-01 10:00", mode: .adaptive), ex("2026-11-01 10:05", mode: .practice),
+        ex("2026-11-01 10:10", mode: .weak, source: "finger:leftPinky"), ex("2026-11-01 10:15", mode: .adaptive, completed: false),
+        ex("2026-11-01 10:20", mode: .course, lessonId: "l1", kind: .check), ex("2026-11-01 10:25", mode: .weak),
+    ]
+    let f = facts(list)
+    #expect(earned(.distance(.trainings, 3), f) == at("2026-11-01 10:25"))
+    #expect(earned(.distance(.trainings, 2), f) == at("2026-11-01 10:10"))
+    #expect(earned(.distance(.trainings, 4), f) == nil)
+}
+
+@Test func distanceLessonsCountChecksInCourseModeNotRefreshes() {
+    let list = [
+        ex("2026-11-01 10:00", mode: .course, lessonId: "l1", kind: .words),
+        ex("2026-11-01 10:05", mode: .course, lessonId: "l1", kind: .check),
+        ex("2026-11-01 10:10", mode: .course, lessonId: "l1", kind: .refresh),          // «Освежить» не засчитывается
+        ex("2026-11-02 10:00", mode: .course, lessonId: "l1", kind: .check),            // переигровка засчитывается
+        ex("2026-11-02 10:05", mode: .course, lessonId: "l2", kind: .check, completed: false),
+        ex("2026-11-02 10:10", mode: .practice, kind: .check),
+        ex("2026-11-03 10:00", mode: .course, lessonId: "l2", kind: .check),
+    ]
+    let f = facts(list)
+    #expect(earned(.distance(.lessons, 2), f) == at("2026-11-02 10:00"))
+    #expect(earned(.distance(.lessons, 3), f) == at("2026-11-03 10:00"))
+    #expect(earned(.distance(.lessons, 4), f) == nil)
+}
+
+@Test func distanceTextsNeedCoherentTextsOfThreeHundredChars() {
+    let f299 = facts([ex("2026-11-01 10:00", chars: 299, source: "library:a")])
+    #expect(earned(.distance(.texts, 1), f299) == nil)
+    let list = [
+        ex("2026-11-01 10:00", chars: 300, source: "library:a"),
+        ex("2026-11-01 10:05", chars: 900),                                          // не связный текст
+        ex("2026-11-01 10:10", chars: 500, completed: false, source: "library:b"),   // брошенный
+        ex("2026-11-01 10:15", chars: 300, source: "custom"),
+    ]
+    let f = facts(list)
+    #expect(earned(.distance(.texts, 2), f) == at("2026-11-01 10:15"))
+    #expect(earned(.distance(.texts, 3), f) == nil)
+}
+
+@Test func distancePlansCountDaysWithACompletedPlan() {
+    func planned(_ day: String, _ slots: [PlanSlot]) -> [ExerciseFact] {
+        slots.enumerated().map { index, slot in
+            let ended = at("\(day) 10:\(String(format: "%02d", index * 10))")
+            return ExerciseFact(endedAt: ended, logicalDay: logicalDay(ended), language: .ru,
+                                mode: slot == .lesson ? .course : .practice, lessonId: slot == .lesson ? "l1" : nil,
+                                exerciseKind: slot == .lesson ? .check : nil, chars: 300, activeSeconds: 60,
+                                accuracy: 1, cpm: 200, completed: true, planSlot: slot)
+        }
+    }
+    let list = planned("2026-11-01", [.warmup, .lesson, .training, .text])
+        + planned("2026-11-02", [.warmup, .lesson, .training])                    // нет текста — план не выполнен
+        + planned("2026-11-03", [.text, .training, .warmup, .lesson])
+    let f = facts(list)
+    #expect(earned(.distance(.plans, 1), f) == at("2026-11-01 10:30"))
+    #expect(earned(.distance(.plans, 2), f) == at("2026-11-03 10:30"))
+    #expect(earned(.distance(.plans, 3), f) == nil)
+    // Без `planSlot` (до 2.1.0) дней с планом нет.
+    #expect(earned(.distance(.plans, 1), facts((0..<8).map { ex(slot($0)) })) == nil)
+}
+
+@Test func perfectCountNeedsNQualifyingExercisesAtHundredPercent() {
+    var list = (0..<99).map { ex(slot($0), chars: 300) }
+    list.append(ex(slot(99), chars: 299))                                           // не подходит: короткое, не проверка
+    list.append(ex(slot(100), chars: 300, accuracy: 0.99, wrong: 3))                // не 100%
+    list.append(ex(slot(101), chars: 300, completed: false))                       // брошено
+    #expect(earned(.perfectCount(100), facts(list)) == nil)
+    list.append(ex(slot(102), mode: .course, lessonId: "l1", kind: .check, chars: 60))  // проверка урока подходит
+    #expect(earned(.perfectCount(100), facts(list)) == at(slot(102)))
+    #expect(earned(.perfectCount(99), facts(list)) == at(slot(98)))
+    // Первое подходящее на 100% — то же, что «Снайпер».
+    #expect(earned(.perfectCount(1), facts(list)) == earned(.perfectAccuracy, facts(list)))
+}
+
+@Test func cleanDaysCountLogicalDaysByTheCleanDayRule() {
+    func day(_ number: Int, _ accuracies: [Double]) -> [ExerciseFact] {
+        accuracies.enumerated().map { index, accuracy in
+            ex(String(format: "2026-11-%02d 1%d:00", number, index), accuracy: accuracy)
+        }
+    }
+    let list = day(1, [1, 0.99, 0.98])
+        + day(2, [1, 0.96, 1])        // второе упражнение ниже порога — день не чистый
+        + day(3, [1])                  // меньше двух упражнений
+        + day(4, [0.97, 0.97, 0.5])    // первые два чистые, третье дня не отменяет
+        + day(5, [1, 1])
+    let f = facts(list)
+    #expect(earned(.cleanDays(count: 1, exercises: 2, minimum: 0.97), f) == at("2026-11-01 11:00"))
+    #expect(earned(.cleanDays(count: 2, exercises: 2, minimum: 0.97), f) == at("2026-11-04 11:00"))
+    #expect(earned(.cleanDays(count: 3, exercises: 2, minimum: 0.97), f) == at("2026-11-05 11:00"))
+    #expect(earned(.cleanDays(count: 4, exercises: 2, minimum: 0.97), f) == nil)
+    // Один чистый день — прежняя «Чистюля».
+    #expect(earned(.cleanDays(count: 1, exercises: 2, minimum: 0.97), f) == earned(.cleanDay(exercises: 2, minimum: 0.97), f))
 }

@@ -27,8 +27,54 @@ public enum AchievementEngine {
     }
 }
 
+extension AchievementEngine {
+    /// Итог проверки сервисом: новые ачивки (в порядке `pending`) и все получения повторяемых ачивок каталога.
+    public struct Evaluation: Equatable, Sendable {
+        public let earned: [EarnedAchievement]
+        public let occurrences: [AchievementOccurrence]
+    }
+
+    /// Проверка за один `Evaluator`: разовые из `pending` — по условию (`evaluate`), повторяемые из `pending` — по
+    /// первому получению (дата уже не позже `facts.now`); `occurrences` — получения всего `catalog`.
+    public static func evaluate(_ facts: AchievementFacts, pending: [Achievement],
+                                catalog: [Achievement] = AchievementCatalog.all) -> Evaluation {
+        let evaluator = Evaluator(facts)
+        let all = occurrences(evaluator, catalog: catalog)
+        var first: [String: Date] = [:]
+        for occurrence in all where first[occurrence.id] == nil { first[occurrence.id] = occurrence.date }
+        let earned = pending.compactMap { achievement -> EarnedAchievement? in
+            if achievement.repeatable { return first[achievement.id].map { EarnedAchievement(id: achievement.id, date: $0) } }
+            return evaluator.date(for: achievement.condition).map {
+                EarnedAchievement(id: achievement.id, date: min($0, facts.now))
+            }
+        }
+        return Evaluation(earned: earned, occurrences: all)
+    }
+
+    /// Получения повторяемых ачивок каталога по фактам (6d): по возрастанию даты (при равных — в порядке каталога),
+    /// даты не позже `facts.now`. Неповторяемые ачивки в список не входят. Одно получение — пара `(id, key)`:
+    /// повторная проверка по тем же фактам даёт тот же список, поэтому сервис вставляет только недостающие пары.
+    public static func occurrences(_ facts: AchievementFacts,
+                                   catalog: [Achievement] = AchievementCatalog.all) -> [AchievementOccurrence] {
+        occurrences(Evaluator(facts), catalog: catalog)
+    }
+
+    private static func occurrences(_ evaluator: Evaluator, catalog: [Achievement]) -> [AchievementOccurrence] {
+        var found: [(order: Int, occurrence: AchievementOccurrence)] = []
+        for (order, achievement) in catalog.enumerated() where achievement.repeatable {
+            for occurrence in evaluator.occurrences(of: achievement) where occurrence.date <= evaluator.facts.now {
+                found.append((order, occurrence))
+            }
+        }
+        found.sort {
+            ($0.occurrence.date, $0.order, $0.occurrence.key) < ($1.occurrence.date, $1.order, $1.occurrence.key)
+        }
+        return found.map(\.occurrence)
+    }
+}
+
 /// Местные время и дата завершения упражнения в `facts.timeZone` (считаются один раз).
-private struct LocalTime {
+struct LocalTime {
     let hour: Int
     let minute: Int
     let month: Int
@@ -37,7 +83,7 @@ private struct LocalTime {
     let weekday: Int
 }
 
-private struct Evaluator {
+struct Evaluator {
     let facts: AchievementFacts
     let calendar: Calendar
     /// Григорианский календарь в UTC для `dayNumber`: создаётся один раз, а не на каждый день.
@@ -51,6 +97,8 @@ private struct Evaluator {
     let byDay: [String: [ExerciseFact]]
     /// Номера логических дней упражнений (`dayNumber`), посчитанные один раз: окна по дням смотрят их много раз.
     let dayNumbers: [String: Int]
+    /// Логический день → `endedAt` упражнений, открывших 1-й, 2-й, … заход дня (решение 5): индекс k — заход k + 1.
+    let visitOpenings: [String: [Date]]
 
     init(_ facts: AchievementFacts) {
         self.facts = facts
@@ -73,7 +121,33 @@ private struct Evaluator {
             if let number = Self.dayNumber(day, calendar: utc) { numbers[day] = number }
         }
         dayNumbers = numbers
+        visitOpenings = Self.visitOpenings(completed)
     }
+
+    /// Заходы по дням за один проход: упражнения дня по `effectiveStartedAt`; новый заход — если от `endedAt`
+    /// предыдущего до начала следующего больше часа. Открывает заход то упражнение, которое его начало,
+    /// а дата получения — его `endedAt`.
+    private static func visitOpenings(_ completed: [ExerciseFact]) -> [String: [Date]] {
+        var result: [String: [Date]] = [:]
+        for (day, list) in Dictionary(grouping: completed, by: \.logicalDay) {
+            let ordered = list.sorted { $0.effectiveStartedAt < $1.effectiveStartedAt }
+            var openings: [Date] = []
+            var previousEnd: Date?
+            for fact in ordered {
+                if let end = previousEnd {
+                    if fact.effectiveStartedAt.timeIntervalSince(end) > visitGap { openings.append(fact.endedAt) }
+                } else {
+                    openings.append(fact.endedAt)
+                }
+                previousEnd = fact.endedAt
+            }
+            result[day] = openings
+        }
+        return result
+    }
+
+    /// Перерыв между упражнениями, после которого начинается новый заход, секунд.
+    private static let visitGap: TimeInterval = 3600
 
     func date(for condition: AchievementCondition) -> Date? {
         switch condition {
@@ -116,6 +190,33 @@ private struct Evaluator {
             return crossing(exercises, hours * 3600) { $0.activeSeconds }
         case let .finishedBetween(startHour, endHour):
             return firstLocal { $0.hour >= startHour && $0.hour < endHour }
+        case let .dayPart(startHour, endHour):
+            return firstLocal { $0.hour >= startHour && $0.hour < endHour }
+        case .visits(let count):
+            guard count > 0 else { return nil }
+            return visitOpenings.values.compactMap { $0.count >= count ? $0[count - 1] : nil }.min()
+        case .speedRecord, .stagePassed, .lessonStars, .tierPassed, .planWeek, .goalMultiple, .slowAndSteady,
+             .firstTry:
+            // Повторяемые: дата ачивки — первое получение (`AchievementOccurrences.swift`).
+            return rawOccurrences(for: condition).map(\.date).min()
+        case let .keysUnlocked(language, group):
+            return keysDate(language, group)
+        case let .cleanText(minChars, hard):
+            return firstCompleted { isCleanText($0, minChars: minChars, hard: hard) }
+        case .blindStageCheck:
+            return blindStageCheckDate()
+        case .firstPlanDay:
+            return planDoneDays().first?.date
+        case let .distance(kind, count):
+            return distanceDate(kind, count)
+        case .perfectCount(let count):
+            return nth(count, of: completed.filter {
+                Analytics.isQualifyingLength(kind: $0.exerciseKind, chars: $0.chars) && $0.accuracy >= 1
+            })
+        case let .cleanDays(count, exercises, minimum):
+            return cleanDaysDate(count: count, exercises: exercises, minimum: minimum)
+        case .firstTier:
+            return rawOccurrences(for: .tierPassed).map(\.date).min()
         case .noKeyboard:
             return firstQualifying { $0.hintLevel == .hidden }
         case .steelPinkies(let presses):
@@ -178,6 +279,8 @@ private struct Evaluator {
             return weekendStreakDate(count)
         case let .almostPerfect(minChars, minimum):
             return firstCompleted { $0.chars >= minChars && $0.accuracy >= minimum && $0.accuracy < 1 }
+        case .allFingersDrilled:
+            return allFingersDrilledDate()
         }
     }
 
@@ -199,8 +302,36 @@ private struct Evaluator {
         completedLocal.first { matches($0.local) }?.fact.endedAt
     }
 
+    /// Дата N-го упражнения списка (по возрастанию `endedAt`); `nil`, если их меньше.
+    private func nth(_ count: Int, of list: [ExerciseFact]) -> Date? {
+        count > 0 && list.count >= count ? list[count - 1].endedAt : nil
+    }
+
+    /// Решение 11: дата упражнения (дня плана), на котором дистанция перешла порог. Пробелы, мизинцы — суммы по всем
+    /// упражнениям, и брошенным (как объём); сессии без `fingerPresses` пробелов не дают.
+    private func distanceDate(_ kind: DistanceKind, _ count: Int) -> Date? {
+        guard count > 0 else { return nil }
+        switch kind {
+        case .spaces:
+            return crossing(exercises, Double(count)) { Double($0.fingerPresses?[.thumb] ?? 0) }
+        case .pinkies:
+            return crossing(exercises, Double(count)) { Double($0.pinkyPresses) }
+        case .trainings:
+            return nth(count, of: completed.filter { $0.mode == .adaptive || $0.mode == .weak })
+        case .lessons:
+            return nth(count, of: completed.filter { $0.mode == .course && $0.exerciseKind == .check })
+        case .texts:
+            return nth(count, of: completed.filter {
+                $0.chars >= Analytics.recordMinimumChars && isCoherentText($0)
+            })
+        case .plans:
+            let days = planDoneDays()
+            return days.count >= count ? days[count - 1].date : nil
+        }
+    }
+
     /// Упражнение, на котором накопленная сумма `value` впервые достигла `threshold`.
-    private func crossing(_ list: [ExerciseFact], _ threshold: Double, _ value: (ExerciseFact) -> Double) -> Date? {
+    func crossing(_ list: [ExerciseFact], _ threshold: Double, _ value: (ExerciseFact) -> Double) -> Date? {
         var sum = 0.0
         for exercise in list {
             sum += value(exercise)
@@ -333,7 +464,7 @@ private struct Evaluator {
     // MARK: Дни
 
     /// Логические дни по возрастанию: из упражнений и из всех дневных фактов.
-    private var allDayKeys: [String] {
+    var allDayKeys: [String] {
         var keys = Set(byDay.keys)
         keys.formUnion(facts.days.keys)
         keys.formUnion(facts.abandonedByDay.keys)
@@ -341,14 +472,30 @@ private struct Evaluator {
         return keys.sorted()
     }
 
-    /// Первые N завершённых упражнений дня — все с точностью ≥ minimum; дата — N-е из них.
-    private func cleanDayDate(count: Int, minimum: Double) -> Date? {
-        guard count > 0 else { return nil }
+    /// Даты «чистых» дней по возрастанию: день чист, если первые `exercises` завершённых упражнений дня все с
+    /// точностью ≥ `minimum`; дата дня — последнее из этих упражнений. Даты растут вместе с днями.
+    private func cleanDayDates(exercises: Int, minimum: Double) -> [Date] {
+        guard exercises > 0 else { return [] }
+        var dates: [Date] = []
         for day in byDay.keys.sorted() {
-            let done = byDay[day, default: []].filter(\.completed).prefix(count)
-            if done.count == count && done.allSatisfy({ $0.accuracy >= minimum }) { return done.last?.endedAt }
+            let done = byDay[day, default: []].filter(\.completed).prefix(exercises)
+            if done.count == exercises && done.allSatisfy({ $0.accuracy >= minimum }), let last = done.last {
+                dates.append(last.endedAt)
+            }
         }
-        return nil
+        return dates.sorted()
+    }
+
+    /// Первый чистый день: первые N завершённых упражнений дня — все с точностью ≥ minimum; дата — N-е из них.
+    private func cleanDayDate(count: Int, minimum: Double) -> Date? {
+        cleanDayDates(exercises: count, minimum: minimum).first
+    }
+
+    /// N-й чистый день (даты чистых дней растут вместе с днями, поэтому N-й день — N-я по возрастанию дата).
+    private func cleanDaysDate(count: Int, exercises: Int, minimum: Double) -> Date? {
+        guard count > 0 else { return nil }
+        let dates = cleanDayDates(exercises: exercises, minimum: minimum)
+        return dates.count >= count ? dates[count - 1] : nil
     }
 
     private func abandonsDate(_ count: Int) -> Date? {
@@ -505,19 +652,27 @@ private struct Evaluator {
     }
 
     /// Курсы языка обоих изданий (текущий и архив); курсовые ачивки засчитываются по любому (решение 17).
-    private func editions(_ language: Language) -> [Course] {
+    func editions(_ language: Language) -> [Course] {
         [facts.courses[language], facts.legacyCourses[language]].compactMap { $0 }
     }
 
     /// Дата прохождения этапа. Издание 1 — все уроки этапа засчитаны (`passDate`); издание 2 — первая завершённая
     /// проверка этапа (шаг `check` урока `checkLesson`) со звёздами по цели этого урока не ниже порога `gate` (§3).
-    private func stageDate(_ stage: Stage, in course: Course) -> Date? {
+    func stageDate(_ stage: Stage, in course: Course) -> Date? {
         guard course.edition >= 2 else { return passDate(of: stage.lessons) }
+        return gatePass(of: stage, in: course, among: completed)?.date
+    }
+
+    /// Издание 2: первая завершённая проверка этапа среди `candidates` (по возрастанию времени) со звёздами по цели
+    /// урока не ниже `Stage.gate` — её дата и звёзды. Общее правило `stageDate` и `stagesPassed`.
+    func gatePass(of stage: Stage, in course: Course,
+                  among candidates: [ExerciseFact]) -> (date: Date, stars: Int)? {
         guard let check = stage.checkLesson, let target = course.targetCpm(for: check.id) else { return nil }
-        return completed.first {
-            $0.lessonId == check.id && ($0.exerciseKind?.isLessonCheck ?? false)
-                && LessonScoring.stars(cpm: $0.cpm, accuracy: $0.accuracy, targetCpm: target) >= stage.gate
-        }?.endedAt
+        for fact in candidates where fact.lessonId == check.id && (fact.exerciseKind?.isLessonCheck ?? false) {
+            let stars = LessonScoring.stars(cpm: fact.cpm, accuracy: fact.accuracy, targetCpm: target)
+            if stars >= stage.gate { return (fact.endedAt, stars) }
+        }
+        return nil
     }
 
     /// Дата прохождения курса. Издание 1 — все уроки засчитаны; издание 2 — ещё и итоговая проверка взяла порог
@@ -539,15 +694,16 @@ private struct Evaluator {
         editions(language).compactMap(allLessonsExcellentDate).min()
     }
 
-    /// Все уроки не ниже ★★★★ (`LessonScoring.excellentStars`) по `starsByLesson`; дата — последняя из первых
-    /// ★★★★-проверок уроков (цель — `course.targetCpm(for:)`, как у звёзд урока), а если хоть у одного урока
-    /// такой проверки в истории нет — `now`.
+    /// Все уроки, кроме ступеней скорости (`tier`, решение 20 6d), не ниже ★★★★ (`LessonScoring.excellentStars`) по
+    /// `starsByLesson`; дата — последняя из первых ★★★★-проверок этих уроков (цель — `course.targetCpm(for:)`, как у
+    /// звёзд урока), а если хоть у одного урока такой проверки в истории нет — `now`.
     private func allLessonsExcellentDate(_ course: Course) -> Date? {
         let excellent = LessonScoring.excellentStars
-        guard !course.lessons.isEmpty,
-              course.lessons.allSatisfy({ (facts.starsByLesson[$0.id] ?? 0) >= excellent }) else { return nil }
+        let lessons = course.lessons.filter { $0.resolvedKind != .tier }
+        guard !lessons.isEmpty,
+              lessons.allSatisfy({ (facts.starsByLesson[$0.id] ?? 0) >= excellent }) else { return nil }
         var latest: Date?
-        for lesson in course.lessons {
+        for lesson in lessons {
             guard let target = course.targetCpm(for: lesson.id) else { return nil }
             let excellentCheck = completed.first {
                 $0.lessonId == lesson.id && ($0.exerciseKind?.isLessonCheck ?? false)
@@ -569,16 +725,75 @@ private struct Evaluator {
         return latest
     }
 
+    // MARK: Вехи курса
+
+    private static let digits = Set("0123456789")
+
+    /// Решение 10: цифры — все десять; знаки — `newKeys` издания 2 текущего курса языка, кроме букв и цифр (у курса
+    /// без знаков или издания 1 набора нет, и ачивка не выдаётся). Дата — открытие последней нужной клавиши.
+    private func keysDate(_ language: Language, _ group: KeyGroup) -> Date? {
+        switch group {
+        case .digits:
+            return lettersDate(language, Self.digits)
+        case .symbols:
+            guard let course = facts.courses[language], course.edition >= 2 else { return nil }
+            let symbols = Set(course.lessons.flatMap(\.newCharacters).filter { !$0.isLetter && !$0.isNumber })
+            return lettersDate(language, symbols)
+        }
+    }
+
+    /// Связный текст: признак «связный» (`textTraits & 8`) или текст вне курса из библиотеки или свой.
+    private func isCoherentText(_ fact: ExerciseFact) -> Bool {
+        if let traits = fact.textTraits, traits & Self.coherentTrait != 0 { return true }
+        guard let source = fact.source else { return false }
+        return source == "custom" || source.hasPrefix("library:")
+    }
+
+    private static let coherentTrait = 8
+    /// Заглавные (1), пунктуация (2) и цифры (4).
+    private static let hardTraits = 1 | 2 | 4
+
+    private func isCleanText(_ fact: ExerciseFact, minChars: Int, hard: Bool) -> Bool {
+        guard fact.chars >= minChars, fact.wrongKeystrokes == 0, isCoherentText(fact) else { return false }
+        guard hard else { return true }
+        return (fact.textTraits ?? 0) & Self.hardTraits == Self.hardTraits
+    }
+
+    /// Самая ранняя проверка этапа с подсказкой `hidden`, набравшая порог этапа (общее правило — `gatePass`).
+    private func blindStageCheckDate() -> Date? {
+        let blind = completed.filter { $0.hintLevel == .hidden }
+        guard !blind.isEmpty else { return nil }
+        return Language.allCases.flatMap(editions).flatMap { course in
+            course.stages.compactMap { gatePass(of: $0, in: course, among: blind)?.date }
+        }.min()
+    }
+
+    /// «Восемь пальцев»: первое завершённое занятие `finger:<палец>:accuracy` у каждого из восьми пальцев (без
+    /// большого); дата — самое позднее из этих первых занятий. Скорость и брошенные занятия не считаются.
+    private func allFingersDrilledDate() -> Date? {
+        let required = Finger.allCases.filter { $0 != .thumb }
+        var first: [Finger: Date] = [:]
+        for fact in completed {
+            guard let source = fact.source else { continue }
+            let parts = source.split(separator: ":", omittingEmptySubsequences: false)
+            guard parts.count == 3, parts[0] == "finger", parts[2] == FingerDrill.accuracy.rawValue,
+                  let finger = Finger(rawValue: String(parts[1])), finger != .thumb, first[finger] == nil else { continue }
+            first[finger] = fact.endedAt
+        }
+        guard required.allSatisfy({ first[$0] != nil }) else { return nil }
+        return required.compactMap { first[$0] }.max()
+    }
+
     // MARK: Календарь
 
     /// Полдень логического дня "yyyy-MM-dd" в `facts.timeZone` (не позже `now` — зажим в `evaluate`).
-    private func noon(of day: String) -> Date? {
+    func noon(of day: String) -> Date? {
         guard let parts = Self.dayParts(day) else { return nil }
         return calendar.date(from: DateComponents(year: parts.year, month: parts.month, day: parts.day, hour: 12))
     }
 
     /// Порядковый номер дня (дни от эпохи), чтобы считать разницу между ключами.
-    private func dayNumber(_ day: String) -> Int? {
+    func dayNumber(_ day: String) -> Int? {
         dayNumbers[day] ?? Self.dayNumber(day, calendar: utcCalendar)
     }
 

@@ -20,6 +20,28 @@ struct StoredAchievement: Equatable {
     }
 }
 
+/// Получение повторяемой ачивки, как оно хранится (`AchievementGrant` без привязки к SwiftData).
+struct StoredGrant: Equatable {
+    let achievementId: String
+    let occurrence: String
+    let grantedAt: Date
+    let value: Double?
+    let seen: Bool
+
+    init(achievementId: String, occurrence: String = "", grantedAt: Date, value: Double? = nil, seen: Bool = true) {
+        self.achievementId = achievementId
+        self.occurrence = occurrence
+        self.grantedAt = grantedAt
+        self.value = value
+        self.seen = seen
+    }
+
+    init(_ grant: AchievementGrant) {
+        self.init(achievementId: grant.achievementId, occurrence: grant.occurrence, grantedAt: grant.grantedAt,
+                  value: grant.value, seen: grant.seen)
+    }
+}
+
 /// Одна ачивка на экране: из каталога, с датой получения (если получена).
 struct AchievementEntry: Identifiable, Equatable {
     let achievement: Achievement
@@ -40,10 +62,13 @@ struct AchievementEntry: Identifiable, Equatable {
     /// Условие как утверждение («Открыты буквы: П И Ц А») для «За что» у полученной; у нейтральных условий
     /// совпадает с `lockedText`. «Как получить» у неполученной остаётся просьбой (`lockedText`).
     let reasonText: String
+    /// Получения повторяемой ачивки: новые сверху. У разовых и неполученных — пусто.
+    let grants: [StoredGrant]
 
     init(achievement: Achievement, unlockedAt: Date?, seen: Bool, lockedText: String? = nil, title: String? = nil,
-         earnedText: String? = nil, reasonText: String? = nil) {
+         earnedText: String? = nil, reasonText: String? = nil, grants: [StoredGrant] = []) {
         self.achievement = achievement
+        self.grants = grants.sorted { ($0.grantedAt, $0.occurrence) > ($1.grantedAt, $1.occurrence) }
         self.title = title ?? achievement.title
         self.unlockedAt = unlockedAt
         self.seen = seen
@@ -54,6 +79,18 @@ struct AchievementEntry: Identifiable, Equatable {
 
     var id: String { achievement.id }
     var isEarned: Bool { unlockedAt != nil }
+    /// «×N» на значке: число получений, если их два и больше.
+    var repeatCount: Int? { grants.count >= 2 ? grants.count : nil }
+}
+
+/// Список получений в подробностях: до `limit` строк (новые сверху), остальное — числом («и ещё N»).
+enum GrantList {
+    nonisolated static let limit = 50
+
+    nonisolated static func content(_ grants: [StoredGrant], limit: Int = GrantList.limit)
+        -> (shown: [StoredGrant], more: Int) {
+        (Array(grants.prefix(limit)), max(grants.count - limit, 0))
+    }
 }
 
 extension AchievementEntry {
@@ -76,6 +113,8 @@ extension AchievementEntry {
 /// Фильтр экрана «Ачивки» по состоянию; сочетается с категорией.
 enum AchievementsFilter: String, CaseIterable, Identifiable {
     case all, earned, locked
+    /// Непросмотренные к моменту открытия экрана (снимок); виден только при непустом снимке.
+    case new
 
     var id: String { rawValue }
 
@@ -84,6 +123,7 @@ enum AchievementsFilter: String, CaseIterable, Identifiable {
         case .all: String(localized: "Все")
         case .earned: String(localized: "Полученные")
         case .locked: String(localized: "Не полученные")
+        case .new: String(localized: "Новые")
         }
     }
 }
@@ -92,12 +132,14 @@ enum AchievementsFilter: String, CaseIterable, Identifiable {
 /// С выключенным «Взрослым юмором» ачивки с `adult` не показываются совсем (ни полученные, ни нет) и не входят в итог.
 enum AchievementsListing {
     /// Видимые ачивки каталога в его порядке; записи с неизвестным id (из более новой версии) пропускаются.
-    static func entries(catalog: [Achievement], earned: [StoredAchievement], adultHumor: Bool) -> [AchievementEntry] {
+    static func entries(catalog: [Achievement], earned: [StoredAchievement], grants: [StoredGrant] = [],
+                        adultHumor: Bool) -> [AchievementEntry] {
         let stored = Dictionary(earned.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let grouped = Dictionary(grouping: grants, by: \.achievementId)
         return AchievementVisibility.visible(catalog, adultHumor: adultHumor).map { achievement in
             let record = stored[achievement.id]
             return AchievementEntry(achievement: achievement, unlockedAt: record?.unlockedAt,
-                                    seen: record?.seen ?? true)
+                                    seen: record?.seen ?? true, grants: record == nil ? [] : grouped[achievement.id] ?? [])
         }
     }
 
@@ -109,16 +151,33 @@ enum AchievementsListing {
     }
 
     /// Записи выбранной категории (`nil` — любой), прошедшие фильтр по состоянию.
+    /// `fresh` — снимок новых (ачивки с непросмотренной записью или выдачей на момент открытия экрана) для «Новых».
     static func filtered(_ entries: [AchievementEntry], category: AchievementCategory?,
-                         filter: AchievementsFilter) -> [AchievementEntry] {
+                         filter: AchievementsFilter, fresh: Set<String> = []) -> [AchievementEntry] {
         entries.filter { entry in
             if let category, entry.achievement.category != category { return false }
             switch filter {
             case .all: return true
             case .earned: return entry.isEarned
             case .locked: return !entry.isEarned
+            case .new: return fresh.contains(entry.id)
             }
         }
+    }
+
+    /// Категории, в которых есть новые из снимка (красный кружок на кнопке категории).
+    static func categoriesWithNew(of entries: [AchievementEntry], fresh: Set<String>) -> Set<AchievementCategory> {
+        Set(entries.filter { fresh.contains($0.id) }.map(\.achievement.category))
+    }
+
+    /// Фильтры в ряду: «Новые» — только при непустом снимке.
+    static func availableFilters(hasNew: Bool) -> [AchievementsFilter] {
+        AchievementsFilter.allCases.filter { hasNew || $0 != .new }
+    }
+
+    /// Выбран «Новые», а снимок пуст (новый визит) — «Все».
+    static func resolvedFilter(_ filter: AchievementsFilter, hasNew: Bool) -> AchievementsFilter {
+        filter == .new && !hasNew ? .all : filter
     }
 
     /// Категории, в которых есть что показать, в порядке `AchievementCategory`.
@@ -144,22 +203,28 @@ enum AchievementsListing {
         return AchievementEntry(achievement: visible[index], unlockedAt: record.unlockedAt, seen: record.seen)
     }
 
-    /// Id видимых ачивок каталога, которые пользователь ещё не видел (точки на значках и счётчик в боковой панели).
-    /// Скрытые «взрослые» остаются непросмотренными, пока выключен юмор: включишь — увидишь их новыми.
-    static func unseenIds(catalog: [Achievement], earned: [StoredAchievement], adultHumor: Bool) -> Set<String> {
+    /// Id видимых ачивок каталога, у которых есть непросмотренная запись или выдача (`unseenGrantIds` — id ачивок
+    /// с непросмотренной выдачей): точки на значках, «Новые» и счётчик в боковой панели. Скрытые «взрослые»
+    /// остаются непросмотренными, пока выключен юмор: включишь — увидишь их новыми.
+    static func unseenIds(catalog: [Achievement], earned: [StoredAchievement], unseenGrantIds: Set<String> = [],
+                          adultHumor: Bool) -> Set<String> {
         let visible = Set(AchievementVisibility.visible(catalog, adultHumor: adultHumor).map(\.id))
-        return Set(earned.filter { !$0.seen && visible.contains($0.id) }.map(\.id))
+        let records = Set(earned.filter { !$0.seen }.map(\.id))
+        return records.union(unseenGrantIds).intersection(visible)
     }
 }
 
 extension AchievementsListing {
-    /// Помечает просмотренными записи с этими id одной транзакцией; при ошибке сохранения откатывает все.
+    /// Помечает просмотренными записи и выдачи ачивок с этими id одной транзакцией; при ошибке сохранения откатывает все.
     @MainActor
     static func markSeen(_ ids: Set<String>, in recorder: ResultRecorder) throws {
         guard !ids.isEmpty else { return }
         try recorder.commit {
             for record in try recorder.context.fetch(FetchDescriptor<AchievementRecord>()) where ids.contains(record.achievementId) {
                 record.seen = true
+            }
+            for grant in try recorder.context.fetch(FetchDescriptor<AchievementGrant>()) where ids.contains(grant.achievementId) {
+                grant.seen = true
             }
         }
     }

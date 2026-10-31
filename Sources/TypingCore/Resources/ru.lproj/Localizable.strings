@@ -263,6 +263,8 @@
 "achievement.accuracy.clean_day.detail" = "День без помарок. Хоть в рамочку";
 "achievement.accuracy.all_fingers.title" = "Десять из десяти";
 "achievement.accuracy.all_fingers.detail" = "Ни один палец не филонит";
+"achievement.fingers.all_eight.title" = "Восемь пальцев";
+"achievement.fingers.all_eight.detail" = "Каждый палец побывал на занятии. Большой тоже не в обиде";
 
 /* Ачивки: Курс */
 "achievement.course.first_lesson.title" = "Первый урок";
@@ -321,6 +323,54 @@
 "achievement.special.weak_spot.10.detail" = "Слабые места начинают вас бояться";
 "achievement.special.own_words.title" = "Своими словами";
 "achievement.special.own_words.detail" = "Свой текст набран — рабочие письма больше не страшны";
+"achievement.time.morning.title" = "Доброе утро";
+"achievement.time.morning.detail" = "Пока другие листают ленту, вы тренируете пальцы";
+"achievement.time.afternoon.title" = "Добрый день";
+"achievement.time.afternoon.detail" = "Перерыв на обед, а пальцы получили свою порцию";
+"achievement.time.evening.title" = "Добрый вечер";
+"achievement.time.evening.detail" = "День закончился, а клавиши ещё тёплые";
+"achievement.habit.visits.2.title" = "Два захода";
+"achievement.habit.visits.2.detail" = "Один раз — случайность, два — привычка";
+"achievement.habit.visits.3.title" = "Три захода";
+"achievement.habit.visits.3.detail" = "Клавиатура уже не спрашивает, где вы пропадали";
+"achievement.habit.visits.5.title" = "Пять заходов";
+"achievement.habit.visits.5.detail" = "Пять раз за день. Это уже не тренировка, а отношения";
+"achievement.speed.record.title" = "Новый рекорд";
+"achievement.speed.record.detail" = "Клавиши только что почувствовали ветер перемен";
+"achievement.course.stage.title" = "Этап пройден";
+"achievement.course.stage.detail" = "Ещё одна ступенька лестницы позади, пальцы не жалуются";
+"achievement.course.five_stars.title" = "Пять звёзд";
+"achievement.course.five_stars.detail" = "Урок без единого «но». Хоть в рамку вешай";
+"achievement.course.speed_tier.title" = "Ступень взята";
+"achievement.course.speed_tier.detail" = "Планка поднята, а вы всё ещё в игре";
+"achievement.course.first_try.title" = "С первого раза";
+"achievement.course.first_try.detail" = "Шаг урока чисто и в срок с первой попытки. Без репетиций";
+"achievement.plan.week.title" = "Неделя по плану";
+"achievement.plan.week.detail" = "Семь дней подряд по плану. Даже будильник удивлён";
+"achievement.habit.goal.x2.title" = "Двойная норма";
+"achievement.habit.goal.x2.detail" = "Цель дня выполнена дважды. Пальцы просят добавки";
+"achievement.habit.goal.x3.title" = "Тройная норма";
+"achievement.habit.goal.x3.detail" = "Три цели за один день. Кофе остыл, а клавиши нет";
+"achievement.milestone.ru.digits.title" = "Считаем по-русски";
+"achievement.milestone.ru.digits.detail" = "Все десять цифр под пальцами. Считать на пальцах больше не придётся";
+"achievement.milestone.en.digits.title" = "Считаем по-английски";
+"achievement.milestone.en.digits.detail" = "Все десять цифр английского курса освоены. One, two, three — готово";
+"achievement.milestone.ru.symbols.title" = "Знаки препинания";
+"achievement.milestone.ru.symbols.detail" = "Все знаки и символы русского курса освоены. Запятые наконец-то на месте";
+"achievement.milestone.en.symbols.title" = "Символьный набор";
+"achievement.milestone.en.symbols.detail" = "Все знаки и символы английского курса освоены. Даже @ и #";
+"achievement.milestone.first_clean_text.title" = "Без единой опечатки";
+"achievement.milestone.first_clean_text.detail" = "Связный текст без ошибок. Редактор может отдохнуть";
+"achievement.milestone.first_hard_text.title" = "Высший пилотаж";
+"achievement.milestone.first_hard_text.detail" = "Заглавные, знаки и цифры в одном тексте — и всё чисто";
+"achievement.milestone.first_long_text.title" = "Длинное дыхание";
+"achievement.milestone.first_long_text.detail" = "Больше шестисот знаков без единой ошибки. Это уже почти рассказ";
+"achievement.milestone.first_blind_check.title" = "Вслепую";
+"achievement.milestone.first_blind_check.detail" = "Проверка этапа без подсказок на экране. Настоящая слепая печать";
+"achievement.milestone.first_plan.title" = "День по плану";
+"achievement.milestone.first_plan.detail" = "Все четыре пункта плана выполнены. Планировщик гордится";
+"achievement.milestone.first_tier.title" = "Первая ступень";
+"achievement.milestone.first_tier.detail" = "Планка скорости поднялась, и вы поднялись вместе с ней";
 
 /* Ачивки: Теперь вы можете… */
 "achievement.letters.ru.hello.title" = "Первое слово";
@@ -341,6 +391,8 @@
 "achievement.letters.ru.hard_sign.detail" = "Твёрдый знакъ освоенъ";
 "achievement.letters.ru.alphabet.title" = "Великий и могучий";
 "achievement.letters.ru.alphabet.detail" = "Весь арсенал русского языка в вашем распоряжении";
+"achievement.letters.en.alphabet.title" = "От A до Z";
+"achievement.letters.en.alphabet.detail" = "Все буквы английского алфавита освоены. Даже Z";
 "achievement.letters.en.fluent_f.title" = "Fluent in F";
 "achievement.letters.en.fluent_f.detail" = "Теперь вы можете ругаться по-английски";
 "achievement.letters.en.shit_happens.title" = "Shit happens";
@@ -397,6 +449,60 @@
 "achievement.fun.weekend_warrior.detail" = "Четыре выходных подряд. Отдыхать будете в будни?";
 "achievement.fun.almost.title" = "Почти";
 "achievement.fun.almost.detail" = "99,9% точности. Совершенство было так близко";
+"achievement.fun.vibe_coder.ru.title" = "Вайбкодер";
+"achievement.fun.vibe_coder.ru.detail" = "Теперь вы можете сказать ИИ «давай, продолжай» и уйти спать";
+"achievement.fun.vibe_coder.en.title" = "Вайбкодер";
+"achievement.fun.vibe_coder.en.detail" = "Теперь вы можете сказать ИИ «fix, check, make, refactor» и уйти спать";
+"achievement.fun.slow_steady.title" = "Тише едешь — дальше будешь";
+"achievement.fun.slow_steady.detail" = "Ни одной ошибки, хоть и не торопились. Черепаха гордится";
+
+/* Ачивки 6d: ступени, объём и дистанция */
+"achievement.accuracy.sniper.100.title" = "Снайпер-легенда";
+"achievement.accuracy.sniper.100.detail" = "Сто метких. Мишени давно разбежались";
+"achievement.accuracy.surgeon.50.title" = "Хирург-виртуоз";
+"achievement.accuracy.surgeon.50.detail" = "Пятьдесят операций без осложнений. Пациенты просят автограф";
+"achievement.accuracy.clean_day.100.title" = "Чистюля-педант";
+"achievement.accuracy.clean_day.100.detail" = "Сто чистых дней. В доме и на клавиатуре";
+"achievement.volume.chars.500k.title" = "Полмиллиона";
+"achievement.volume.chars.500k.detail" = "Полпути до миллиона. Дальше пойдёт быстрее";
+"achievement.volume.exercises.2500.title" = "Конвейер";
+"achievement.volume.exercises.2500.detail" = "Упражнения сходят с ленты одно за другим";
+"achievement.volume.exercises.4000.title" = "Фабрика";
+"achievement.volume.exercises.4000.detail" = "Целая фабрика упражнений. Дымит только клавиатура";
+"achievement.distance.space.75k.title" = "Пробел в биографии";
+"achievement.distance.space.75k.detail" = "Семьдесят пять тысяч раз вы ничего не напечатали. С чувством";
+"achievement.distance.space.100k.title" = "Сто тысяч пустот";
+"achievement.distance.space.100k.detail" = "Пустота — тоже текст, если нажимать её большим пальцем";
+"achievement.distance.space.150k.title" = "Открытый космос";
+"achievement.distance.space.150k.detail" = "В космосе никто не услышит ваш пробел";
+"achievement.distance.pinky.45k.title" = "Мизинец-атлет";
+"achievement.distance.pinky.45k.detail" = "Крошечный палец с накачанным характером";
+"achievement.distance.pinky.60k.title" = "Мизинец-тяжеловес";
+"achievement.distance.pinky.60k.detail" = "Таскает Shift и Enter, пока остальные отдыхают";
+"achievement.distance.pinky.85k.title" = "Мизинец года";
+"achievement.distance.pinky.85k.detail" = "Награду вручили без церемонии: мизинцу некогда";
+"achievement.distance.training.100.title" = "Тренировка ×100";
+"achievement.distance.training.100.detail" = "Сотня порций работы над слабыми местами. Слабых всё меньше";
+"achievement.distance.training.300.title" = "Тренировка ×300";
+"achievement.distance.training.300.detail" = "Триста раз вы нашли слабое место и не дали ему спуску";
+"achievement.distance.training.500.title" = "Тренировка ×500";
+"achievement.distance.training.500.detail" = "Слабых мест почти не осталось. Остались слабые отговорки";
+"achievement.distance.lessons.100.title" = "Сотня уроков";
+"achievement.distance.lessons.100.detail" = "Сто уроков позади. Учитель на пенсии завидует";
+"achievement.distance.lessons.200.title" = "Двести уроков";
+"achievement.distance.lessons.200.detail" = "Двести уроков: вы уже сами могли бы вести курс";
+"achievement.distance.lessons.300.title" = "Триста уроков";
+"achievement.distance.lessons.300.detail" = "Выпускной давно прошёл, а вы всё учитесь";
+"achievement.distance.texts.100.title" = "Читатель";
+"achievement.distance.texts.100.detail" = "Сто текстов от начала до конца. Это уже привычка";
+"achievement.distance.texts.200.title" = "Книгочей";
+"achievement.distance.texts.200.detail" = "Двести текстов. Библиотека у вас в пальцах";
+"achievement.distance.texts.300.title" = "Хранитель книг";
+"achievement.distance.texts.300.detail" = "Триста текстов. Пора выдавать вам читательский билет";
+"achievement.distance.plans.100.title" = "Сто планов";
+"achievement.distance.plans.100.detail" = "Сто дней по плану. Ежедневник гордится вами";
+"achievement.distance.plans.300.title" = "Режим дня";
+"achievement.distance.plans.300.detail" = "Триста дней по плану — это уже не план, а образ жизни";
 
 /* Ачивки: условия получения (AchievementConditionText) */
 "achievement.condition.streak" = "Дней занятий подряд: %lld";
@@ -410,7 +516,7 @@
 "achievement.condition.firstStage" = "Пройдите все уроки одного этапа курса";
 "achievement.condition.course" = "Пройдите весь курс: %@";
 "achievement.condition.polyglot" = "Пройдите оба курса: русский и английский";
-"achievement.condition.excellentStars" = "Все уроки курса не ниже четырёх звёзд: %@";
+"achievement.condition.excellentStars" = "Все уроки курса, кроме ступеней скорости, не ниже четырёх звёзд: %@";
 "achievement.condition.volumeChars" = "Напечатано знаков: %@";
 "achievement.condition.volumeHours" = "Часов чистой практики: %@";
 "achievement.condition.finishedBetween" = "Завершите упражнение между %lld:00 и %lld:00";
@@ -448,6 +554,32 @@
 "achievement.condition.fridayEvening" = "Завершите упражнение в пятницу после %lld:00";
 "achievement.condition.weekends" = "Выходных подряд с занятиями и в субботу, и в воскресенье: %lld";
 "achievement.condition.almost" = "Упражнение от %1$lld знаков с точностью от %2$@, но не 100%%";
+"achievement.condition.dayPart" = "Завершите упражнение с %lld:00 до %lld:59 по местному времени";
+"achievement.condition.visits" = "Заходов за день (перерыв между ними больше часа): %lld";
+"achievement.condition.speedRecord" = "Новый рекорд скорости языка без ошибок: проверка урока или текст от %lld знаков";
+"achievement.condition.stagePassed" = "Проверка этапа впервые набрала порог этапа";
+"achievement.condition.lessonStars" = "Урок впервые получил %@";
+"achievement.condition.tierPassed" = "Урок-ступень впервые получил ★★★";
+"achievement.condition.planWeek" = "Дней подряд с выполненным планом дня: %lld";
+"achievement.condition.keysDigits" = "Цифры курса (%@): открыты все десять";
+"achievement.condition.keysSymbols" = "Знаки и символы курса (%@): открыты все";
+"achievement.condition.cleanText" = "Связный текст (отрывок книги или свой) от %lld знаков без единой ошибки";
+"achievement.condition.hardText" = "Связный текст от %lld знаков без ошибок: заглавные, знаки препинания, цифры";
+"achievement.condition.blindStageCheck" = "Проверка этапа, набравшая порог этапа без подсказок (клавиатура скрыта)";
+"achievement.condition.firstPlanDay" = "День с выполненным планом дня";
+"achievement.condition.firstTier" = "Первая взятая ступень скорости: урок-ступень получил ★★★";
+"achievement.condition.distance.spaces" = "Нажатий пробела: %@";
+"achievement.condition.distance.pinkies" = "Нажатий мизинцами: %@";
+"achievement.condition.distance.trainings" = "Завершённых порций тренировки: %@";
+"achievement.condition.distance.lessons" = "Завершённых уроков (проверка в конце урока, переигровки считаются): %@";
+"achievement.condition.distance.texts" = "Завершённых связных текстов от %1$lld знаков: %2$@";
+"achievement.condition.distance.plans" = "Дней с выполненным планом дня: %@";
+"achievement.condition.perfectCount" = "Проверок урока или упражнений от %1$lld знаков без единой ошибки: %2$lld";
+"achievement.condition.cleanDays" = "Чистых дней: %1$lld (первые %2$lld упражнений дня с точностью от %3$@)";
+"achievement.condition.goalMultiple" = "Чистая практика за день: цель × %lld";
+"achievement.condition.slowAndSteady" = "Шаг урока без единой ошибки, но медленнее цели урока";
+"achievement.condition.firstTry" = "Шаг урока с первой попытки: без ошибок и не медленнее цели урока";
+"achievement.condition.allFingersDrilled" = "Пройдите «Точность пальца» для каждого из восьми пальцев";
 
 /* Ачивки: условия как утверждение для полученной (AchievementConditionText.earnedForms) */
 "achievement.condition.earned.firstLesson" = "Пройден первый урок курса";
@@ -466,6 +598,8 @@
 "achievement.condition.earned.atMinute" = "Упражнение завершено ровно в %lld:%02lld";
 "achievement.condition.earned.fridayEvening" = "Упражнение завершено в пятницу после %lld:00";
 "achievement.condition.earned.exactSpeed" = "Упражнение завершено со скоростью ровно %lld зн/мин";
+"achievement.condition.earned.dayPart" = "Упражнение завершено с %lld:00 до %lld:59 по местному времени";
+"achievement.condition.earned.allFingersDrilled" = "Пройдена «Точность пальца» для каждого из восьми пальцев";
 
 /* Тексты напоминаний (ReminderCatalog) */
 "Пора позаниматься: пара упражнений — и день засчитан" = "Пора позаниматься: пара упражнений — и день засчитан";

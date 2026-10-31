@@ -1,4 +1,5 @@
 import Foundation
+import TypingCore
 
 enum Formatting {
     /// «11 ч 40 мин», «2 мин».
@@ -112,5 +113,52 @@ extension Formatting {
         return ones == 1 && tens != 11
             ? String(localized: "не больше чем с \(count) ошибкой", bundle: bundle)
             : String(localized: "не больше чем с \(count) ошибками", bundle: bundle)
+    }
+}
+
+extension Formatting {
+    /// «1 заход», «3 захода», «5 заходов» (`achievement.visits %lld` в Localizable.stringsdict; без переводов —
+    /// русская форма, как у `errors`).
+    static func visits(_ count: Int, bundle: Bundle = .main, locale: Locale? = nil) -> String {
+        let locale = locale ?? interfaceLocale(bundle: bundle)
+        let text = String(localized: "achievement.visits \(count)", bundle: bundle, locale: locale)
+        guard text.hasPrefix("achievement.visits") else { return text }
+        let tens = abs(count) % 100, ones = abs(count) % 10
+        let word = if ones == 1 && tens != 11 { String(localized: "заход", bundle: bundle) }
+            else if (2...4).contains(ones) && !(12...14).contains(tens) { String(localized: "захода", bundle: bundle) }
+            else { String(localized: "заходов", bundle: bundle) }
+        return "\(count) \(word)"
+    }
+
+    /// «и ещё 3 получения» — хвост списка получений (`achievement.grants.more %lld`; без переводов — «и ещё N»).
+    static func moreGrants(_ count: Int, bundle: Bundle = .main, locale: Locale? = nil) -> String {
+        let locale = locale ?? interfaceLocale(bundle: bundle)
+        let text = String(localized: "achievement.grants.more \(count)", bundle: bundle, locale: locale)
+        guard text.hasPrefix("achievement.grants.more") else { return text }
+        return String(localized: "и ещё \(count)", bundle: bundle)
+    }
+
+    /// «★★★» — звёзды как значение получения.
+    static func starsText(_ stars: Int) -> String { String(repeating: "★", count: max(stars, 0)) }
+
+    /// Значение получения повторяемой ачивки для списка и карточек: рекорд и «пять звёзд» — скорость в единице из
+    /// настроек (округление — как в `SpeedUnit.format`), этап — звёзды, ступень — «ступень 60 зн/мин», заходы —
+    /// «3 захода», цели дня — минуты. У прочих ачивок значения нет — пустая строка.
+    static func grantValue(_ value: Double, for achievement: Achievement, unit: SpeedUnit,
+                           bundle: Bundle = .main, locale: Locale? = nil) -> String {
+        let id = achievement.id
+        switch id {
+        case "speed.record", "course.five_stars":
+            return unit.format(value)
+        case "course.stage":
+            return starsText(Int(value.rounded()))
+        case "course.speed_tier":
+            let speed = unit.format(value)
+            return String(localized: "ступень \(speed)", bundle: bundle)
+        default:
+            if id.hasPrefix("habit.visits.") { return visits(Int(value.rounded()), bundle: bundle, locale: locale) }
+            if id.hasPrefix("habit.goal.") { return duration(value.rounded() * 60) }
+            return ""
+        }
     }
 }

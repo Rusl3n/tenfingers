@@ -40,13 +40,20 @@ final class ExerciseCoordinator {
     /// а невыданное выдаст следующая проверка). `nil` — ачивки не проверяются (тесты).
     @ObservationIgnored var achievements: AchievementService?
     /// Ачивки, полученные в последнем сохранении (карточки на экране итога шага или порции).
-    private(set) var newAchievements: [Achievement] = []
-    /// Ачивки всех сохранений с последнего `resetRunAchievements()` (карточки на итоге урока: и с промежуточных шагов).
-    private(set) var runAchievements: [Achievement] = []
+    private(set) var newAchievements: [EarnedCard] = []
+    /// Ачивки всех проверок с последнего `resetRunAchievements()` (карточки на итоге урока: получения всех шагов,
+    /// проверка идёт в конце урока, а не после каждого шага).
+    private(set) var runAchievements: [EarnedCard] = []
     /// Полный огонь последнего сохранения (карточка на итоге шага, порции, практики).
     private(set) var newFullFlame: FullFlame?
     /// Полный огонь с последнего `resetRunAchievements()` (карточка на итоге урока: и с промежуточного шага).
     private(set) var runFullFlame: FullFlame?
+    /// Урок: ачивки проверяются в конце единицы (итог урока, повтор шага), промежуточные шаги их не проверяют (§8.1).
+    /// Выход или уход без кнопки проверяет, только если в запуске завершён хоть один шаг, и без звука. Тренировка,
+    /// практика, пальцы (`false`): единица — порция, проверка после каждого сохранения и при каждом выходе.
+    @ObservationIgnored var defersAchievementChecks = false
+    /// Сколько раз проверялись ачивки (для тестов: промежуточный шаг урока проверки не даёт).
+    @ObservationIgnored private(set) var achievementChecks = 0
     /// «Взрослый юмор» (читается при каждой проверке).
     @ObservationIgnored var adultHumor: () -> Bool = { StoredSettings.adultHumor() }
 
@@ -68,6 +75,12 @@ final class ExerciseCoordinator {
     @ObservationIgnored private var source: String?
     /// Пункт плана дня текущей сессии (`SessionRecord.planSlot`); `nil` — запуск не из плана.
     @ObservationIgnored private var planSlot: PlanSlot?
+    /// Проверять ли ачивки после текущего сохранения (`false` — промежуточный шаг урока или выход без завершённых шагов).
+    @ObservationIgnored private var checkAfterSave = true
+    /// Текущее сохранение — завершённый шаг без проверки: ачивки за него проверит конец единицы.
+    @ObservationIgnored private var savingUncheckedStep = false
+    /// Завершённые шаги запуска, ещё не покрытые проверкой ачивок (решение 14: выход с ≥ 1 таким — проверка).
+    @ObservationIgnored private var uncheckedFinishes = 0
     /// Записало ли последнее сохранение сессию: запись вне упражнения без сессии ачивки не проверяет.
     @ObservationIgnored private var bodyRecordedSession = true
 
@@ -125,7 +138,7 @@ final class ExerciseCoordinator {
     /// Записывает результат, счётчики и `extra` одной транзакцией; помечает сессию записанной.
     /// Возвращает `true`, если сохранение удалось.
     @discardableResult
-    func recordFinish(_ session: ExerciseSession, _ result: ExerciseResult,
+    func recordFinish(_ session: ExerciseSession, _ result: ExerciseResult, checksAchievements: Bool = true,
                       extra: @escaping (ResultRecorder) throws -> Void = { _ in }) -> Bool {
         session.onFinish = nil
         session.markRecorded()
@@ -133,6 +146,8 @@ final class ExerciseCoordinator {
         let source = self.source, planSlot = self.planSlot
         exitAfterSave = false
         announceAfterSave = true
+        checkAfterSave = checksAchievements
+        savingUncheckedStep = !checksAchievements
         return save(trackingDay(endedAt: result.endedAt) {
             try recorder.record(result, source: source, planSlot: planSlot)
             try Self.recordCounters(session, recorder)
@@ -147,6 +162,8 @@ final class ExerciseCoordinator {
         let recorder = self.recorder
         exitAfterSave = false
         announceAfterSave = true
+        checkAfterSave = true
+        savingUncheckedStep = false
         return save { [weak self] in
             try body(recorder)
             self?.bodyRecordedSession = recorder.context.insertedModelsArray.contains { $0 is SessionRecord }
@@ -158,13 +175,18 @@ final class ExerciseCoordinator {
     /// `announce` — после выхода будет итог с карточками ачивок и огня («Слабые места»): тогда звук ачивки
     /// и звук серии (карточка полного огня) есть.
     func exit(announce: Bool = false) -> Bool {
-        guard let session, !session.isRecorded else { return true }
+        guard let session, !session.isRecorded else {
+            checkStepsOnLeave()
+            return true
+        }
         // Пока открыт алерт об ошибке, монитор клавиш не должен забирать Return и Esc.
         session.stop()
         session.onFinish = nil
         session.markRecorded()
         exitAfterSave = true
         announceAfterSave = announce
+        checkAfterSave = checksOnLeave
+        savingUncheckedStep = false
         // Результат собирается один раз: его же время конца определяет логический день для «полного огня».
         let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
         return save(trackingDay(endedAt: abandoned?.endedAt,
@@ -176,12 +198,16 @@ final class ExerciseCoordinator {
     /// например «Начать урок заново») тост и звук сразу, иначе объявление откладывается до следующего показа главной
     /// (`FullDayPending`).
     func recordAbandonIfNeeded(announce: Bool = false) {
-        guard let session, !session.isRecorded else { return }
+        guard let session, !session.isRecorded else {
+            checkStepsOnLeave()
+            return
+        }
         session.stop()
         session.onFinish = nil
         session.markRecorded()
         let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
         dayCompletedKey = nil
+        let checks = checksOnLeave
         let body = trackingDay(endedAt: abandoned?.endedAt,
                                Self.abandonment(abandoned, of: session, source: source, planSlot: planSlot, recorder))
         guard (try? recorder.commit(body)) != nil else {
@@ -198,9 +224,9 @@ final class ExerciseCoordinator {
                 NotificationCenter.default.post(name: .fullDayPending, object: nil)
             }
         }
-        // Ачивки выдаются всегда, но без звука: итога с карточками на этом пути нет (уход или «Начать урок заново»),
-        // их увидят непросмотренными в разделе «Ачивки».
-        checkAchievements(announce: false, afterStreak: false)
+        // Ачивки выдаются без звука: итога с карточками на этом пути нет (уход или «Начать урок заново»),
+        // их увидят непросмотренными в разделе «Ачивки». В уроке — только если завершён хоть один шаг.
+        if checks { checkAchievements(announce: false, afterStreak: false) }
         onSaved?()
     }
 
@@ -208,13 +234,25 @@ final class ExerciseCoordinator {
     /// а если в этом сохранении день стал полным — ещё через `streakDelay` после звука серии.
     private func checkAchievements(announce: Bool, afterStreak: Bool) {
         guard let achievements else { return }
-        let earned = achievements.checkLogging(reason: .afterSave).new
+        achievementChecks += 1
+        uncheckedFinishes = 0
+        let earned = EarnedCard.cards(from: achievements.checkLogging(reason: .afterSave))
         newAchievements = earned
-        runAchievements += earned
+        runAchievements = EarnedCard.merged(runAchievements, with: earned)
         // Новые показываются карточками на экране итога (тоста нет); скрытые («Взрослый юмор» выключен) — без звука.
         let visible = AchievementVisibility.visible(earned, adultHumor: adultHumor())
         guard announce, !visible.isEmpty else { return }
         afterDelay(afterStreak ? Self.streakDelay * 2 : Self.streakDelay) { [playSound] in playSound(.achievement) }
+    }
+
+    /// Проверять ли ачивки при выходе: у порции — всегда, у урока — если есть завершённые шаги без проверки.
+    private var checksOnLeave: Bool { !defersAchievementChecks || uncheckedFinishes > 0 }
+
+    /// Уход из урока, когда записывать нечего (экран «Готово: шаг N»): завершённые шаги без проверки
+    /// проверяются молча, как при уходе с брошенным упражнением.
+    private func checkStepsOnLeave() {
+        guard defersAchievementChecks, uncheckedFinishes > 0 else { return }
+        checkAchievements(announce: false, afterStreak: false)
     }
 
     /// Начало урока или нового прохода («Ещё раз»): копилки ачивок и полного огня запуска пустеют.
@@ -303,7 +341,11 @@ final class ExerciseCoordinator {
                 announceFullDayOnSummary()
             }
             if bodyRecordedSession {
-                checkAchievements(announce: announceAfterSave, afterStreak: dayCompleted && announceAfterSave)
+                if checkAfterSave {
+                    checkAchievements(announce: announceAfterSave, afterStreak: dayCompleted && announceAfterSave)
+                } else if savingUncheckedStep {
+                    uncheckedFinishes += 1
+                }
             }
             onSaved?()
             return true

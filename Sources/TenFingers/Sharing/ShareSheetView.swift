@@ -103,9 +103,12 @@ struct ShareSheetView: View {
             if case .achievement = card.event {
                 GridRow(alignment: .firstTextBaseline) {
                     Text("Что показывать")
-                    HStack(spacing: 20) {
-                        Toggle("Описание", isOn: $options.achievementContent.showsJoke)
-                        Toggle("За что", isOn: $options.achievementContent.showsReason)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 20) {
+                            Toggle("Описание", isOn: $options.achievementContent.showsJoke)
+                            Toggle("За что", isOn: $options.achievementContent.showsReason)
+                        }
+                        Toggle("Показывать дату получения", isOn: $options.achievementContent.showsDate)
                     }
                     .toggleStyle(.checkbox)
                 }

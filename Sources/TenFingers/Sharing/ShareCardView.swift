@@ -278,9 +278,11 @@ struct ShareCardView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
         }
-        Text(verbatim: text.date)
-            .font(.system(size: date, weight: .medium, design: .rounded))
-            .foregroundStyle(style.secondary)
+        if text.showsDate {
+            Text(verbatim: text.date)
+                .font(.system(size: date, weight: .medium, design: .rounded))
+                .foregroundStyle(style.secondary)
+        }
     }
 
     /// Иконка приложения слева, справа от неё две строки: название (полужирное) и ссылка (мельче, secondary).

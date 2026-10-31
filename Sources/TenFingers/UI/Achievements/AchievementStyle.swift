@@ -9,6 +9,7 @@ enum AchievementStyle {
         case .speed: String(localized: "Скорость")
         case .accuracy: String(localized: "Точность")
         case .course: String(localized: "Курс")
+        case .milestone: String(localized: "Вехи")
         case .volume: String(localized: "Объём")
         case .special: String(localized: "Особые")
         case .letters: String(localized: "Буквы")
@@ -22,6 +23,7 @@ enum AchievementStyle {
         case .speed: .blue
         case .accuracy: .green
         case .course: .purple
+        case .milestone: .mint
         case .volume: .teal
         case .special: .red
         case .letters: .indigo

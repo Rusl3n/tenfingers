@@ -16,7 +16,7 @@ struct RunSummaryView: View {
     let errors: Int
     var lines: [String] = []
     /// Ачивки этой порции; у итога «Слабых мест» — всей тренировки (`runAchievements`).
-    var newAchievements: [Achievement] = []
+    var newAchievements: [EarnedCard] = []
     /// Полный огонь этой порции (у «Слабых мест» — всей тренировки): карточка перед ачивками.
     var fullFlame: FullFlame?
     let primaryTitle: LocalizedStringKey

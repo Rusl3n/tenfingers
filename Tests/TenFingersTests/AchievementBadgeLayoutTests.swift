@@ -83,3 +83,20 @@ private let longJoke = "Теперь вы можете написать это �
     }
     #expect(AchievementBadge.height - worst < 16, "\(AchievementBadge.height) против \(worst)")
 }
+
+/// «×N» поверх значка не увеличивает его высоту.
+@MainActor @Test func repeatCountBadgeDoesNotGrowTheCard() throws {
+    let palette = LightPalette.beige.palette
+    let morning = try #require(AchievementCatalog.all.first { $0.id == "time.morning" })
+    let grants = (1...12).map { StoredGrant(achievementId: "time.morning", occurrence: "k\($0)", grantedAt: .now) }
+    let entry = AchievementEntry(achievement: morning, unlockedAt: .now, seen: true, lockedText: "условие",
+                                 grants: grants)
+    #expect(entry.repeatCount == 12 && AchievementBadge.countText(12) == "×12")
+    let view = AchievementBadge(entry: entry, showsDot: false, minHeight: 0)
+        .frame(width: 140)
+        .environment(\.palette, palette)
+        .environment(\.colorScheme, .light)
+    let renderer = ImageRenderer(content: view)
+    renderer.scale = 1
+    #expect(try #require(renderer.nsImage).size.height <= AchievementBadge.height)
+}

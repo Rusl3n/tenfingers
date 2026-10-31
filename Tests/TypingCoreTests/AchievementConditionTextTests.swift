@@ -30,6 +30,15 @@ private let samples: [AchievementCondition] = [
     .booksFinished(5), .ownText, .fullFireMonth, .freezeSavedStreak, .exactSpeed(cpm: 314), .exactSeconds(42),
     .yoPresses(100), .totalErrors(1000), .finishedAtMinute(hour: 0, minute: 0), .fridayEvening(fromHour: 21),
     .weekendStreak(4), .almostPerfect(minChars: 300, minimum: 0.999),
+    // Фаза 6d.
+    .dayPart(startHour: 5, endHour: 12), .visits(3),
+    .speedRecord, .stagePassed, .lessonStars(5), .tierPassed, .planWeek(days: 7),
+    .keysUnlocked(.ru, .digits), .keysUnlocked(.en, .symbols), .cleanText(minChars: 200, hard: false),
+    .cleanText(minChars: 200, hard: true), .blindStageCheck, .firstPlanDay, .firstTier,
+    .distance(.spaces, 75_000), .distance(.pinkies, 45_000), .distance(.trainings, 100), .distance(.lessons, 100),
+    .distance(.texts, 100), .distance(.plans, 100), .perfectCount(100),
+    .cleanDays(count: 30, exercises: 5, minimum: 0.97),
+    .goalMultiple(2), .slowAndSteady, .firstTry, .allFingersDrilled,
 ]
 
 @Test func everyConditionKindHasATextInBothLanguages() {
@@ -93,8 +102,8 @@ private let samples: [AchievementCondition] = [
     #expect(en(.courseCompleted(.ru)) == "Complete the whole course: Russian")
     #expect(ru(.polyglot) == "Пройдите оба курса: русский и английский")
     #expect(en(.polyglot) == "Complete both courses: Russian and English")
-    #expect(ru(.allLessonsExcellent(.ru)) == "Все уроки курса не ниже четырёх звёзд: Русский")
-    #expect(en(.allLessonsExcellent(.en)) == "Every lesson of the course on four stars or more: English")
+    #expect(ru(.allLessonsExcellent(.ru)) == "Все уроки курса, кроме ступеней скорости, не ниже четырёх звёзд: Русский")
+    #expect(en(.allLessonsExcellent(.en)) == "Every lesson of the course except the speed tiers on four stars or more: English")
 }
 
 @Test func volumeConditions() {
@@ -259,4 +268,76 @@ private let samples: [AchievementCondition] = [
     for key in ["ownText", "atMinute", "fridayEvening", "exactSpeed"] {
         #expect(AchievementConditionText.earnedForms.contains(key), "\(key)")
     }
+}
+
+@Test func timeOfDayAndVisitConditions() {
+    #expect(ru(.dayPart(startHour: 5, endHour: 12)) == "Завершите упражнение с 5:00 до 11:59 по местному времени")
+    #expect(en(.dayPart(startHour: 18, endHour: 24)) == "Finish an exercise from 18:00 to 23:59 local time")
+    #expect(ru(.visits(3)) == "Заходов за день (перерыв между ними больше часа): 3")
+    #expect(en(.visits(2)) == "Visits in one day (more than an hour apart): 2")
+    // Утверждение для полученной: у времени суток есть, у заходов вид один.
+    let earned = AchievementConditionText.describe(.dayPart(startHour: 5, endHour: 12), localization: "ru", earned: true)
+    #expect(earned == "Упражнение завершено с 5:00 до 11:59 по местному времени")
+    #expect(AchievementConditionText.describe(.visits(3), localization: "ru", earned: true) == ru(.visits(3)))
+    #expect(AchievementConditionText.earnedForms.contains("dayPart"))
+}
+
+@Test func recordCourseAndPlanConditions() {
+    #expect(ru(.speedRecord) == "Новый рекорд скорости языка без ошибок: проверка урока или текст от 300 знаков")
+    #expect(en(.speedRecord) == "A new error-free speed record: a lesson check or a text of 300+ characters")
+    #expect(ru(.stagePassed) == "Проверка этапа впервые набрала порог этапа")
+    #expect(en(.stagePassed) == "A stage check reaches its threshold for the first time")
+    #expect(ru(.lessonStars(5)) == "Урок впервые получил ★★★★★")
+    #expect(en(.lessonStars(5)) == "A lesson earns ★★★★★ for the first time")
+    #expect(ru(.tierPassed) == "Урок-ступень впервые получил ★★★")
+    #expect(en(.tierPassed) == "A tier lesson earns ★★★ for the first time")
+    #expect(ru(.planWeek(days: 7)) == "Дней подряд с выполненным планом дня: 7")
+    #expect(en(.planWeek(days: 7)) == "Days in a row with the day plan completed: 7")
+}
+
+@Test func milestoneConditions() {
+    #expect(ru(.keysUnlocked(.ru, .digits)) == "Цифры курса (Русский): открыты все десять")
+    #expect(en(.keysUnlocked(.en, .digits)) == "Digits of the English course: all ten opened")
+    #expect(ru(.keysUnlocked(.en, .symbols)) == "Знаки и символы курса (English): открыты все")
+    #expect(en(.keysUnlocked(.ru, .symbols)) == "Punctuation and symbols of the Russian course: all opened")
+    #expect(ru(.cleanText(minChars: 200, hard: false)) == "Связный текст (отрывок книги или свой) от 200 знаков без единой ошибки")
+    #expect(en(.cleanText(minChars: 600, hard: false)) == "A coherent text (a book excerpt or your own) of 600+ characters with no errors")
+    #expect(ru(.cleanText(minChars: 200, hard: true)) == "Связный текст от 200 знаков без ошибок: заглавные, знаки препинания, цифры")
+    #expect(en(.cleanText(minChars: 200, hard: true)) == "A coherent text of 200+ characters, no errors: capitals, punctuation, digits")
+    #expect(ru(.blindStageCheck) == "Проверка этапа, набравшая порог этапа без подсказок (клавиатура скрыта)")
+    #expect(en(.blindStageCheck) == "A stage check that reaches its threshold with the keyboard hint hidden")
+    #expect(ru(.firstPlanDay) == "День с выполненным планом дня")
+    #expect(en(.firstPlanDay) == "A day with the day plan completed")
+    #expect(ru(.firstTier) == "Первая взятая ступень скорости: урок-ступень получил ★★★")
+    #expect(en(.firstTier) == "The first speed tier taken: a tier lesson earns ★★★")
+    // Нейтральные: утверждение для полученной совпадает с обычным текстом.
+    for condition in [AchievementCondition.keysUnlocked(.ru, .digits), .cleanText(minChars: 200, hard: true),
+                      .blindStageCheck, .firstPlanDay, .firstTier] {
+        #expect(AchievementConditionText.describe(condition, localization: "ru", earned: true) == ru(condition))
+    }
+}
+
+@Test func distanceAndStepConditions() {
+    #expect(ru(.distance(.spaces, 75_000)).hasPrefix("Нажатий пробела: 75"))
+    #expect(en(.distance(.pinkies, 45_000)).hasPrefix("Pinky presses: 45"))
+    #expect(ru(.distance(.trainings, 100)) == "Завершённых порций тренировки: 100")
+    #expect(en(.distance(.lessons, 300)) == "Finished lessons (the check at the end of a lesson, replays count): 300")
+    #expect(ru(.distance(.texts, 100)) == "Завершённых связных текстов от 300 знаков: 100")
+    #expect(en(.distance(.plans, 300)).hasPrefix("Days with the day plan completed: 300"))
+    #expect(ru(.perfectCount(100)) == "Проверок урока или упражнений от 300 знаков без единой ошибки: 100")
+    #expect(en(.cleanDays(count: 30, exercises: 5, minimum: 0.97))
+            == "Clean days: 30 (the first 5 exercises of the day with accuracy of 97% or more)")
+}
+
+@Test func userIdeaConditions() {
+    #expect(ru(.goalMultiple(3)) == "Чистая практика за день: цель × 3")
+    #expect(en(.goalMultiple(2)) == "Pure practice in a day: goal × 2")
+    #expect(ru(.slowAndSteady) == "Шаг урока без единой ошибки, но медленнее цели урока")
+    #expect(en(.slowAndSteady) == "A lesson step with no errors but slower than the lesson target")
+    #expect(ru(.firstTry) == "Шаг урока с первой попытки: без ошибок и не медленнее цели урока")
+    #expect(en(.firstTry) == "A lesson step on the first try: no errors, not slower than the lesson target")
+    #expect(ru(.allFingersDrilled) == "Пройдите «Точность пальца» для каждого из восьми пальцев")
+    #expect(AchievementConditionText.describe(.allFingersDrilled, localization: "ru", earned: true)
+            == "Пройдена «Точность пальца» для каждого из восьми пальцев")
+    #expect(AchievementConditionText.earnedForms.contains("allFingersDrilled"))
 }

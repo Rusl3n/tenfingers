@@ -46,6 +46,18 @@ struct AchievementBadge: View {
                             .accessibilityHidden(true)
                     }
                 }
+                .overlay(alignment: .bottomTrailing) {
+                    if let count = entry.repeatCount {
+                        Text(Self.countText(count))
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(AchievementStyle.tint(entry.achievement.category), in: Capsule())
+                            .foregroundStyle(Color.white)
+                            .overlay(Capsule().stroke(palette.card, lineWidth: 2))
+                            .offset(x: 6, y: 4)
+                            .accessibilityHidden(true)
+                    }
+                }
             Text(entry.displayTitle)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(entry.isEarned ? .primary : .secondary)
@@ -74,12 +86,16 @@ struct AchievementBadge: View {
         .accessibilityLabel(accessibilityText)
     }
 
+    /// «×3» на значке.
+    nonisolated static func countText(_ count: Int) -> String { "×\(count)" }
+
     private var accessibilityText: String {
         if entry.isConcealed { return String(localized: "Секретная ачивка, не получена") }
         let title = entry.title
         if let date = entry.unlockedAt {
             let when = AchievementStyle.longDate(date)
-            let base = String(localized: "\(title), получена \(when)")
+            var base = String(localized: "\(title), получена \(when)")
+            if let count = entry.repeatCount { base += ", " + String(localized: "получений: \(count)") }
             return showsDot ? base + ", " + String(localized: "новая") : base
         }
         let condition = entry.lockedText

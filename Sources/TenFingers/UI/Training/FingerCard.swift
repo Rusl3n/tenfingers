@@ -21,6 +21,9 @@ struct FingerCardModel: Equatable {
             case .normal, .noData: nil
             }
         }
+        /// Кнопка занятия была бы (слабый или сильный палец), но ни одна буква пальца не открыта: вместо исчезнувшей
+        /// кнопки — серая подпись `FingerCardModel.noLettersNote`.
+        var showsNoLettersNote: Bool { !hasLetters && (report.kind == .weak || report.kind == .strong) }
         /// Точность: у «мало данных» — «—», а не процент по нескольким нажатиям.
         var accuracyText: String {
             guard report.kind != .noData, let accuracy = report.accuracy else { return "—" }
@@ -29,6 +32,9 @@ struct FingerCardModel: Equatable {
     }
 
     let cells: [Cell]
+
+    /// Подпись у пальца без открытых букв.
+    static var noLettersNote: String { String(localized: "Нет открытых букв") }
 
     /// Нет ни одного пальца с данными (меньше 50 нажатий у каждого): кнопок нет.
     var hasData: Bool { cells.contains { $0.tone != .noData } }
@@ -115,6 +121,12 @@ struct FingerCard: View {
             if let drill = cell.drill {
                 Button(Self.buttonTitle(drill)) { start(cell.finger, drill) }
                     .controlSize(.small)
+            } else if cell.showsNoLettersNote, layoutPrompt == nil {
+                // При чужой раскладке буквы есть, просто не на этой раскладке: подсказка выше, подпись не нужна.
+                Text(FingerCardModel.noLettersNote)
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 6).padding(.vertical, 8)

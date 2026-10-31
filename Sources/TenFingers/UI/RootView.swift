@@ -141,6 +141,7 @@ struct RootView: View {
     @AppStorage(SettingsKey.newCourseIntroShown) private var newCourseIntroShown = false
     @Query private var lessonProgress: [LessonProgress]
     @Query(filter: #Predicate<AchievementRecord> { !$0.seen }) private var unseenRecords: [AchievementRecord]
+    @Query(filter: #Predicate<AchievementGrant> { !$0.seen }) private var unseenGrants: [AchievementGrant]
     @State private var selection: SidebarItem? = .home
     @State private var activeRun: RunKind?
     @State private var presence = RunPresence()
@@ -159,10 +160,12 @@ struct RootView: View {
 
     /// Экран запуска показан вместо раздела.
     private var isRunVisible: Bool { activeRun != nil && presence.isVisible }
-    /// Новые ачивки (счётчик у пункта «Ачивки»); скрытые «взрослые» при выключенном юморе не считаются.
+    /// Новые ачивки (счётчик у пункта «Ачивки»): с непросмотренной записью или выдачей; скрытые «взрослые» при
+    /// выключенном юморе не считаются.
     private var unseenAchievements: Int {
-        AchievementsListing.unseenIds(catalog: AchievementCatalog.all,
-                                      earned: unseenRecords.map(StoredAchievement.init), adultHumor: adultHumor).count
+        AchievementsListing.unseenIds(catalog: AchievementCatalog.all, earned: unseenRecords.map(StoredAchievement.init),
+                                      unseenGrantIds: Set(unseenGrants.map(\.achievementId)),
+                                      adultHumor: adultHumor).count
     }
     /// Лист «Новый курс»: после знакомства, один раз, если был прогресс прежнего курса.
     private var showsNewCourseIntro: Bool {

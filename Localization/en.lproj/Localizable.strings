@@ -471,6 +471,7 @@
 /* Экран «Ачивки» */
 "Все" = "All";
 "Серия" = "Streak";
+"Вехи" = "Milestones";
 "Объём" = "Volume";
 "Особые" = "Special";
 "Буквы" = "Letters";
@@ -488,6 +489,7 @@
 "За что: %@" = "Earned for: %@";
 "Полученные" = "Earned";
 "Не полученные" = "Not earned";
+"Новые" = "New";
 "Показывать" = "Show";
 "Здесь пока пусто" = "Nothing here yet";
 "Показать все" = "Show all";
@@ -511,6 +513,7 @@
 "Полные дни" = "Full days";
 "Описание" = "Description";
 "За что" = "Why";
+"Показывать дату получения" = "Show the date earned";
 "Показывать в углу" = "Show in the corner";
 "Выберите, что показать" = "Choose what to show";
 "Средняя точность" = "Average accuracy";
@@ -654,6 +657,7 @@
 "сильный" = "strong";
 "мало данных" = "not enough data";
 "Мало данных: занимайтесь, и здесь появятся пальцы" = "Not enough data yet: keep practicing and your fingers will show up here";
+"Нет открытых букв" = "No letters unlocked";
 "Слабый палец — точность ниже 97% за последние 14 дней (не меньше 50 нажатий). Кнопка «Точность» запускает 3 порции слов с буквами этого пальца." = "A weak finger has accuracy below 97% over the last 14 days (at least 50 presses). The “Accuracy” button starts 3 portions of words with this finger's letters.";
 "Сильный палец — точность от 99% (не меньше 100 нажатий) и скорость не ниже порога адаптивной тренировки. Кнопка «Скорость» запускает 4 порции с целью на 10% выше вашей скорости на этом пальце." = "A strong finger has accuracy of 99% or better (at least 100 presses) and speed at or above the adaptive-training threshold. The “Speed” button starts 4 portions aiming 10% above your speed on this finger.";
 
@@ -676,3 +680,15 @@
 "Текст плана" = "Plan text";
 "Повтор плана" = "Plan review";
 "План на сегодня собирается из истории каждый день: разминка, урок, тренировка и текст под вашу цель дня. Пункт засчитан, когда упражнение из него завершено. Урок засчитывает проверка урока или половина шагов урока — из плана или с карты курса." = "Today's plan is built from your history every day: a warm-up, a lesson, training and a text sized to your daily goal. A step counts once an exercise from it is finished. The lesson counts after a lesson check or half of the lesson's steps, from the plan or from the course map.";
+
+/* Ачивки 6d: «×N», получения, «Новая / Повтор» */
+"Новый рекорд: %@" = "New record: %@";
+"Повтор ×%lld" = "Repeat ×%lld";
+"Повтор ×%lld: %@" = "Repeat ×%lld: %@";
+"получений: %lld" = "times earned: %lld";
+"Получения" = "Earned";
+"заход" = "visit";
+"захода" = "visits";
+"заходов" = "visits";
+"ступень %@" = "tier %@";
+"и ещё %lld" = "and %lld more";

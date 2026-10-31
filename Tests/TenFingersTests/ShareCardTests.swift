@@ -361,6 +361,39 @@ private func spaced(_ text: String) -> String {
     #expect(reasonOnly.subtitle == nil && reasonOnly.footnote != nil)
 }
 
+/// «Показывать дату получения»: по умолчанию включена; выключенная скрывает дату только на карточке ачивки.
+@Test func achievementCardDateCanBeHidden() throws {
+    let achievement = try #require(AchievementCatalog.all.first { $0.id == "letters.ru.pizza" })
+    let profile = ShareProfile(nickname: "", fullName: "")
+    func text(_ event: ShareEvent, showsDate: Bool) -> ShareCardText {
+        var options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .square)
+        options.achievementContent.showsDate = showsDate
+        return ShareCardText(card: ShareCard(event, now: fixedDate), options: options, profile: profile,
+                             unit: .cpm, bundle: localization("ru"), locale: ru)
+    }
+    #expect(AchievementCardContent().showsDate)
+    #expect(text(.achievement(achievement, fixedDate), showsDate: true).showsDate)
+    let hidden = text(.achievement(achievement, fixedDate), showsDate: false)
+    #expect(!hidden.showsDate && hidden.headline == achievement.title)
+    // На других карточках переключатель ачивки ничего не меняет.
+    #expect(text(.streak(days: 5, full: 4), showsDate: false).showsDate)
+}
+
+@Test func achievementDateSettingIsRememberedAndArchived() {
+    let (defaults, name) = makeTestDefaults("share-achievement-date-")
+    defer { removeTestDefaults(name) }
+    let profile = ShareProfile(nickname: "rusl3n", fullName: "")
+    #expect(ShareOptions.load(defaults, profile: profile).achievementContent.showsDate)
+    var changed = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .wide)
+    changed.achievementContent.showsDate = false
+    changed.save(defaults)
+    #expect(defaults.object(forKey: "shareAchievementShowDate") as? Bool == false)
+    #expect(SettingsKey.shareAchievementShowDate == "shareAchievementShowDate")
+    #expect(ShareOptions.load(defaults, profile: profile) == changed)
+    #expect(ArchivedSettings.read(defaults)[SettingsKey.shareAchievementShowDate] == .bool(false))
+    #expect(ArchivedSettings.introducedIn[SettingsKey.shareAchievementShowDate] == 6)
+}
+
 @Test func achievementContentIsRememberedInDefaults() {
     let (defaults, name) = makeTestDefaults("share-achievement-content-")
     defer { removeTestDefaults(name) }

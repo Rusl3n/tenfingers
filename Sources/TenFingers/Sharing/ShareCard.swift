@@ -231,22 +231,26 @@ struct ShareProfile: Equatable {
     }
 }
 
-/// Что показывать на карточке ачивки: иконка и название есть всегда, шутка и «За что» — по выбору.
+/// Что показывать на карточке ачивки: иконка и название есть всегда, шутка, «За что» и дата получения — по выбору.
 struct AchievementCardContent: Equatable {
     /// Подзаголовок — шутка (`detail`).
     var showsJoke = true
     /// Мелкая строка «За что: …». По умолчанию выключена: «иконка и название» выглядит чище.
     var showsReason = false
+    /// Дата получения под подписью. По умолчанию включена (как было до переключателя).
+    var showsDate = true
 
     static func load(from defaults: UserDefaults) -> AchievementCardContent {
         AchievementCardContent(
             showsJoke: defaults.object(forKey: SettingsKey.shareAchievementShowJoke) as? Bool ?? true,
-            showsReason: defaults.object(forKey: SettingsKey.shareAchievementShowReason) as? Bool ?? false)
+            showsReason: defaults.object(forKey: SettingsKey.shareAchievementShowReason) as? Bool ?? false,
+            showsDate: defaults.object(forKey: SettingsKey.shareAchievementShowDate) as? Bool ?? true)
     }
 
     func save(to defaults: UserDefaults) {
         defaults.set(showsJoke, forKey: SettingsKey.shareAchievementShowJoke)
         defaults.set(showsReason, forKey: SettingsKey.shareAchievementShowReason)
+        defaults.set(showsDate, forKey: SettingsKey.shareAchievementShowDate)
     }
 }
 
@@ -327,6 +331,8 @@ struct ShareCardText: Equatable {
     let progress: ProgressCardText?
     let signature: String?
     let date: String
+    /// Показывать дату: только у карточки ачивки её можно выключить (`AchievementCardContent.showsDate`).
+    let showsDate: Bool
     /// Водяной знак: название приложения на языке карточки и ссылка на проект двумя строками.
     let appName: String
     let link = ShareCardText.projectLink
@@ -386,6 +392,7 @@ struct ShareCardText: Equatable {
         self.progress = progress
         signature = profile.text(for: options.signature)
         date = card.date.formatted(Date.FormatStyle(date: .long, time: .omitted).locale(locale))
+        if case .achievement = card.event { showsDate = options.achievementContent.showsDate } else { showsDate = true }
         appName = String(localized: "Десять пальцев", bundle: bundle, locale: locale)
     }
 

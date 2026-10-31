@@ -1,7 +1,28 @@
 import Foundation
 
 public enum AchievementCategory: String, CaseIterable, Sendable {
-    case streak, speed, accuracy, course, volume, special, letters, fun
+    case streak, speed, accuracy, course, milestone, volume, special, letters, fun
+}
+
+/// Группа клавиш курса для вех: цифры 0–9 или знаки и символы (все `newKeys` издания 2, кроме букв и цифр).
+public enum KeyGroup: Sendable {
+    case digits, symbols
+}
+
+/// Вид дистанции (6d, решение 11): что считает `AchievementCondition.distance`.
+public enum DistanceKind: Sendable {
+    /// Нажатия пробела (`fingerPresses[.thumb]`); сессии без статистики пальцев (до 1.1.0) не считаются.
+    case spaces
+    /// Нажатия мизинцами (`pinkyPresses`).
+    case pinkies
+    /// Завершённые порции тренировки: режимы `adaptive` и `weak` (в том числе «Точность пальца»).
+    case trainings
+    /// Завершённые проверки `check` (не `refresh`) в режиме курса: последний шаг любого урока, с переигровками.
+    case lessons
+    /// Завершённые связные тексты от `Analytics.recordMinimumChars` знаков.
+    case texts
+    /// Логические дни с выполненным планом дня (решение 8).
+    case plans
 }
 
 /// Условие получения ачивки; проверяет `AchievementEngine` по фактам из истории.
@@ -25,11 +46,46 @@ public enum AchievementCondition: Equatable, Sendable {
     case cleanDay(exercises: Int, minimum: Double)
     case firstLesson, firstStage
     case courseCompleted(Language), polyglot
-    /// Все уроки курса языка не ниже `LessonScoring.excellentStars` (по `LessonScoring.effectiveStars`).
+    /// Все уроки курса языка, кроме ступеней скорости (`tier`), не ниже `LessonScoring.excellentStars` (по `LessonScoring.effectiveStars`).
     case allLessonsExcellent(Language)
     case volumeChars(Int), volumeHours(Double)
     /// Локальное время завершения упражнения в [startHour, endHour).
     case finishedBetween(startHour: Int, endHour: Int)
+    /// Время суток для повторяемых ачивок: местное время завершения упражнения в [startHour, endHour); одно
+    /// получение на логический день (6d, решение 4).
+    case dayPart(startHour: Int, endHour: Int)
+    /// За логический день ≥ N заходов (6d, решение 5): новый заход начинается, если от конца предыдущего
+    /// завершённого упражнения до начала следующего прошло больше 60 минут.
+    case visits(Int)
+    /// «Новый рекорд скорости» (6d, решение 6): подходящее безошибочное упражнение языка с округлённым `cpm`
+    /// строго выше прежнего рекорда языка; первое такое упражнение языка — точка отсчёта.
+    case speedRecord
+    /// Проверка этапа (`LessonKind.stageCheck`) впервые набрала порог этапа `Stage.gate` (6d, решение 7);
+    /// у издания 1 — все уроки этапа засчитаны.
+    case stagePassed
+    /// Урок издания 2 впервые достиг N звёзд по `LessonScoring.effectiveStars` (6d, решение 7).
+    case lessonStars(Int)
+    /// Урок-ступень (`LessonKind.tier`) издания 2 впервые получил ★★★ (6d, решение 7).
+    case tierPassed
+    /// N логических дней подряд с выполненным планом дня; после выдачи отсчёт с нуля (6d, решения 8–9).
+    case planWeek(days: Int)
+    /// Дистанция (6d, решение 11): сумма или число событий вида `DistanceKind` достигла порога.
+    case distance(DistanceKind, Int)
+    /// N подходящих упражнений (завершённая проверка урока или завершённое ≥ 300 знаков) на 100%.
+    case perfectCount(Int)
+    /// N логических дней, в которые первые `exercises` завершённых упражнений все с точностью ≥ `minimum`.
+    case cleanDays(count: Int, exercises: Int, minimum: Double)
+    /// Открыты все клавиши группы для языка (6d, решение 10): все 10 цифр, либо все знаки и символы курса издания 2.
+    case keysUnlocked(Language, KeyGroup)
+    /// Завершённый связный текст (`textTraits & 8` или `source` `library:*` / `custom`) от `minChars` знаков без
+    /// единой ошибки; `hard` — ещё и заглавные, пунктуация и цифры (`textTraits` содержит 1, 2 и 4).
+    case cleanText(minChars: Int, hard: Bool)
+    /// Первая завершённая проверка этапа с `HintLevel.hidden`, набравшая порог этапа `Stage.gate`.
+    case blindStageCheck
+    /// Первый логический день с выполненным планом дня (решение 8).
+    case firstPlanDay
+    /// Первая выдача `course.speed_tier`: первый урок-ступень с ★★★.
+    case firstTier
     /// Подходящее упражнение (завершённая проверка урока или завершённое упражнение ≥ 300 знаков)
     /// с `HintLevel.hidden`.
     case noKeyboard
@@ -94,6 +150,19 @@ public enum AchievementCondition: Equatable, Sendable {
     case weekendStreak(Int)
     /// Завершённое упражнение от minChars знаков с точностью от minimum, но не 100%.
     case almostPerfect(minChars: Int, minimum: Double)
+
+    // 6d, идеи пользователя (решение 18).
+
+    /// Чистое время логического дня ≥ N × цели этого дня (`DayActivity.goalSeconds`, а где её нет и у сегодняшнего —
+    /// текущая цель); повторяемая, ключ — день, значение — минуты за день.
+    case goalMultiple(Int)
+    /// «Тише едешь»: завершённый шаг урока без ошибок, медленнее цели урока; повторяемая, одно получение на день.
+    case slowAndSteady
+    /// «С первого раза»: первая попытка (и брошенная) шага урока издания 2 завершена без ошибок и не медленнее
+    /// цели урока; повторяемая, ключ — `<lessonId>#<stepIndex>`.
+    case firstTry
+    /// Завершено занятие «Точность пальца» (`source` `finger:<палец>:accuracy`) для каждого из восьми пальцев.
+    case allFingersDrilled
 }
 
 public struct Achievement: Identifiable, Equatable, Sendable {
@@ -107,18 +176,23 @@ public struct Achievement: Identifiable, Equatable, Sendable {
     public let adult: Bool
     /// Секретная: пока не получена, вместо названия, значка и условия — «???», замок и «Секретная ачивка».
     public let secret: Bool
+    /// Повторяемая: получается много раз (по ключу получения), «×N» на значке (6d, решение 2). Первое получение
+    /// создаёт запись ачивки, дальше — выдачи.
+    public let repeatable: Bool
     public let condition: AchievementCondition
     /// Только у `lettersUnlocked`: слово или команда, из которых набрано условие («пицца», «:q!»); по нему буквы
     /// в тексте условия идут в естественном порядке. Множество в условии порядка не хранит.
     public let lettersDisplay: String?
 
     public init(id: String, category: AchievementCategory, icon: String, adult: Bool = false,
-                secret: Bool = false, condition: AchievementCondition, lettersDisplay: String? = nil) {
+                secret: Bool = false, repeatable: Bool = false, condition: AchievementCondition,
+                lettersDisplay: String? = nil) {
         self.id = id
         self.category = category
         self.icon = icon
         self.adult = adult
         self.secret = secret
+        self.repeatable = repeatable
         self.condition = condition
         self.lettersDisplay = lettersDisplay
     }

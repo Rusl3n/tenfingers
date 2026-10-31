@@ -124,7 +124,8 @@ struct LessonRunnerView: View {
                     .font(.title2).monospacedDigit()
                 StepDotsView(current: index + 1, total: exercises.count)
                 Text("Дальше: \(exercises[index + 1].localizedTitle)").foregroundStyle(.secondary)
-                NewAchievementCards(achievements: coordinator?.newAchievements ?? [], fullFlame: coordinator?.newFullFlame)
+                // Промежуточный шаг ачивок не проверяет: карточки получений будут на итоге урока.
+                NewAchievementCards(achievements: [], fullFlame: coordinator?.newFullFlame)
                 Button("Дальше") { begin(index + 1) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
@@ -220,6 +221,8 @@ struct LessonRunnerView: View {
         if coordinator == nil {
             let coordinator = ExerciseCoordinator.live(context: modelContext, sound: sound, toasts: toasts,
                                                          reminders: reminders)
+            // Ачивки урока проверяются в конце единицы (итог урока, повтор шага, выход), не после каждого шага.
+            coordinator.defersAchievementChecks = true
             self.coordinator = coordinator
         }
         coordinator?.onExitAfterAlert = onExit
@@ -287,7 +290,7 @@ struct LessonRunnerView: View {
         let stars = LessonScoring.lessonStars(checkStars: checkStars, steps: steps)
         sound.play(isLast && stars > 0 ? .lessonDone : .exerciseDone)
         let passedBefore = passedLessons()
-        let saved = coordinator?.recordFinish(session, result) { recorder in
+        let saved = coordinator?.recordFinish(session, result, checksAchievements: isLast) { recorder in
             if isLast { try recorder.recordLesson(result, stars: checkStars) }
         } ?? false
         // Шаг считается пройденным только после записи в базу (в том числе после «Повторить» в алерте).

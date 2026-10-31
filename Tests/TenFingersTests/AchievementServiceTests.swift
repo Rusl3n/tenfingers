@@ -24,7 +24,8 @@ private func at(_ text: String) -> Date {
                                       cpm: Double = 160, completed: Bool = true, hint: String = "full",
                                       maxErrorStreak: Int = 1, wrong: Int = 1, pinky: Int = 0, pinkyErrors: Int = 0,
                                       source: String? = nil, fingerPresses: [Finger: Int]? = nil,
-                                      fingerErrors: [Finger: Int]? = nil, yo: Int? = nil, stepIndex: Int? = nil) {
+                                      fingerErrors: [Finger: Int]? = nil, yo: Int? = nil, stepIndex: Int? = nil,
+                                      planSlot: String? = nil, traits: Int? = nil) {
     let end = at(ended)
     context.insert(SessionRecord(
         mode: mode, language: language, lessonId: lessonId, startedAt: end.addingTimeInterval(-seconds), endedAt: end,
@@ -32,7 +33,7 @@ private func at(_ text: String) -> Date {
         completed: completed, hintLevel: hint, maxErrorStreak: maxErrorStreak, wrongKeystrokes: wrong,
         exerciseKind: kind, pinkyPresses: pinky, pinkyErrors: pinkyErrors, source: source,
         fingerPresses: fingerPresses.map(FingerCounts.data), fingerErrors: fingerErrors.map(FingerCounts.data),
-        yoPresses: yo, stepIndex: stepIndex))
+        yoPresses: yo, stepIndex: stepIndex, planSlot: planSlot, textTraits: traits))
 }
 
 @MainActor private func makeService(_ context: ModelContext, now: Date = at("2026-10-24 07:00"),
@@ -708,9 +709,9 @@ func probeAchievementsOnStoreCopy() throws {
     let fresh = try makeService(context).facts()
     #expect(cached.exercises == fresh.exercises)
     #expect(cached.exercises.last?.chars == 400)
-    // Новое упражнение даёт новую ачивку («Без кофе» — с 5 до 6 утра).
+    // Новое упражнение даёт новые ачивки («Без кофе» — с 5 до 6 утра; 5:10 — ещё и утро, `time.morning`, 6d).
     let result = try service.check(reason: .afterSave)
-    #expect(result.new.map(\.id) == ["fun.no_coffee"])
+    #expect(result.new.map(\.id) == ["time.morning", "fun.no_coffee"])
     #expect(cache.rebuilds == 1)
 
     // Замена прогресса: кэш сбрасывается и строится заново.
@@ -945,8 +946,10 @@ private let phase5Ids: Set<String> = [
         opened += 1
     }
     #expect(!outcome.isBackfill && outcome.new.count >= 2)
+    // Таблица выдач пуста — первый запуск 6d: в сводке и новые ачивки, и выдачи (первая выдача новой — не дважды).
+    #expect(outcome.isGrantBackfill && !outcome.grants.isEmpty)
     let toast = try #require(toasts.current)
-    #expect(toast.message == Formatting.backfillSummary(outcome.new.count))
+    #expect(toast.message == Formatting.backfillSummary(summaryCount(outcome)))
     #expect(toast.action != nil)
     toasts.dismiss()
     #expect(toasts.current == nil, "после сводки в очереди ничего нет")
@@ -964,11 +967,231 @@ private let phase5Ids: Set<String> = [
     for achievement in others {
         context.insert(AchievementRecord(achievementId: achievement.id, unlockedAt: at("2026-10-01 10:00"), seen: true))
     }
+    // Выдачи уже записаны (не первый запуск 6d).
+    for item in AchievementEngine.occurrences(try makeService(context).facts()) {
+        context.insert(AchievementGrant(achievementId: item.id, occurrence: item.key, grantedAt: item.date,
+                                        value: item.value, seen: true))
+    }
     try context.save()
     let toasts = ToastCenter(timer: ManualClock().timer)
     let outcome = AchievementAnnouncer.launchCheck(service: makeService(context), toasts: toasts, adultHumor: true) {}
-    #expect(outcome.new.map(\.id) == ["special.own_words"])
+    #expect(outcome.new.map(\.id) == ["special.own_words"] && outcome.grants.isEmpty)
     let toast = try #require(toasts.current)
     #expect(toast.icon == "text.quote")
     #expect(toast.message.contains(outcome.new[0].title))
+}
+
+// MARK: - Повторные получения (6d)
+
+@MainActor private func grants(_ context: ModelContext, _ id: String? = nil) throws -> [AchievementGrant] {
+    try context.fetch(FetchDescriptor<AchievementGrant>(sortBy: [SortDescriptor(\.occurrence)]))
+        .filter { id == nil || $0.achievementId == id }
+}
+
+/// Факты несут поля сессий, нужные повторяемым ачивкам: id сессии, начало, свойства текста, пункт плана.
+@MainActor @Test func factsCarrySessionFieldsForRepeatables() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    insertSession(context, ended: "2026-10-23 09:00:00", day: "2026-10-23", mode: "practice", seconds: 40,
+                  planSlot: "text", traits: 9)
+    insertSession(context, ended: "2026-10-23 10:00:00", day: "2026-10-23", mode: "practice")
+    try context.save()
+    let record = try #require(try context.fetch(FetchDescriptor<SessionRecord>(
+        sortBy: [SortDescriptor(\.endedAt)])).first)
+    let facts = try makeService(context).facts()
+    let fact = try #require(facts.exercises.first)
+    #expect(fact.sessionId == record.id.uuidString)
+    #expect(fact.startedAt == at("2026-10-23 08:59:20"))
+    #expect(fact.textTraits == 9 && fact.planSlot == .text)
+    #expect(facts.exercises[1].planSlot == nil && facts.exercises[1].textTraits == nil)
+}
+
+/// Шаги звёзд урока издания 2 — после каждого завершённого упражнения урока по `LessonScoring.effectiveStars`;
+/// итог совпадает с `starsByLesson`; уроки издания 1 в шагах не участвуют.
+@MainActor @Test func lessonStarStepsFollowHistory() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let course = try CourseCatalog.load(.ru)
+    let check = try #require(course.stages[0].checkLesson)
+    let target = Double(try #require(course.targetCpm(for: check.id)))
+    insertSession(context, ended: "2026-10-25 10:00", day: "2026-10-25", lessonId: check.id, kind: "check",
+                  chars: 200, accuracy: 1, cpm: target, wrong: 0, stepIndex: 2)
+    insertSession(context, ended: "2026-10-25 10:05", day: "2026-10-25", lessonId: check.id, kind: "check",
+                  chars: 200, accuracy: 0.5, cpm: target, wrong: 20, stepIndex: 2)
+    insertSession(context, ended: "2026-10-25 10:10", day: "2026-10-25", lessonId: check.id, kind: "check",
+                  chars: 200, accuracy: 1, cpm: target * 2, wrong: 0, stepIndex: 2)
+    insertSession(context, ended: "2026-10-25 10:20", day: "2026-10-25", lessonId: "ru.1.1", kind: "check",
+                  chars: 200, accuracy: 1, cpm: 300, wrong: 0)
+    let progress = LessonProgress(lessonId: check.id, language: "ru")
+    progress.bestStars = 3
+    progress.passedAt = at("2026-10-25 10:00")
+    context.insert(progress)
+    try context.save()
+    let facts = try makeService(context, now: at("2026-10-25 12:00")).facts()
+    let steps = try #require(facts.lessonStarSteps[check.id])
+    #expect(steps.count >= 2, "звёзды менялись минимум дважды: \(steps)")
+    #expect(steps.first?.date == at("2026-10-25 10:00"))
+    #expect(steps.map(\.date) == steps.map(\.date).sorted())
+    #expect(zip(steps, steps.dropFirst()).allSatisfy { $0.stars != $1.stars })
+    #expect(steps.last?.stars == facts.starsByLesson[check.id])
+    #expect(steps.last?.date == at("2026-10-25 10:10") && steps.last?.checkCpm == target * 2)
+    #expect(facts.lessonStarSteps["ru.1.1"] == nil, "издание 1 — без шагов")
+}
+
+/// Шаги звёзд не берут итоговые хранимые звёзды: до первой проверки урока шагов нет, а первый шаг со звёздами
+/// датирован проверкой, даже если у урока `bestStars = 5` (иначе ★★★★★ и ступень получили бы дату первого шага).
+@MainActor @Test func lessonStarStepsStartAtFirstCheckDespiteStoredStars() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let course = try CourseCatalog.load(.ru)
+    let check = try #require(course.stages[0].checkLesson)
+    let target = Double(try #require(course.targetCpm(for: check.id)))
+    insertSession(context, ended: "2026-10-25 10:00", day: "2026-10-25", lessonId: check.id, kind: "words",
+                  chars: 100, accuracy: 1, cpm: target, wrong: 0, stepIndex: 0)
+    insertSession(context, ended: "2026-10-25 10:05", day: "2026-10-25", lessonId: check.id, kind: "words",
+                  chars: 100, accuracy: 1, cpm: target, wrong: 0, stepIndex: 1)
+    insertSession(context, ended: "2026-10-25 10:10", day: "2026-10-25", lessonId: check.id, kind: "check",
+                  chars: 200, accuracy: 1, cpm: target * 2, wrong: 0, stepIndex: 2)
+    let progress = LessonProgress(lessonId: check.id, language: "ru")
+    progress.bestStars = 5
+    progress.passedAt = at("2026-10-25 10:10")
+    context.insert(progress)
+    try context.save()
+    let facts = try makeService(context, now: at("2026-10-25 12:00")).facts()
+    let steps = try #require(facts.lessonStarSteps[check.id])
+    let checkDate = at("2026-10-25 10:10")
+    #expect(steps.allSatisfy { $0.date >= checkDate }, "шаги до проверки звёзд не дают: \(steps)")
+    let firstThree = try #require(steps.first { $0.stars >= 3 })
+    #expect(firstThree.date == checkDate && firstThree.checkCpm == target * 2)
+    let five = try #require(steps.first { $0.stars >= 5 })
+    #expect(five.checkCpm != nil)
+    #expect(steps.last?.stars == facts.starsByLesson[check.id])
+}
+
+/// Число шагов урока для пункта «Урок» плана — та же функция, что у `DayPlanLoader`; только уроки пункта «Урок».
+@MainActor @Test func lessonStepCountsReuseDayPlanLoader() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let course = try CourseCatalog.load(.ru)
+    let lesson = try #require(course.stages[0].checkLesson)
+    insertSession(context, ended: "2026-10-25 10:00", day: "2026-10-25", lessonId: lesson.id, kind: "check",
+                  chars: 200, accuracy: 1, cpm: 80, wrong: 0, stepIndex: 2, planSlot: "lesson")
+    insertSession(context, ended: "2026-10-25 10:10", day: "2026-10-25", lessonId: "ru.1.1", kind: "check",
+                  planSlot: "lesson")
+    try context.save()
+    let facts = try makeService(context, now: at("2026-10-25 12:00")).facts()
+    let expected = DayPlanLoader.stepCounts(course: course, ids: [lesson.id])
+    #expect(expected[lesson.id] ?? 0 > 0)
+    #expect(facts.lessonStepCounts == expected)
+}
+
+@MainActor private func morningHistory(_ context: ModelContext) throws {
+    for day in ["2026-10-21", "2026-10-22"] {
+        insertSession(context, ended: "\(day) 08:00:00", day: day, mode: "practice")
+    }
+    try context.save()
+}
+
+/// Первый запуск: выдачи из истории — просмотренные, повтор ничего не меняет, новое утро — непросмотренная
+/// выдача с «×3»; существующая выдача с другим значением и датой не перезаписывается.
+@MainActor @Test func grantsAreBackfilledThenOnlyMissingOnesAreAdded() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try morningHistory(context)
+    let launch = try makeService(context).check(reason: .launch)
+    #expect(launch.isGrantBackfill && launch.isBackfill)
+    let morning = try grants(context, "time.morning")
+    #expect(morning.map(\.occurrence) == ["2026-10-21", "2026-10-22"])
+    #expect(morning.map(\.grantedAt) == [at("2026-10-21 08:00"), at("2026-10-22 08:00")])
+    #expect(morning.allSatisfy { $0.seen })
+    #expect(launch.grants.filter { $0.achievement.id == "time.morning" }.map(\.count) == [1, 2])
+    let allGrants = try grants(context)
+    #expect(allGrants.allSatisfy { $0.seen })
+    #expect(try records(context).contains { $0.achievementId == "time.morning" })
+    let total = try grants(context).count
+    #expect(total == launch.grants.count)
+
+    // Пользователь уже мог увидеть выдачу или изменить значение: ничего не трогаем.
+    let first = try #require(morning.first)
+    first.value = 7
+    first.seen = false
+    let stamp = first.grantedAt
+    try context.save()
+    let again = try makeService(context).check(reason: .launch)
+    #expect(again.grants.isEmpty && !again.isGrantBackfill && !again.isBackfill)
+    #expect(try grants(context).count == total)
+    let kept = try #require(try grants(context, "time.morning").first)
+    #expect(kept.value == 7 && !kept.seen && kept.grantedAt == stamp)
+
+    insertSession(context, ended: "2026-10-23 09:00:00", day: "2026-10-23", mode: "practice")
+    try context.save()
+    let saved = try makeService(context, now: at("2026-10-23 09:01")).check(reason: .afterSave)
+    let added = saved.grants.filter { $0.achievement.id == "time.morning" }
+    #expect(added.count == 1 && added[0].occurrence == "2026-10-23" && added[0].count == 3)
+    #expect(!saved.isGrantBackfill)
+    let third = try #require(try grants(context, "time.morning").first { $0.occurrence == "2026-10-23" })
+    #expect(!third.seen && third.grantedAt == at("2026-10-23 09:00"))
+    #expect(try grants(context, "time.morning").count == 3)
+}
+
+/// Выдача, чьей пары нет, добавляется при запуске непросмотренной, если таблица выдач уже не пуста;
+/// новая разовая ачивка при таком запуске тоже непросмотренная и не «задним числом».
+@MainActor @Test func laterLaunchGrantsAreUnseenAndNotBackfill() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try morningHistory(context)
+    context.insert(AchievementRecord(achievementId: "time.morning", unlockedAt: at("2026-10-21 08:00"), seen: true))
+    context.insert(AchievementGrant(achievementId: "time.morning", occurrence: "2026-10-21",
+                                    grantedAt: at("2026-10-21 08:00"), seen: true))
+    let caps = CounterRecord(name: CounterName.capsLockPresses)
+    caps.value = 1
+    context.insert(caps)
+    try context.save()
+    let result = try makeService(context).check(reason: .launch)
+    #expect(!result.isGrantBackfill && !result.isBackfill)
+    #expect(result.grants.map(\.occurrence) == ["2026-10-22"] && result.grants.first?.count == 2)
+    #expect(try grants(context, "time.morning").first { $0.occurrence == "2026-10-22" }?.seen == false)
+    #expect(try grants(context, "time.morning").first { $0.occurrence == "2026-10-21" }?.seen == true)
+    let unseenRecords = try records(context).filter { !$0.seen }
+    #expect(result.new.map(\.id) == ["fun.oy_vsyo"] && unseenRecords.count == 1)
+}
+
+/// Сводка при запуске: N — видимые новые ачивки плюс выдачи; скрытые «взрослые» выдачи не считаются.
+@MainActor @Test func launchSummaryCountsGrants() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try morningHistory(context)
+    let toasts = ToastCenter(timer: ManualClock().timer)
+    let outcome = AchievementAnnouncer.launchCheck(service: makeService(context), toasts: toasts, adultHumor: true) {}
+    #expect(outcome.isGrantBackfill && outcome.grants.count >= 2)
+    let toast = try #require(toasts.current)
+    #expect(toast.message == Formatting.backfillSummary(summaryCount(outcome)))
+
+    let hiddenContainer = try ModelStore.makeContainer(inMemory: true)
+    let hiddenContext = hiddenContainer.mainContext
+    try morningHistory(hiddenContext)
+    let hiddenToasts = ToastCenter(timer: ManualClock().timer)
+    let visibleOutcome = AchievementAnnouncer.launchCheck(
+        service: makeService(hiddenContext), toasts: hiddenToasts, adultHumor: false) {}
+    let hiddenMessage = try #require(hiddenToasts.current).message
+    #expect(hiddenMessage == Formatting.backfillSummary(summaryCount(visibleOutcome, adultHumor: false)))
+}
+
+/// Число в сводке запуска: новые и выдачи; первая выдача новой повторяемой — та же ачивка и не считается дважды.
+private func summaryCount(_ outcome: AchievementService.Outcome, adultHumor: Bool = true) -> Int {
+    let newIds = Set(outcome.new.map(\.id))
+    let new = outcome.new.filter { adultHumor || !$0.adult }.count
+    let grants = outcome.grants.filter {
+        (adultHumor || !$0.achievement.adult) && !($0.count == 1 && newIds.contains($0.achievement.id))
+    }.count
+    return new + grants
+}
+
+/// Одна новая повторяемая ачивка при запуске (её первая выдача) — обычный тост, а не сводка «2».
+@MainActor @Test func launchCheckWithOneNewRepeatableShowsItsToast() throws {
+    let morning = try #require(AchievementCatalog.all.first { $0.id == "time.morning" })
+    let outcome = AchievementService.Outcome(
+        new: [morning], isBackfill: false,
+        grants: [AchievementService.NewGrant(achievement: morning, occurrence: "2026-11-01", value: nil, count: 1)])
+    #expect(AchievementAnnouncer.summaryCount(outcome, adultHumor: true) == 1)
 }

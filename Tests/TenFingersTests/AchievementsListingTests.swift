@@ -90,9 +90,9 @@ private let catalog = AchievementCatalog.all
 }
 
 @Test func filterHasTitlesAndStableRawValues() {
-    #expect(AchievementsFilter.allCases == [.all, .earned, .locked])
-    #expect(AchievementsFilter.allCases.map(\.rawValue) == ["all", "earned", "locked"])
-    #expect(AchievementsFilter.allCases.map(\.title) == ["Все", "Полученные", "Не полученные"])
+    #expect(AchievementsFilter.allCases == [.all, .earned, .locked, .new])
+    #expect(AchievementsFilter.allCases.map(\.rawValue) == ["all", "earned", "locked", "new"])
+    #expect(AchievementsFilter.allCases.map(\.title) == ["Все", "Полученные", "Не полученные", "Новые"])
 }
 
 @Test func concealedEntryRevealsNothing() throws {
@@ -146,12 +146,14 @@ private let catalog = AchievementCatalog.all
     let progress = AchievementsListing.progress(entries)
     #expect(progress.earned == 3)
     #expect(progress.total == catalog.count)
-    #expect(entries.filter(\.isConcealed).count == 28 - 2)
+    #expect(entries.filter(\.isConcealed).count == 32 - 2)
 }
 
 @Test func availableCategoriesFollowTheCatalogOrderAndSkipEmptyOnes() {
     let entries = AchievementsListing.entries(catalog: catalog, earned: [], adultHumor: false)
-    #expect(AchievementsListing.categories(of: entries) == AchievementCategory.allCases)
+    // Пустые категории (у «Вех» пока нет ачивок) в список не попадают.
+    #expect(AchievementsListing.categories(of: entries)
+        == AchievementCategory.allCases.filter { category in catalog.contains { $0.category == category } })
     let onlyStreak = entries.filter { $0.achievement.category == .streak }
     #expect(AchievementsListing.categories(of: onlyStreak) == [.streak])
 }
@@ -276,4 +278,122 @@ private let catalog = AchievementCatalog.all
     var recorder = ResultRecorder(context: context, dayStartHour: 4)
     recorder.beforeSave = { Issue.record("сохранение не нужно") }
     try AchievementsListing.markSeen([], in: recorder)
+}
+
+// MARK: - «×N» и список получений (6d)
+
+private func grant(_ id: String, _ n: Int, value: Double? = nil) -> StoredGrant {
+    StoredGrant(achievementId: id, occurrence: "k\(n)", grantedAt: day(n), value: value)
+}
+
+@Test func threeGrantsGiveRepeatCountAndDescendingList() throws {
+    let entries = AchievementsListing.entries(
+        catalog: catalog, earned: [earned("time.morning", 1)],
+        grants: [grant("time.morning", 2), grant("time.morning", 1), grant("time.morning", 3)], adultHumor: true)
+    let entry = try #require(entries.first { $0.achievement.id == "time.morning" })
+    #expect(entry.repeatCount == 3)
+    #expect(entry.grants.map(\.grantedAt) == [day(3), day(2), day(1)])
+}
+
+@Test func singleGrantHasNoRepeatCount() throws {
+    let entries = AchievementsListing.entries(
+        catalog: catalog, earned: [earned("time.morning", 1)], grants: [grant("time.morning", 1)], adultHumor: true)
+    let entry = try #require(entries.first { $0.achievement.id == "time.morning" })
+    #expect(entry.repeatCount == nil)
+    #expect(entry.grants.count == 1)
+    // Неполученная ачивка с чужими выдачами — без «×N».
+    let other = try #require(entries.first { $0.achievement.id == "streak.3" })
+    #expect(other.repeatCount == nil && other.grants.isEmpty)
+}
+
+@Test func grantListIsCappedWithTail() {
+    let many = (1...53).map { grant("time.morning", $0) }
+    let content = GrantList.content(many.sorted { $0.grantedAt > $1.grantedAt })
+    #expect(content.shown.count == 50)
+    #expect(content.more == 3)
+    #expect(content.shown.first?.grantedAt == day(53))
+    let short = GrantList.content(Array(many.prefix(5)))
+    #expect(short.shown.count == 5 && short.more == 0)
+}
+
+@Test func grantTailIsInflected() throws {
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let ru = try #require(Bundle(url: root.appendingPathComponent("Localization/ru.lproj")))
+    let en = try #require(Bundle(url: root.appendingPathComponent("Localization/en.lproj")))
+    #expect(Formatting.moreGrants(3, bundle: ru, locale: Locale(identifier: "ru")) == "и ещё 3")
+    #expect(Formatting.moreGrants(3, bundle: en, locale: Locale(identifier: "en")) == "and 3 more")
+    #expect(Formatting.visits(1, bundle: ru, locale: Locale(identifier: "ru")) == "1 заход")
+    #expect(Formatting.visits(3, bundle: ru, locale: Locale(identifier: "ru")) == "3 захода")
+    #expect(Formatting.visits(5, bundle: ru, locale: Locale(identifier: "ru")) == "5 заходов")
+    #expect(Formatting.visits(5, bundle: en, locale: Locale(identifier: "en")) == "5 visits")
+}
+
+@Test func grantValuesFollowTheAchievementKind() throws {
+    func ach(_ id: String) throws -> Achievement { try #require(catalog.first { $0.id == id }) }
+    #expect(Formatting.grantValue(231, for: try ach("speed.record"), unit: .wpm) == "46 WPM")
+    #expect(Formatting.grantValue(231, for: try ach("speed.record"), unit: .cpm) == "231 зн/мин")
+    #expect(Formatting.grantValue(4, for: try ach("course.stage"), unit: .cpm) == "★★★★")
+    #expect(Formatting.grantValue(3, for: try ach("habit.visits.3"), unit: .cpm) == "3 захода")
+    #expect(Formatting.grantValue(25, for: try ach("time.morning"), unit: .cpm).isEmpty)
+    // Цели дня — минуты; у «Тише едешь» и «С первого раза» значения нет.
+    #expect(Formatting.grantValue(25, for: try ach("habit.goal.x2"), unit: .cpm) == "25 мин")
+    #expect(Formatting.grantValue(80, for: try ach("habit.goal.x3"), unit: .cpm) == "1 ч 20 мин")
+    #expect(Formatting.grantValue(25, for: try ach("fun.slow_steady"), unit: .cpm).isEmpty)
+    #expect(Formatting.grantValue(25, for: try ach("course.first_try"), unit: .cpm).isEmpty)
+}
+
+// MARK: - «Новые» и красные кружки (6d)
+
+private func unseenGrant(_ id: String, _ n: Int) -> StoredGrant {
+    StoredGrant(achievementId: id, occurrence: "k\(n)", grantedAt: day(n), seen: false)
+}
+
+@Test func unseenIdsIncludeRecordsAndGrantsOfVisibleAchievements() {
+    let records = [earned("streak.3", 1, seen: false), earned("streak.7", 2, seen: false),
+                   earned("streak.14", 3, seen: true), earned("letters.ru.b_word", 4, seen: false)]
+    let ids = AchievementsListing.unseenIds(catalog: catalog, earned: records, unseenGrantIds: ["streak.14"],
+                                            adultHumor: false)
+    #expect(ids == ["streak.3", "streak.7", "streak.14"], "скрытая adult не считается")
+    #expect(AchievementsListing.unseenIds(catalog: catalog, earned: records, unseenGrantIds: ["letters.ru.b_word"],
+                                          adultHumor: false) == ["streak.3", "streak.7"])
+    #expect(AchievementsListing.unseenIds(catalog: catalog, earned: records, unseenGrantIds: ["future.thing"],
+                                          adultHumor: true) == ["streak.3", "streak.7", "letters.ru.b_word"])
+}
+
+@Test func newFilterShowsTheSnapshotAndMarksItsCategories() {
+    let entries = AchievementsListing.entries(
+        catalog: catalog, earned: [earned("streak.3", 1), earned("streak.7", 2), earned("fun.not_today", 3)],
+        adultHumor: true)
+    let fresh: Set<String> = ["streak.3", "streak.7", "fun.not_today"]
+    let shown = AchievementsListing.filtered(entries, category: nil, filter: .new, fresh: fresh)
+    #expect(Set(shown.map(\.achievement.id)) == fresh)
+    #expect(AchievementsListing.filtered(entries, category: .streak, filter: .new, fresh: fresh).count == 2)
+    #expect(AchievementsListing.categoriesWithNew(of: entries, fresh: fresh) == [.streak, .fun])
+    #expect(AchievementsListing.categoriesWithNew(of: entries, fresh: []).isEmpty)
+    #expect(AchievementsListing.filtered(entries, category: nil, filter: .new, fresh: []).isEmpty)
+}
+
+@Test func newFilterIsOfferedOnlyForANonEmptySnapshotAndFallsBackToAll() {
+    #expect(AchievementsListing.availableFilters(hasNew: false) == [.all, .earned, .locked])
+    #expect(AchievementsListing.availableFilters(hasNew: true) == [.all, .earned, .locked, .new])
+    #expect(AchievementsListing.resolvedFilter(.new, hasNew: false) == .all)
+    #expect(AchievementsListing.resolvedFilter(.new, hasNew: true) == .new)
+    #expect(AchievementsListing.resolvedFilter(.earned, hasNew: false) == .earned)
+}
+
+@MainActor @Test func markSeenMarksRecordsAndGrantsOfTheGivenAchievements() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = ModelContext(container)
+    for id in ["streak.3", "streak.7"] { context.insert(AchievementRecord(achievementId: id, unlockedAt: day(1))) }
+    context.insert(AchievementRecord(achievementId: "streak.14", unlockedAt: day(1), seen: true))
+    context.insert(AchievementGrant(achievementId: "streak.14", occurrence: "a", grantedAt: day(2)))
+    context.insert(AchievementGrant(achievementId: "streak.14", occurrence: "b", grantedAt: day(3)))
+    context.insert(AchievementGrant(achievementId: "streak.7", occurrence: "c", grantedAt: day(3)))
+    try context.save()
+    try AchievementsListing.markSeen(["streak.3", "streak.14"], in: ResultRecorder(context: context, dayStartHour: 4))
+    #expect(try seenFlags(context) == ["streak.3": true, "streak.7": false, "streak.14": true])
+    let grants = try context.fetch(FetchDescriptor<AchievementGrant>())
+    #expect(Dictionary(uniqueKeysWithValues: grants.map { ($0.occurrence, $0.seen) }) == ["a": true, "b": true, "c": false])
+    #expect(!context.hasChanges)
 }

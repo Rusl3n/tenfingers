@@ -42,6 +42,46 @@
 			<string>Получено %lld ачивки за прошлые занятия</string>
 		</dict>
 	</dict>
+	<key>achievement.visits %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld заход</string>
+			<key>few</key>
+			<string>%lld захода</string>
+			<key>many</key>
+			<string>%lld заходов</string>
+			<key>other</key>
+			<string>%lld захода</string>
+		</dict>
+	</dict>
+	<key>achievement.grants.more %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>и ещё %lld</string>
+			<key>few</key>
+			<string>и ещё %lld</string>
+			<key>many</key>
+			<string>и ещё %lld</string>
+			<key>other</key>
+			<string>и ещё %lld</string>
+		</dict>
+	</dict>
 	<key>errors.atMost %lld</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>

@@ -6,15 +6,18 @@ import TypingCore
 private let seenLog = Logger(subsystem: "local.tenfingers", category: "achievements")
 
 /// Экран «Ачивки»: прогресс «Получено N из M», фильтры (по состоянию и по категориям) и сетка значков. При появлении все
-/// видимые ачивки помечаются просмотренными (одной транзакцией), но точки «новое» остаются, пока экран открыт.
+/// ачивки с непросмотренной записью или выдачей запоминаются (снимок): на время визита по ним работают «Новые» и красные
+/// кружки; просмотренными в базе они становятся при уходе с экрана (одной транзакцией).
 struct AchievementsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \AchievementRecord.unlockedAt, order: .reverse) private var records: [AchievementRecord]
+    @Query private var grantRecords: [AchievementGrant]
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
     @AppStorage(SettingsKey.achievementsFilter) private var filterRaw = AchievementsFilter.all.rawValue
     @State private var category: AchievementCategory?
     @State private var selected: AchievementEntry?
-    /// Ачивки, которые были новыми к моменту открытия экрана: на них точка, хотя в базе они уже просмотрены.
+    /// Снимок новых: ачивки с непросмотренной записью или выдачей на момент открытия экрана и пришедшие, пока он
+    /// открыт. Просмотренными в базе они становятся при уходе.
     @State private var fresh: Set<String> = []
 
     private var filter: Binding<AchievementsFilter> {
@@ -24,11 +27,14 @@ struct AchievementsView: View {
     private var stored: [StoredAchievement] { records.map(StoredAchievement.init) }
 
     private var entries: [AchievementEntry] {
-        AchievementsListing.entries(catalog: AchievementCatalog.all, earned: stored, adultHumor: adultHumor)
+        AchievementsListing.entries(catalog: AchievementCatalog.all, earned: stored,
+                                    grants: grantRecords.map(StoredGrant.init), adultHumor: adultHumor)
     }
 
     private var unseen: Set<String> {
-        AchievementsListing.unseenIds(catalog: AchievementCatalog.all, earned: stored, adultHumor: adultHumor)
+        AchievementsListing.unseenIds(
+            catalog: AchievementCatalog.all, earned: stored,
+            unseenGrantIds: Set(grantRecords.filter { !$0.seen }.map(\.achievementId)), adultHumor: adultHumor)
     }
 
     var body: some View {
@@ -37,9 +43,15 @@ struct AchievementsView: View {
                                 select: { selected = $0 })
         }
         .scrollContentBackground(.hidden)
-        .onAppear(perform: markSeen)
-        // Новая ачивка, выданная при открытом экране (например, проверка при запуске).
-        .onChange(of: unseen) { markSeen() }
+        .onAppear {
+            fresh = unseen
+            // Пустой снимок (новый визит): выбранные «Новые» сбрасываются на «Все» и в хранимом выборе.
+            let resolved = AchievementsListing.resolvedFilter(filter.wrappedValue, hasNew: !fresh.isEmpty)
+            if resolved != filter.wrappedValue { filter.wrappedValue = resolved }
+        }
+        // Новая ачивка или выдача при открытом экране (например, проверка после упражнения) попадает в снимок.
+        .onChange(of: unseen) { fresh.formUnion(unseen) }
+        .onDisappear(perform: markSeen)
         // Выбранная категория пропала (выключили «Взрослый юмор»): назад к «Все».
         .onChange(of: AchievementsListing.categories(of: entries)) {
             category = AchievementsListing.resolvedCategory(category, in: entries)
@@ -49,11 +61,10 @@ struct AchievementsView: View {
         }
     }
 
-    /// Все видимые непросмотренные — в просмотренные одной транзакцией; точки на них остаются до ухода с экрана.
+    /// Снимок и всё, что пришло после, — в просмотренные одной транзакцией (при уходе с экрана).
     private func markSeen() {
-        let ids = unseen
+        let ids = fresh.union(unseen)
         guard !ids.isEmpty else { return }
-        fresh.formUnion(ids)
         do {
             try AchievementsListing.markSeen(ids, in: .live(context: modelContext))
         } catch {
@@ -74,7 +85,11 @@ struct AchievementsContent: View {
 
     var body: some View {
         let progress = AchievementsListing.progress(entries)
-        let shown = AchievementsListing.filtered(entries, category: category, filter: filter)
+        let fresh = freshIds.intersection(entries.map(\.id))
+        let hasNew = !fresh.isEmpty
+        let currentFilter = AchievementsListing.resolvedFilter(filter, hasNew: hasNew)
+        let shown = AchievementsListing.filtered(entries, category: category, filter: currentFilter, fresh: fresh)
+        let picked = Binding(get: { currentFilter }, set: { filter = $0 })
         VStack(alignment: .leading, spacing: 16) {
             Text("Ачивки").font(.largeTitle.bold())
             VStack(alignment: .leading, spacing: 8) {
@@ -84,13 +99,18 @@ struct AchievementsContent: View {
                     Text("Пока ни одной: они появятся после занятий").foregroundStyle(.secondary)
                 }
             }
-            Picker("Показывать", selection: $filter) {
-                ForEach(AchievementsFilter.allCases) { Text($0.title).tag($0) }
+            Picker("Показывать", selection: picked) {
+                ForEach(AchievementsListing.availableFilters(hasNew: hasNew)) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .fixedSize()
-            CategoryFilter(categories: AchievementsListing.categories(of: entries), selection: $category)
+            .overlay(alignment: .topTrailing) {
+                if hasNew { NewDot().offset(x: 4, y: -4) }
+            }
+            CategoryFilter(categories: AchievementsListing.categories(of: entries),
+                           newCategories: AchievementsListing.categoriesWithNew(of: entries, fresh: fresh),
+                           selection: $category)
             if shown.isEmpty {
                 EmptyAchievements { filter = .all; category = nil }
             } else {
@@ -107,6 +127,13 @@ struct AchievementsContent: View {
         .padding(28)
         .frame(maxWidth: 900, alignment: .leading)
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Красный кружок «есть новое» на кнопках фильтров.
+private struct NewDot: View {
+    var body: some View {
+        Circle().fill(.red).frame(width: 9, height: 9).accessibilityHidden(true)
     }
 }
 
@@ -144,6 +171,7 @@ private struct ProgressBar: View {
 /// Фильтр: «Все» и категории, в несколько строк по ширине экрана.
 private struct CategoryFilter: View {
     let categories: [AchievementCategory]
+    let newCategories: Set<AchievementCategory>
     @Binding var selection: AchievementCategory?
 
     var body: some View {
@@ -151,18 +179,22 @@ private struct CategoryFilter: View {
             chip(String(localized: "Все"), tint: .accentColor, isOn: selection == nil) { selection = nil }
             ForEach(categories, id: \.self) { category in
                 chip(AchievementStyle.title(category), tint: AchievementStyle.tint(category),
-                     isOn: selection == category) { selection = category }
+                     isOn: selection == category, hasNew: newCategories.contains(category)) { selection = category }
             }
         }
     }
 
-    private func chip(_ title: String, tint: Color, isOn: Bool, action: @escaping () -> Void) -> some View {
+    private func chip(_ title: String, tint: Color, isOn: Bool, hasNew: Bool = false,
+                      action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.callout.weight(.medium))
                 .foregroundStyle(isOn ? Color.white : Color.primary)
                 .padding(.horizontal, 12).padding(.vertical, 5)
                 .background(isOn ? tint : tint.opacity(0.14), in: Capsule())
+                .overlay(alignment: .topTrailing) {
+                    if hasNew { NewDot().offset(x: 2, y: -2) }
+                }
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isOn ? .isSelected : [])

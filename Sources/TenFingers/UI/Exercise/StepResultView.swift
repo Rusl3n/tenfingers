@@ -17,7 +17,7 @@ struct StepResultView: View {
     /// Цель этапа урока: для объяснения звёзд и подсказки до следующей звезды.
     let targetCpm: Int
     /// Ачивки, полученные в сохранении этого шага.
-    var newAchievements: [Achievement] = []
+    var newAchievements: [EarnedCard] = []
     /// Полный огонь в сохранении этого шага.
     var fullFlame: FullFlame?
     /// Проверка засчитала последний урок этапа или курса (`ShareEvent.stepCompletion`).

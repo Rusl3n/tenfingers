@@ -11,7 +11,7 @@ enum SettingsKey {
     /// Логический день, за который показан тост «План выполнен» (решение 14 фазы 6c), String. Не архивируется:
     /// состояние устройства.
     static let dayPlanAnnouncedDay = "dayPlanAnnouncedDay"
-    /// Фильтр экрана «Ачивки» (`AchievementsFilter`): all | earned | locked. Не архивируется: состояние окна.
+    /// Фильтр экрана «Ачивки» (`AchievementsFilter`): all | earned | locked | new. Не архивируется: состояние окна.
     static let achievementsFilter = "achievementsFilter"
     static let themeMode = "themeMode"
     static let lightPalette = "lightPalette"
@@ -81,9 +81,11 @@ enum SettingsKey {
     static let shareProgressShowAccuracy = "shareProgressShowAccuracy"
     static let shareProgressShowVisits = "shareProgressShowVisits"
     static let shareProgressShowGoalDays = "shareProgressShowGoalDays"
-    /// Что показывать на карточке ачивки (`AchievementCardContent`): шутку (по умолчанию да) и «За что» (по умолчанию нет).
+    /// Что показывать на карточке ачивки (`AchievementCardContent`): шутку (по умолчанию да), «За что» (по умолчанию нет) и дату получения (по умолчанию да).
     static let shareAchievementShowJoke = "shareAchievementShowJoke"
     static let shareAchievementShowReason = "shareAchievementShowReason"
+    /// Дата получения на карточке ачивки (по умолчанию да).
+    static let shareAchievementShowDate = "shareAchievementShowDate"
     /// Прежний ключ темы (system/light/dark), читается один раз как начальное значение `themeMode`.
     static let legacyTheme = "theme"
 }

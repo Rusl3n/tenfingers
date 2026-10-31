@@ -214,6 +214,22 @@ private let allFingerLetters: [Character: Finger] = ["й": .leftPinky, "о": .ri
     #expect(model.cells.first { $0.finger == .rightIndex }?.drill == .speed)
 }
 
+@Test func fingerWithoutOpenLettersShowsAGrayNoteInsteadOfAButton() {
+    // Слабый мизинец без открытых букв: кнопки нет, вместо неё — подпись; у сильного с буквами — кнопка без подписи.
+    let open: Set<Character> = ["о", "в"]
+    let model = FingerCardModel.make(reports: fingerReports(),
+                                     fingerOf: allFingerLetters.filter { open.contains($0.key) })
+    func cell(_ finger: Finger) -> FingerCardModel.Cell { model.cells.first { $0.finger == finger }! }
+    #expect(cell(.leftPinky).drill == nil && cell(.leftPinky).showsNoLettersNote)
+    #expect(cell(.rightIndex).drill == .speed && !cell(.rightIndex).showsNoLettersNote)
+    // Пальцы без кнопки по другой причине (норма, мало данных) подписи не получают, даже без букв.
+    #expect(!cell(.leftRing).showsNoLettersNote && !cell(.leftMiddle).showsNoLettersNote)
+    #expect(FingerCardModel.noLettersNote == String(localized: "Нет открытых букв"))
+    // Без карты букв подпись у обоих пальцев с кнопкой (слабый и сильный).
+    let none = FingerCardModel.make(reports: fingerReports(), fingerOf: [:])
+    #expect(none.cells.filter(\.showsNoLettersNote).map(\.finger) == [.leftPinky, .rightIndex])
+}
+
 @Test func fingerCellWithoutDataShowsNoAccuracy() {
     // 10 нажатий, 2 ошибки: точность в отчёте есть (80%), но класс «мало данных» — в клетке «—».
     let few = FingerTraining.reports(presses: [.leftPinky: 10, .leftRing: 100], errors: [.leftPinky: 2],

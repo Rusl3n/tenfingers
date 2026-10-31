@@ -1011,6 +1011,7 @@ enum ArchivedSettings {
             (SettingsKey.shareProgressShowAccuracy, .bool),
             (SettingsKey.shareProgressShowVisits, .bool), (SettingsKey.shareProgressShowGoalDays, .bool),
             (SettingsKey.shareAchievementShowJoke, .bool), (SettingsKey.shareAchievementShowReason, .bool),
+            (SettingsKey.shareAchievementShowDate, .bool),
         ] + SoundEvent.allCases.flatMap { event -> [(key: String, kind: Kind)] in
             [(SoundSettings.enabledKey(event), .bool), (SoundSettings.volumeKey(event), .double)]
         }
@@ -1067,6 +1068,7 @@ enum ArchivedSettings {
         SettingsKey.shareProgressShowVisits: 6, SettingsKey.shareProgressShowGoalDays: 6,
         SettingsKey.firstWeekday: 6,
         SettingsKey.shareAchievementShowJoke: 5, SettingsKey.shareAchievementShowReason: 5,
+        SettingsKey.shareAchievementShowDate: 6,
         SettingsKey.reminderSchedule: 4, SettingsKey.reminderTime1: 4, SettingsKey.reminderTime2: 4,
         SettingsKey.reminderTime3: 4, SettingsKey.reminderFromHour: 4, SettingsKey.reminderToHour: 4,
         SettingsKey.reminderIntervalHours: 4, SettingsKey.reminderTone: 4, SettingsKey.reminderEscalating: 4,

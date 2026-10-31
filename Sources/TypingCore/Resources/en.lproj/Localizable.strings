@@ -263,6 +263,8 @@
 "achievement.accuracy.clean_day.detail" = "A day without a smudge. Frame-worthy";
 "achievement.accuracy.all_fingers.title" = "Ten Out of Ten";
 "achievement.accuracy.all_fingers.detail" = "Not a single finger is slacking";
+"achievement.fingers.all_eight.title" = "Eight Fingers";
+"achievement.fingers.all_eight.detail" = "Every finger has had its drill. The thumb is not offended either";
 
 /* Ачивки: Курс */
 "achievement.course.first_lesson.title" = "First Lesson";
@@ -321,6 +323,54 @@
 "achievement.special.weak_spot.10.detail" = "Your weak spots are starting to fear you";
 "achievement.special.own_words.title" = "In Your Own Words";
 "achievement.special.own_words.detail" = "Your own text, typed. Work emails hold no fear now";
+"achievement.time.morning.title" = "Good Morning";
+"achievement.time.morning.detail" = "While others scroll their feeds, you train your fingers";
+"achievement.time.afternoon.title" = "Good Afternoon";
+"achievement.time.afternoon.detail" = "Lunch break, and the fingers got their share too";
+"achievement.time.evening.title" = "Good Evening";
+"achievement.time.evening.detail" = "The day is over, but the keys are still warm";
+"achievement.habit.visits.2.title" = "Two Visits";
+"achievement.habit.visits.2.detail" = "Once is chance, twice is a habit";
+"achievement.habit.visits.3.title" = "Three Visits";
+"achievement.habit.visits.3.detail" = "The keyboard no longer asks where you have been";
+"achievement.habit.visits.5.title" = "Five Visits";
+"achievement.habit.visits.5.detail" = "Five times in one day. This is not practice anymore, it is a relationship";
+"achievement.speed.record.title" = "New Record";
+"achievement.speed.record.detail" = "The keys just felt a breeze of change";
+"achievement.course.stage.title" = "Stage Complete";
+"achievement.course.stage.detail" = "One more rung of the ladder is behind you, and the fingers do not complain";
+"achievement.course.five_stars.title" = "Five Stars";
+"achievement.course.five_stars.detail" = "A lesson without a single \"but\". Worth framing";
+"achievement.course.speed_tier.title" = "Tier Reached";
+"achievement.course.speed_tier.detail" = "The bar was raised and you are still in the game";
+"achievement.course.first_try.title" = "First Try";
+"achievement.course.first_try.detail" = "A lesson step clean and on pace on the first attempt. No rehearsals";
+"achievement.plan.week.title" = "A Week on Plan";
+"achievement.plan.week.detail" = "Seven days in a row on plan. Even the alarm clock is surprised";
+"achievement.habit.goal.x2.title" = "Double Shift";
+"achievement.habit.goal.x2.detail" = "The daily goal done twice over. The fingers ask for more";
+"achievement.habit.goal.x3.title" = "Triple Shift";
+"achievement.habit.goal.x3.detail" = "Three daily goals in one day. The coffee got cold, the keys did not";
+"achievement.milestone.ru.digits.title" = "Counting in Russian";
+"achievement.milestone.ru.digits.detail" = "All ten digits are under your fingers. No more counting on them";
+"achievement.milestone.en.digits.title" = "Counting in English";
+"achievement.milestone.en.digits.detail" = "All ten digits of the English course are yours. One, two, three, done";
+"achievement.milestone.ru.symbols.title" = "Punctuation Pro";
+"achievement.milestone.ru.symbols.detail" = "Every sign and symbol of the Russian course is yours. Commas finally behave";
+"achievement.milestone.en.symbols.title" = "Symbol Set";
+"achievement.milestone.en.symbols.detail" = "Every sign and symbol of the English course is yours. Even @ and #";
+"achievement.milestone.first_clean_text.title" = "Typo-Free";
+"achievement.milestone.first_clean_text.detail" = "A coherent text without a single mistake. The editor can take a break";
+"achievement.milestone.first_hard_text.title" = "Expert Level";
+"achievement.milestone.first_hard_text.detail" = "Capitals, punctuation and digits in one text, and all of it clean";
+"achievement.milestone.first_long_text.title" = "Long Haul";
+"achievement.milestone.first_long_text.detail" = "Over six hundred characters without a single mistake. Almost a short story";
+"achievement.milestone.first_blind_check.title" = "Eyes Closed";
+"achievement.milestone.first_blind_check.detail" = "A stage check with no hints on screen. Real touch typing";
+"achievement.milestone.first_plan.title" = "Day on Plan";
+"achievement.milestone.first_plan.detail" = "All four items of the plan are done. The planner is proud";
+"achievement.milestone.first_tier.title" = "First Tier";
+"achievement.milestone.first_tier.detail" = "The speed bar went up and so did you";
 
 /* Ачивки: Теперь вы можете… */
 "achievement.letters.ru.hello.title" = "First Word";
@@ -341,6 +391,8 @@
 "achievement.letters.ru.hard_sign.detail" = "Hard sign Ъ mastered. Now write like a pre-revolution gentleman";
 "achievement.letters.ru.alphabet.title" = "Great and Mighty";
 "achievement.letters.ru.alphabet.detail" = "The whole arsenal of the Russian language is at your command";
+"achievement.letters.en.alphabet.title" = "A to Z";
+"achievement.letters.en.alphabet.detail" = "Every letter from A to Z is yours. Even Z";
 "achievement.letters.en.fluent_f.title" = "Fluent in F";
 "achievement.letters.en.fluent_f.detail" = "Now you can swear in English";
 "achievement.letters.en.shit_happens.title" = "Shit Happens";
@@ -397,6 +449,60 @@
 "achievement.fun.weekend_warrior.detail" = "Four weekends in a row. Resting on weekdays, then?";
 "achievement.fun.almost.title" = "So Close";
 "achievement.fun.almost.detail" = "99.9% accuracy. Perfection was this close";
+"achievement.fun.vibe_coder.ru.title" = "Vibe Coder";
+"achievement.fun.vibe_coder.ru.detail" = "Now you can tell the AI to keep going and go to sleep";
+"achievement.fun.vibe_coder.en.title" = "Vibe Coder";
+"achievement.fun.vibe_coder.en.detail" = "Now you can tell the AI to fix, check, make and refactor, and go to sleep";
+"achievement.fun.slow_steady.title" = "Slow and Steady";
+"achievement.fun.slow_steady.detail" = "Not a single error, and no rush. The tortoise is proud";
+
+/* Ачивки 6d: ступени, объём и дистанция */
+"achievement.accuracy.sniper.100.title" = "Legendary Sniper";
+"achievement.accuracy.sniper.100.detail" = "A hundred bullseyes. The targets ran away long ago";
+"achievement.accuracy.surgeon.50.title" = "Master Surgeon";
+"achievement.accuracy.surgeon.50.detail" = "Fifty operations, no complications. Patients ask for autographs";
+"achievement.accuracy.clean_day.100.title" = "Spotless Habit";
+"achievement.accuracy.clean_day.100.detail" = "One hundred clean days. In the house and on the keyboard";
+"achievement.volume.chars.500k.title" = "Half a Million";
+"achievement.volume.chars.500k.detail" = "Halfway to a million. It only speeds up from here";
+"achievement.volume.exercises.2500.title" = "Assembly Line";
+"achievement.volume.exercises.2500.detail" = "Exercises roll off the line one after another";
+"achievement.volume.exercises.4000.title" = "The Factory";
+"achievement.volume.exercises.4000.detail" = "A whole factory of exercises. Only the keyboard is smoking";
+"achievement.distance.space.75k.title" = "Gap in the Record";
+"achievement.distance.space.75k.detail" = "Seventy-five thousand times you typed nothing. With feeling";
+"achievement.distance.space.100k.title" = "A Hundred Thousand Voids";
+"achievement.distance.space.100k.detail" = "Emptiness is text too, if you hit it with your thumb";
+"achievement.distance.space.150k.title" = "Outer Space";
+"achievement.distance.space.150k.detail" = "In space no one can hear you hit the space bar";
+"achievement.distance.pinky.45k.title" = "Pinky Athlete";
+"achievement.distance.pinky.45k.detail" = "The smallest finger with the biggest gym membership";
+"achievement.distance.pinky.60k.title" = "Pinky Heavyweight";
+"achievement.distance.pinky.60k.detail" = "Hauls Shift and Enter while the others take a break";
+"achievement.distance.pinky.85k.title" = "Pinky of the Year";
+"achievement.distance.pinky.85k.detail" = "The award came without a ceremony: the pinky is busy";
+"achievement.distance.training.100.title" = "Workout ×100";
+"achievement.distance.training.100.detail" = "A hundred rounds on weak spots. There are fewer every time";
+"achievement.distance.training.300.title" = "Workout ×300";
+"achievement.distance.training.300.detail" = "Three hundred times you found a weak spot and showed no mercy";
+"achievement.distance.training.500.title" = "Workout ×500";
+"achievement.distance.training.500.detail" = "Few weak spots are left. Only weak excuses remain";
+"achievement.distance.lessons.100.title" = "A Hundred Lessons";
+"achievement.distance.lessons.100.detail" = "A hundred lessons done. Even the retired teacher is jealous";
+"achievement.distance.lessons.200.title" = "Two Hundred Lessons";
+"achievement.distance.lessons.200.detail" = "Two hundred lessons: you could teach this course yourself";
+"achievement.distance.lessons.300.title" = "Three Hundred Lessons";
+"achievement.distance.lessons.300.detail" = "Graduation was ages ago, and you are still studying";
+"achievement.distance.texts.100.title" = "Reader";
+"achievement.distance.texts.100.detail" = "A hundred texts, start to finish. That is a habit now";
+"achievement.distance.texts.200.title" = "Page Turner";
+"achievement.distance.texts.200.detail" = "Two hundred texts. The library lives in your fingers";
+"achievement.distance.texts.300.title" = "Keeper of Books";
+"achievement.distance.texts.300.detail" = "Three hundred texts. Time to issue you a library card";
+"achievement.distance.plans.100.title" = "A Hundred Plans";
+"achievement.distance.plans.100.detail" = "A hundred days on plan. The planner is proud of you";
+"achievement.distance.plans.300.title" = "Daily Routine";
+"achievement.distance.plans.300.detail" = "Three hundred days on plan is not a plan anymore, it is a lifestyle";
 
 /* Ачивки: условия получения (AchievementConditionText) */
 "achievement.condition.streak" = "Practice streak, days: %lld";
@@ -410,7 +516,7 @@
 "achievement.condition.firstStage" = "Complete every lesson of one course stage";
 "achievement.condition.course" = "Complete the whole course: %@";
 "achievement.condition.polyglot" = "Complete both courses: Russian and English";
-"achievement.condition.excellentStars" = "Every lesson of the course on four stars or more: %@";
+"achievement.condition.excellentStars" = "Every lesson of the course except the speed tiers on four stars or more: %@";
 "achievement.condition.volumeChars" = "Characters typed: %@";
 "achievement.condition.volumeHours" = "Hours of pure practice: %@";
 "achievement.condition.finishedBetween" = "Finish an exercise between %lld:00 and %lld:00";
@@ -448,6 +554,32 @@
 "achievement.condition.fridayEvening" = "Finish an exercise on a Friday after %lld:00";
 "achievement.condition.weekends" = "Weekends in a row with practice on both Saturday and Sunday: %lld";
 "achievement.condition.almost" = "An exercise of %1$lld+ characters at %2$@+ accuracy, but not 100%%";
+"achievement.condition.dayPart" = "Finish an exercise from %lld:00 to %lld:59 local time";
+"achievement.condition.visits" = "Visits in one day (more than an hour apart): %lld";
+"achievement.condition.speedRecord" = "A new error-free speed record: a lesson check or a text of %lld+ characters";
+"achievement.condition.stagePassed" = "A stage check reaches its threshold for the first time";
+"achievement.condition.lessonStars" = "A lesson earns %@ for the first time";
+"achievement.condition.tierPassed" = "A tier lesson earns ★★★ for the first time";
+"achievement.condition.planWeek" = "Days in a row with the day plan completed: %lld";
+"achievement.condition.keysDigits" = "Digits of the %@ course: all ten opened";
+"achievement.condition.keysSymbols" = "Punctuation and symbols of the %@ course: all opened";
+"achievement.condition.cleanText" = "A coherent text (a book excerpt or your own) of %lld+ characters with no errors";
+"achievement.condition.hardText" = "A coherent text of %lld+ characters, no errors: capitals, punctuation, digits";
+"achievement.condition.blindStageCheck" = "A stage check that reaches its threshold with the keyboard hint hidden";
+"achievement.condition.firstPlanDay" = "A day with the day plan completed";
+"achievement.condition.firstTier" = "The first speed tier taken: a tier lesson earns ★★★";
+"achievement.condition.distance.spaces" = "Space bar presses: %@";
+"achievement.condition.distance.pinkies" = "Pinky presses: %@";
+"achievement.condition.distance.trainings" = "Finished workout rounds: %@";
+"achievement.condition.distance.lessons" = "Finished lessons (the check at the end of a lesson, replays count): %@";
+"achievement.condition.distance.texts" = "Finished coherent texts of %1$lld+ characters: %2$@";
+"achievement.condition.distance.plans" = "Days with the day plan completed: %@";
+"achievement.condition.perfectCount" = "Lesson checks or exercises of %1$lld+ characters with no errors: %2$lld";
+"achievement.condition.cleanDays" = "Clean days: %1$lld (the first %2$lld exercises of the day with accuracy of %3$@ or more)";
+"achievement.condition.goalMultiple" = "Pure practice in a day: goal × %lld";
+"achievement.condition.slowAndSteady" = "A lesson step with no errors but slower than the lesson target";
+"achievement.condition.firstTry" = "A lesson step on the first try: no errors, not slower than the lesson target";
+"achievement.condition.allFingersDrilled" = "Finish the finger accuracy drill for each of the eight fingers";
 
 /* Ачивки: условия как утверждение для полученной (AchievementConditionText.earnedForms) */
 "achievement.condition.earned.firstLesson" = "First lesson of the course completed";
@@ -466,6 +598,8 @@
 "achievement.condition.earned.atMinute" = "An exercise finished at exactly %lld:%02lld";
 "achievement.condition.earned.fridayEvening" = "An exercise finished on a Friday after %lld:00";
 "achievement.condition.earned.exactSpeed" = "An exercise finished at exactly %lld characters per minute";
+"achievement.condition.earned.dayPart" = "An exercise finished from %lld:00 to %lld:59 local time";
+"achievement.condition.earned.allFingersDrilled" = "The finger accuracy drill finished for each of the eight fingers";
 
 /* Тексты напоминаний (ReminderCatalog) */
 "Пора позаниматься: пара упражнений — и день засчитан" = "Time to practice: a couple of exercises and the day counts";

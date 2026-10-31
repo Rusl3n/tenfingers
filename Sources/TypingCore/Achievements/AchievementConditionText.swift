@@ -13,9 +13,9 @@ public enum AchievementConditionText {
     /// Ключи условий, у которых есть вид-утверждение (`achievement.condition.earned.<ключ>`): те, чей обычный
     /// текст — просьба. Остальные условия нейтральны, и для них `earned` ничего не меняет.
     public static let earnedForms: Set<String> = [
-        "firstLesson", "firstStage", "course", "polyglot", "finishedBetween",
+        "firstLesson", "firstStage", "course", "polyglot", "finishedBetween", "dayPart",
         "lettersOne", "lettersMany", "symbols", "alphabet", "dayOfYear", "friday13", "comeback",
-        "ownText", "atMinute", "fridayEvening", "exactSpeed",
+        "ownText", "atMinute", "fridayEvening", "exactSpeed", "allFingersDrilled",
     ]
 
     /// `localization` — `"ru"` или `"en"`; `nil` — язык системы. `display` — буквы условия в естественном порядке
@@ -54,6 +54,32 @@ public enum AchievementConditionText {
         case .volumeChars(let count): return line("volumeChars", integer(count))
         case .volumeHours(let hours): return line("volumeHours", number(hours))
         case .finishedBetween(let start, let end): return line("finishedBetween", start, end)
+        case let .dayPart(start, end): return line("dayPart", start, end - 1)
+        case .visits(let count): return line("visits", count)
+        case .speedRecord: return line("speedRecord", Analytics.recordMinimumChars)
+        case .stagePassed: return text("stagePassed")
+        case .lessonStars(let stars): return line("lessonStars", String(repeating: "★", count: stars))
+        case .tierPassed: return text("tierPassed")
+        case .planWeek(let days): return line("planWeek", days)
+        case let .keysUnlocked(language, group):
+            return line(group == .digits ? "keysDigits" : "keysSymbols", name(language))
+        case let .cleanText(minChars, hard): return line(hard ? "hardText" : "cleanText", minChars)
+        case .blindStageCheck: return text("blindStageCheck")
+        case .firstPlanDay: return text("firstPlanDay")
+        case .firstTier: return text("firstTier")
+        case let .distance(kind, count):
+            let key: String
+            switch kind {
+            case .spaces: key = "distance.spaces"
+            case .pinkies: key = "distance.pinkies"
+            case .trainings: key = "distance.trainings"
+            case .lessons: key = "distance.lessons"
+            case .texts: key = "distance.texts"
+            case .plans: key = "distance.plans"
+            }
+            return kind == .texts ? line(key, Analytics.recordMinimumChars, integer(count)) : line(key, integer(count))
+        case .perfectCount(let count): return line("perfectCount", Analytics.recordMinimumChars, count)
+        case let .cleanDays(count, exercises, minimum): return line("cleanDays", count, exercises, percent(minimum))
         case .noKeyboard: return line("noKeyboard", Analytics.recordMinimumChars)
         case .steelPinkies(let presses): return line("steelPinkies", presses)
         case .lettersUnlocked(let language, let characters):
@@ -93,6 +119,10 @@ public enum AchievementConditionText {
         case .fridayEvening(let fromHour): return line("fridayEvening", fromHour)
         case .weekendStreak(let count): return line("weekends", count)
         case let .almostPerfect(minChars, minimum): return line("almost", minChars, percent(minimum))
+        case .goalMultiple(let factor): return line("goalMultiple", factor)
+        case .slowAndSteady: return text("slowAndSteady")
+        case .firstTry: return text("firstTry")
+        case .allFingersDrilled: return text("allFingersDrilled")
         }
     }
 
