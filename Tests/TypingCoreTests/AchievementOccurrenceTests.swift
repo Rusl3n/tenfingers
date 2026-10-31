@@ -543,6 +543,19 @@ private func goalOccurrences(_ ids: [String], _ facts: AchievementFacts) -> [Ach
     #expect(goalOccurrences(["habit.goal.x3"], goalFacts(list, days: days)).isEmpty)
 }
 
+/// Граница: ровно ×2 и ровно ×3 цели засчитываются, на секунду меньше — нет.
+@Test func goalMultiplesCountExactlyTheThreshold() {
+    func ids(_ seconds: Double) -> [String] {
+        let list = [timed("2026-11-02 10:00", day: "2026-11-02", minutes: seconds / 60)]
+        let days = ["2026-11-02": DayActivity(activeSeconds: seconds, completedExercises: 1, goalSeconds: 600)]
+        return goalOccurrences(["habit.goal.x2", "habit.goal.x3"], goalFacts(list, days: days)).map(\.id)
+    }
+    #expect(ids(1199).isEmpty)
+    #expect(ids(1200) == ["habit.goal.x2"])
+    #expect(ids(1799) == ["habit.goal.x2"])
+    #expect(ids(1800) == ["habit.goal.x2", "habit.goal.x3"])
+}
+
 @Test func thirtyOneMinutesGiveBothMultiples() {
     // Шесть по 5 минут и одна минута: ×2 на четвёртом, ×3 на шестом.
     let list = (0..<7).map { timed("2026-11-02 1\($0):00", day: "2026-11-02", minutes: $0 == 6 ? 1 : 5) }

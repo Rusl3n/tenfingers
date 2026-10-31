@@ -722,6 +722,23 @@ func probeAchievementsOnStoreCopy() throws {
     #expect(cache.rebuilds == 2)
 }
 
+/// Сессия «из будущего» (сбитые часы) не мешает дополнять кэш: новые сессии догружаются без полного прохода.
+@MainActor @Test func factsCacheAppendsDespiteASessionFromTheFuture() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateHistory(context)
+    insertSession(context, ended: "2026-12-31 10:00:00", day: "2026-12-31", mode: "practice", chars: 300, cpm: 80)
+    try context.save()
+    let cache = AchievementFactsCache(now: { at("2026-10-24 07:00") })
+    let service = AchievementService(recorder: ResultRecorder(context: context, dayStartHour: 4), goalSeconds: { 600 },
+                                     timeZone: msk, now: { at("2026-10-24 07:00") }, cache: cache)
+    _ = try service.facts()
+    insertSession(context, ended: "2026-10-24 07:30:00", day: "2026-10-24", mode: "practice", chars: 400, cpm: 90)
+    try context.save()
+    #expect(try service.facts().exercises.contains { $0.chars == 400 })
+    #expect(cache.rebuilds == 1)
+}
+
 /// Если сессий в базе стало не столько, сколько известно кэшу (другая база, загрузка без сброса), он строится заново.
 @MainActor @Test func factsCacheRebuildsWhenStoreChangesUnderIt() throws {
     let container = try ModelStore.makeContainer(inMemory: true)

@@ -383,8 +383,13 @@ final class AchievementFactsCache {
     private var facts: [ExerciseFact] = []
     private var known: Set<PersistentIdentifier> = []
     private var latest: Date?
+    private let now: () -> Date
     /// Сколько раз кэш строился полным проходом (для тестов).
     private(set) var rebuilds = 0
+
+    init(now: @escaping () -> Date = Date.init) {
+        self.now = now
+    }
 
     func invalidate() {
         owner = nil
@@ -416,7 +421,9 @@ final class AchievementFactsCache {
     private func append(_ records: [SessionRecord]) {
         var unordered = false
         for record in records where known.insert(record.persistentModelID).inserted {
-            latest = max(latest ?? record.endedAt, record.endedAt)
+            // Не позже текущего момента: сессия «из будущего» (сбитые часы) не должна прятать новые сессии от
+            // догрузки — иначе каждая проверка шла бы полным проходом.
+            latest = min(max(latest ?? record.endedAt, record.endedAt), now())
             guard let fact = AchievementService.exercise(record) else { continue }
             if let last = facts.last, fact.endedAt < last.endedAt { unordered = true }
             facts.append(fact)

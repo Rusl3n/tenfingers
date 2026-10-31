@@ -220,10 +220,13 @@ extension AchievementsListing {
     static func markSeen(_ ids: Set<String>, in recorder: ResultRecorder) throws {
         guard !ids.isEmpty else { return }
         try recorder.commit {
-            for record in try recorder.context.fetch(FetchDescriptor<AchievementRecord>()) where ids.contains(record.achievementId) {
+            for record in try recorder.context.fetch(FetchDescriptor<AchievementRecord>())
+            where !record.seen && ids.contains(record.achievementId) {
                 record.seen = true
             }
-            for grant in try recorder.context.fetch(FetchDescriptor<AchievementGrant>()) where ids.contains(grant.achievementId) {
+            // Только непросмотренные: у повторяемых (время суток) выдач сотни, лишняя запись при каждом уходе ни к чему.
+            for grant in try recorder.context.fetch(FetchDescriptor<AchievementGrant>())
+            where !grant.seen && ids.contains(grant.achievementId) {
                 grant.seen = true
             }
         }
