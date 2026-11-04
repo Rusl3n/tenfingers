@@ -17,6 +17,14 @@
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.education</string>
     <key>NSHighResolutionCapable</key><true/>
+    <!-- Ссылки tenfingers://home, course, achievements: так виджет открывает разделы приложения. -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>local.tenfingers</string>
+            <key>CFBundleURLSchemes</key><array><string>tenfingers</string></array>
+        </dict>
+    </array>
     <!-- Файл прогресса (экспорт и импорт в «Настройки → Данные»): JSON с расширением .tenfingers. -->
     <key>UTExportedTypeDeclarations</key>
     <array>

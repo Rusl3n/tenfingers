@@ -5,7 +5,7 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.4.0-blue" alt="Version 2.4.0">
+  <img src="https://img.shields.io/badge/version-2.5.0-blue" alt="Version 2.5.0">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -78,6 +78,20 @@
 ## Updates
 
 The app checks for new versions by itself ("Check for updates automatically" in Settings → General can turn this off; "Check now" is there too). When a version is out, a banner appears at the top of Home: "What's new", "Install" or "Skip this version". On install, the app downloads the version, verifies its size, checksum and signature, replaces itself and restarts. Your progress is kept: before replacing, two verified copies are made — of the database and of the progress archive — in `TenFingers.backups/before-update-*`; the three latest are kept. If the new version cannot open the database, the error screen offers a "Restore the previous version" button.
+
+## Widget
+
+Since version 2.5.0 the app has a "TenFingers" desktop widget, small and medium. To get it, open the app at least once, then right-click the desktop, choose "Edit Widgets" and find "TenFingers".
+
+"Edit Widget" lets you set:
+
+- "Streak", "Daily goal", "Achievements": switches for the pages to show (all on by default). With one on, the widget shows only that page; with several, the pages take turns;
+- "Change every, min": how often the pages change by themselves, 5 to 60 (15 by default);
+- "Change on tap": a click on the widget turns to the next page and opens the app at that page's section (except the invitation line in the medium widget). The tap counter is shared by all TenFingers widgets;
+- "Lesson invitation": a "Continue: <lesson>" line at the bottom of the widget;
+- "Hide adult humor 18+": off follows the app, on always hides the humorous achievements.
+
+Clicking the widget opens the app: the streak and the daily goal lead to Home, achievements to Achievements, and the prompt line to the course. The widget takes its data from a file that the app refreshes after practice, at launch and at the start of a new day. If the app has not been opened for a long time, the widget says so.
 
 ## Build from source
 

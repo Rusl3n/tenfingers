@@ -1,0 +1,27 @@
+/* Widget */
+"Десять пальцев" = "TenFingers";
+"Серия, цель дня и ачивки на рабочем столе." = "Streak, daily goal and achievements on your desktop.";
+"Серия" = "Streak";
+"Цель дня" = "Daily goal";
+"Приглашение на урок" = "Lesson invitation";
+"Менять каждые, мин" = "Change every, min";
+"Менять по нажатию" = "Change on tap";
+"Скрывать шуточные 18+" = "Hide adult humor 18+";
+"Следующая страница" = "Next page";
+"Переключает виджет на следующую страницу." = "Switches the widget to the next page.";
+"Искра" = "Spark";
+"Ачивки" = "Achievements";
+"Пока нет ачивок" = "No achievements yet";
+"Сегодня: день засчитан" = "Today: full day";
+"Сегодня: половина дня" = "Today: half a day";
+"Сегодня: засчитано" = "Today: counted";
+"Сегодня: ещё нет" = "Today: not yet";
+"%d из %d мин" = "%d of %d min";
+"Продолжить: %@" = "Continue: %@";
+"Откройте «Десять пальцев»" = "Open TenFingers";
+"давно не открывали" = "not opened in a while";
+"день" = "day";
+"дня" = "days";
+"дней" = "days";
+"Ссылка" = "Link";
+"Страница" = "Page";

@@ -97,6 +97,8 @@ struct StreakHeader: View {
                     .lineLimit(1)
                     .alignmentGuide(.titleCenter) { $0[VerticalAlignment.center] }
                     .accessibilityLabel(Text("Серия: \(days)"))
+                modeTitle("Огонь", summary: HelpText.fireSummary,
+                          info: [HelpText.fireMode, HelpText.fireFull, HelpText.fireHalf, HelpText.fireNone])
                 ForEach(Self.lines(streak), id: \.self) { line in
                     Text(line).font(.subheadline).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -151,7 +153,8 @@ struct StreakHeader: View {
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .lineLimit(1)
                     .alignmentGuide(.titleCenter) { $0[VerticalAlignment.center] }
-                Text("Искра").font(.subheadline).foregroundStyle(.secondary)
+                    .accessibilityLabel(Text("Искра: \(days)"))
+                modeTitle("Искра", summary: HelpText.sparkSummary, info: [spark.help])
                 Text(spark.subtitle)
                     .font(.subheadline).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -160,8 +163,19 @@ struct StreakHeader: View {
         }
         .fixedSize()
         .help(spark.help)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("Искра: \(days)"))
+    }
+
+    /// Название серии с «?» и строка о том, что она считает: на главной сразу видно, чем огонь отличается от «Искры».
+    private func modeTitle(_ title: LocalizedStringKey, summary: String, info: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text(title).font(.subheadline.weight(.semibold)).accessibilityHidden(true)
+                InfoButton(text: info.joined(separator: "\n\n"))
+            }
+            Text(summary)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// Подписи под числом дней: призыв заняться сегодня (если ещё не занимались).
@@ -192,8 +206,7 @@ struct StreakHeader: View {
             }
             .help(HelpText.freezes)
             .accessibilityElement(children: .combine)
-            InfoButton(text: [HelpText.fireFull, HelpText.fireHalf, HelpText.fireNone, HelpText.freezes]
-                .joined(separator: "\n\n"))
+            InfoButton(text: [HelpText.freezes, HelpText.fireRepaired].joined(separator: "\n\n"))
         }
     }
 }

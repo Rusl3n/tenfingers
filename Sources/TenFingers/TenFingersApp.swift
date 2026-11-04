@@ -11,6 +11,8 @@ struct TenFingersApp: App {
     @State private var reminders: ReminderScheduler
     /// Проверка и установка обновлений (7b); `nil`, если базу открыть нельзя.
     @State private var updateChecker: UpdateChecker?
+    /// Следит за сменой логического дня и активацией приложения, пока процесс жив (виджет не зависит от окна).
+    private let widgetWatcher: WidgetRefreshWatcher?
     /// `nil`, если базу открыть нельзя: тогда вместо приложения окно с ошибкой, а база не трогается.
     private let container: ModelContainer?
     private let storeError: String?
@@ -38,6 +40,8 @@ struct TenFingersApp: App {
             recovery = failedRecovery
         }
         if let container {
+            widgetWatcher = WidgetRefreshWatcher(context: container.mainContext)
+            widgetWatcher?.start()
             let context = container.mainContext
             _updateChecker = State(initialValue: UpdateChecker(
                 defaults: .standard, fetch: UpdateFeed.fetch,
@@ -50,6 +54,7 @@ struct TenFingersApp: App {
                 },
                 now: { .now }))
         } else {
+            widgetWatcher = nil
             _updateChecker = State(initialValue: nil)
         }
         // Дни до поколения схемы 5 получают текущую цель (один раз: дни с целью не трогаются).

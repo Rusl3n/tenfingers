@@ -33,7 +33,18 @@ enum HelpText {
         String(localized: "Вчерашний день пропущен, но серию можно спасти: наберите сегодня двойную цель. Починка действует не чаще раза в 7 дней и только если нет заморозок.")
     }
     static var spark: String {
-        String(localized: "«Искра» — дни, когда завершено хотя бы одно упражнение, в том числе один шаг урока. Заморозки здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни.")
+        String(localized: "«Искра» — вторая серия: дни, когда завершено хотя бы одно упражнение, в том числе один шаг урока. В отличие от огня, заморозки и починка здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни.")
+    }
+    /// Строка под подписью «Искра» на главной.
+    static var sparkSummary: String {
+        String(localized: "Дни подряд хотя бы с одним упражнением, без заморозок.")
+    }
+    static var fireMode: String {
+        String(localized: "Огонь — главная серия: дни подряд, когда завершено хотя бы одно упражнение. Набрана цель дня — огонь полный, нет — половинный, но серия продолжается. Пропущенный день закрывает заморозка или починка.")
+    }
+    /// Строка под подписью «Огонь» на главной.
+    static var fireSummary: String {
+        String(localized: "Дни подряд с занятиями; пропуск закрывает заморозка.")
     }
     static var goalDays: String {
         String(localized: "«Цель» — дни, когда набрано время дневной цели того дня, то есть полный огонь. Заморозки здесь не действуют: «подряд» — полные дни без перерыва, «всего» — все полные дни.")
@@ -144,6 +155,6 @@ enum HelpText {
     static var all: [String] {
         [fireFull, fireHalf, fireNone, freezes, fireRepaired, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots,
          speedUnits, dayStart, hintMode, spaceThumb, adaptiveTarget, keyboardSize, keyboardOffset, quitOnClose, interfaceLanguage,
-         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, spark, level, challenges, speedRank, repair, goalDays, futureDay, firstWeekday, reminderTest, refresh, hardLesson, fingerWeak, fingerStrong, dayPlan]
+         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, spark, level, challenges, speedRank, repair, goalDays, futureDay, firstWeekday, reminderTest, refresh, hardLesson, fingerWeak, fingerStrong, dayPlan, sparkSummary, fireMode, fireSummary]
     }
 }

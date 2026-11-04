@@ -136,6 +136,10 @@ struct RootView: View {
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
+    // Настройки, от которых зависит снимок для виджета (`widgetSettingsKey`).
+    @AppStorage(SettingsKey.interfaceLanguage) private var interfaceLanguage = InterfaceLanguage.system.rawValue
+    @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
+    @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
     @AppStorage(SettingsKey.onboardingCompleted) private var onboardingCompleted = false
     /// Читается, чтобы лист «Новый курс» зависел от флага (он живёт в `UserDefaults`, вне архива).
     @AppStorage(SettingsKey.newCourseIntroShown) private var newCourseIntroShown = false
@@ -269,13 +273,19 @@ struct RootView: View {
             AchievementAnnouncer.launchCheck(service: .live(context: modelContext), toasts: toasts,
                                              adultHumor: StoredSettings.adultHumor(), open: openAchievements)
             rememberYear()
+            refreshWidget()
         }
         // Загрузка прогресса из файла (`ProgressImporter`): ачивки выдаются заново, сводкой.
         .onReceive(NotificationCenter.default.publisher(for: .progressReplaced)) { _ in
             AchievementAnnouncer.progressReplaced(service: .live(context: modelContext), toasts: toasts,
                                                   adultHumor: StoredSettings.adultHumor(), open: openAchievements)
             rememberYear()
+            refreshWidget()
         }
+        // Виджет: смена настроек снимка. Смену логического дня и активацию приложения отслеживает `WidgetRefreshWatcher`.
+        .onChange(of: widgetSettingsKey) { refreshWidget() }
+        // Ссылки `tenfingers://` из виджета.
+        .onOpenURL { openLink($0) }
         .alert(activeRun?.replaceAlertTitle ?? "",
                isPresented: Binding(get: { pendingRun != nil }, set: { if !$0 { pendingRun = nil } }),
                presenting: pendingRun) { run in
@@ -390,6 +400,24 @@ struct RootView: View {
         guard library.loadError == nil, library.courses.count == Language.allCases.count else { return }
         let ids = Set(library.courses.values.flatMap { $0.lessons.map(\.id) })
         LessonResume().purge(keeping: ids)
+    }
+
+    /// Всё, что попадает в снимок помимо базы: при смене любого значения снимок пишется заново.
+    private var widgetSettingsKey: String {
+        "\(adultHumor)|\(activeLanguage)|\(interfaceLanguage)|\(dailyGoal)|\(dayStartHour)"
+    }
+
+    /// Пишет `widget.json` и просит виджеты перечитать его (ошибка только в журнале).
+    private func refreshWidget() {
+        WidgetSnapshotWriter.refresh(context: modelContext)
+    }
+
+    /// Ссылка из виджета: окно выходит вперёд; раздел меняется, только если упражнение не идёт.
+    private func openLink(_ url: URL) {
+        NSApp.activate()
+        guard let item = AppLink.target(for: url, hasRun: activeRun != nil) else { return }
+        selection = item
+        planStep = nil
     }
 
     /// Раздел «Ачивки»; идущий запуск при этом скрывается (как при выборе раздела в боковой панели).

@@ -43,9 +43,17 @@ fi
 NAME="TenFingers.app"
 GENERATION=$(schema_generation)
 
-# Вывод swift build — в stderr, чтобы stdout остался предсказуемым
-swift build -c release --product TenFingers >&2
-BIN=$(swift build -c release --show-bin-path)
+# Вывод swift build — в stderr, чтобы stdout остался предсказуемым.
+# Настройки виджета (AppIntents) система читает из Metadata.appintents. SwiftPM его не делает, поэтому компилятор
+# сохраняет константы типов AppIntents (.swiftconstvalues, список протоколов — scripts/appintents-protocols.json),
+# а ниже appintentsmetadataprocessor из Xcode собирает из них метаданные. Флаги одинаковы для обоих продуктов,
+# чтобы второй swift build не пересобирал первый.
+CONST_FLAGS=(-Xswiftc -emit-const-values
+    -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file
+    -Xswiftc -Xfrontend -Xswiftc "$PWD/scripts/appintents-protocols.json")
+swift build -c release --product TenFingers "${CONST_FLAGS[@]}" >&2
+swift build -c release --product TenFingersWidget "${CONST_FLAGS[@]}" >&2
+BIN=$(swift build -c release --show-bin-path "${CONST_FLAGS[@]}")
 APP="$OUTPUT/$NAME"
 
 rm -rf "$APP"
@@ -58,6 +66,29 @@ cp scripts/update-relaunch.sh "$APP/Contents/Resources/"
 # Переводы приложения (Localizable.strings, InfoPlist.strings): ресурсы исполняемого таргета не попадают в Bundle.main
 cp -R Localization/*.lproj "$APP/Contents/Resources/"
 cp scripts/Info.plist "$APP/Contents/Info.plist"
+
+# Виджет (7c): расширение WidgetKit в Contents/PlugIns. Переводы виджета лежат в Resources самого .appex (в Bundle.main приложения их нет).
+APPEX="$APP/Contents/PlugIns/TenFingersWidget.appex"
+mkdir -p "$APPEX/Contents/MacOS" "$APPEX/Contents/Resources"
+cp "$BIN/TenFingersWidget" "$APPEX/Contents/MacOS/"
+cp -R Sources/TenFingersWidget/Resources/*.lproj "$APPEX/Contents/Resources/"
+cp scripts/TenFingersWidget-Info.plist "$APPEX/Contents/Info.plist"
+# Metadata.appintents виджета: без него «Изменить виджет» не покажет «Содержимое», «Приглашение» и «Шуточные 18+»
+AI_WORK=$(mktemp -d)
+trap 'rm -rf "$AI_WORK"' EXIT
+find "$PWD/Sources/TenFingersWidget" -name '*.swift' | sort > "$AI_WORK/sources.txt"
+echo "$BIN/TenFingersWidget.build/TenFingersWidget.swiftconstvalues" > "$AI_WORK/constvalues.txt"
+[ -f "$BIN/TenFingersWidget.build/TenFingersWidget.swiftconstvalues" ] || { echo "Нет констант AppIntents виджета" >&2; exit 1; }
+XCODE_BUILD=$(xcodebuild -version | awk '/Build version/ {print $3}')
+# Локально DEVELOPER_DIR задан выше, в CI Xcode выбран через xcode-select
+TOOLCHAIN="${DEVELOPER_DIR:-$(xcode-select -p)}/Toolchains/XcodeDefault.xctoolchain"
+xcrun appintentsmetadataprocessor --output "$APPEX/Contents/Resources" \
+    --toolchain-dir "$TOOLCHAIN" --module-name TenFingersWidget \
+    --sdk-root "$(xcrun --sdk macosx --show-sdk-path)" --xcode-version "$XCODE_BUILD" --platform-family macOS \
+    --deployment-target 15.0 --target-triple "$(uname -m)-apple-macos15.0" \
+    --source-file-list "$AI_WORK/sources.txt" --swift-const-vals-list "$AI_WORK/constvalues.txt" \
+    --binary-file "$APPEX/Contents/MacOS/TenFingersWidget" >&2
+[ -f "$APPEX/Contents/Resources/Metadata.appintents/extract.actionsdata" ] || { echo "Не собран Metadata.appintents виджета" >&2; exit 1; }
 
 # Версия подставляется в копию Info.plist внутри .app (исходный scripts/Info.plist не меняется) и обязательно до codesign:
 #   CFBundleShortVersionString — файл VERSION (семантическая версия, например 0.3.0-dev);
@@ -80,6 +111,10 @@ fi
 PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
+# Расширение получает ту же версию и номер сборки, что и приложение
+APPEX_PLIST="$APPEX/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APPEX_PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$APPEX_PLIST"
 /usr/libexec/PlistBuddy -c "Add :TFGitCommit string $COMMIT" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :TFSchemaGeneration integer $GENERATION" "$PLIST"
 echo "Версия: $VERSION (сборка $BUILD, $COMMIT, поколение схемы $GENERATION)"

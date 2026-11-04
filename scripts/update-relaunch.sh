@@ -22,6 +22,13 @@ while kill -0 "$PID" 2>/dev/null; do
     sleep 0.2
 done
 
+# Старый процесс виджета переживает замену бандла и держит прежнее описание: завершаем его и заново регистрируем
+# расширение нового бандла. Ошибки не критичны: перезапуск приложения они не останавливают.
+/usr/bin/pkill -x TenFingersWidget || true
+if [ -d "$APP/Contents/PlugIns/TenFingersWidget.appex" ]; then
+    /usr/bin/pluginkit -a "$APP/Contents/PlugIns/TenFingersWidget.appex" || true
+fi
+
 /usr/bin/open -n "$APP"
 rm -f "$SELF"
 rmdir "$(dirname "$SELF")" 2>/dev/null

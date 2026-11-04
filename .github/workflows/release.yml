@@ -17,6 +17,10 @@ on:
       - 'scripts/package-release.sh'
       - 'scripts/update-relaunch.sh'
       - 'scripts/*.entitlements'
+      - 'scripts/TenFingersWidget-Info.plist'
+      - 'scripts/appintents-protocols.json'
+      - 'Package.swift'
+      - 'Sources/TenFingersWidget/**'
       - '.github/workflows/release.yml'
   workflow_dispatch:
 

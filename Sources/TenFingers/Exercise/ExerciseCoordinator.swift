@@ -100,9 +100,11 @@ final class ExerciseCoordinator {
                      reminders: ReminderScheduler? = nil) -> ExerciseCoordinator {
         let coordinator = ExerciseCoordinator(recorder: .live(context: context), playSound: { sound.play($0) })
         coordinator.onDayCompleted = { [toasts] in toasts.showFullFlame() }
+        // Снимок для виджета — после записи результата и проверки ачивок (они уже выданы к этому моменту).
         coordinator.onSaved = { [weak reminders, toasts] in
             reminders?.rescheduleSoon()
             toasts.checkPlanDone?()
+            WidgetSnapshotWriter.refresh(context: context)
         }
         coordinator.achievements = .live(context: context)
         coordinator.yearCheck = { [toasts] withSound in

@@ -102,9 +102,21 @@ if pgrep -f "/Applications/$OLD_NAME/Contents/MacOS/TenFingers" >/dev/null; then
     pkill -f "/Applications/$OLD_NAME/Contents/MacOS/TenFingers" || true
     sleep 1
 fi
+# Старый процесс виджета тоже: иначе система спросит описание виджета у него, а не у нового бандла
+pkill -x TenFingersWidget || true
 rm -rf "/Applications/$NAME"
 cp -R "$APP" /Applications/
 rm -rf "/Applications/$OLD_NAME"
 # Промежуточный бандл в build/ больше не нужен: иначе Spotlight и Launchpad показывают второе приложение.
 rm -rf "$APP"
+# Старый процесс виджета мог успеть перезапуститься во время замены и держать прежнее описание: завершаем его ещё раз
+# и заново регистрируем приложение и расширение, чтобы система перечитала описание и настройки виджета.
+# Ошибки не критичны (виджета может не быть, pluginkit может отказать): установку они не роняют.
+pkill -x TenFingersWidget || true
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREGISTER" -f "/Applications/$NAME" || true
+WIDGET_APPEX="/Applications/$NAME/Contents/PlugIns/TenFingersWidget.appex"
+if [ -d "$WIDGET_APPEX" ]; then
+    pluginkit -a "$WIDGET_APPEX" || true
+fi
 echo "Установлено: /Applications/$NAME"

@@ -43,9 +43,11 @@ private func translation(of text: String, in table: [String: String]) -> String?
     let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().appendingPathComponent("Localization/en.lproj/Localizable.strings")
     let en = try #require(try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
-    #expect(HelpText.spark.hasPrefix("«Искра»") && HelpText.spark.contains("Заморозки здесь не действуют"))
+    #expect(HelpText.spark.hasPrefix("«Искра»") && HelpText.spark.contains("заморозки и починка здесь не действуют"))
     let english = try #require(en[HelpText.spark])
-    #expect(english.contains("Spark") && english.contains("Freezes don't apply"))
+    #expect(english.contains("Spark") && english.contains("freezes and repairs don't apply"))
+    // Огонь, наоборот, прикрывают заморозки: на главной видно, чем две серии различаются.
+    #expect(HelpText.fireMode.contains("заморозка") && HelpText.fireSummary.contains("заморозка"))
 }
 
 /// Уровень считается заново по всей истории и может опуститься (поднята цель дня): подсказка не обещает «только растёт».
