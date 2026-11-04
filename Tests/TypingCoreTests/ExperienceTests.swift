@@ -302,6 +302,28 @@ private func period(_ period: ChallengePeriod, _ results: [ChallengeResult], all
 
 // MARK: - Один расчёт на проверку
 
+/// Снимок года считает испытания и журнал на одном `Evaluator` и совпадает с отдельными расчётами.
+@Test func yearPartsUseOneEvaluatorAndMatchTheSeparateCalculations() {
+    let list = (2...8).map { ex("2026-11-0\($0) 10:00", seconds: 600, mode: .course, kind: .check, lessonId: "ru2.s1.01") }
+    let f = facts(list, goal: 600, today: "2026-11-08", now: at("2026-11-08 23:30"))
+    let parts = Experience.yearParts(f)
+    #expect(parts.challenges == Challenges.evaluate(f))
+    #expect(parts.ledger == Experience.ledger(f))
+    #expect(!parts.challenges.isEmpty && parts.ledger.total > 0)
+}
+
+/// Общий помощник бегущего максимума звёзд: рост и прибавка, убывание и возврат не считаются, порядок — по дате.
+@Test func maxGrowthKeepsOnlyStepsAboveTheRunningMaximum() {
+    let steps = [LessonStarStep(date: at("2026-11-04 10:00"), stars: 4),
+                 LessonStarStep(date: at("2026-11-02 10:00"), stars: 3),
+                 LessonStarStep(date: at("2026-11-03 10:00"), stars: 5),
+                 LessonStarStep(date: at("2026-11-05 10:00"), stars: 5)]
+    let growth = steps.maxGrowth()
+    #expect(growth.map(\.step.date) == [at("2026-11-02 10:00"), at("2026-11-03 10:00")])
+    #expect(growth.map(\.gained) == [3, 2])
+    #expect([LessonStarStep]().maxGrowth().isEmpty)
+}
+
 @Test func challengesAndLedgerAreComputedOncePerCheck() throws {
     let list = (2...8).map { ex("2026-11-0\($0) 10:00", seconds: 600, mode: .course, kind: .check, lessonId: "ru2.s1.01") }
     let f = facts(list, goal: 600, today: "2026-11-08", now: at("2026-11-08 23:30"))

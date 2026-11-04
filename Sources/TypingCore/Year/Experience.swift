@@ -106,6 +106,14 @@ public enum Experience {
         build(Evaluator(facts), challenges: challenges)
     }
 
+    /// Испытания и журнал опыта для снимка года: один `Evaluator` на оба расчёта (индексы по истории строятся один
+    /// раз). Результат тот же, что у `Challenges.evaluate` и `ledger(_:)` по отдельности.
+    public static func yearParts(_ facts: AchievementFacts)
+        -> (challenges: [ChallengePeriodResult], ledger: ExperienceLedger) {
+        let evaluator = Evaluator(facts)
+        return (evaluator.challengeResults(), evaluator.experienceLedger())
+    }
+
     /// Журнал без готовых испытаний: считает их сам.
     public static func ledger(_ facts: AchievementFacts) -> ExperienceLedger {
         Evaluator(facts).experienceLedger()
@@ -166,11 +174,7 @@ public enum Experience {
     private static func addStars(_ facts: AchievementFacts, _ add: (Date, Int, ExperienceSource) -> Void) {
         for lesson in Set(facts.lessonStarSteps.keys).union(facts.starsByLesson.keys).sorted() {
             if let steps = facts.lessonStarSteps[lesson], !steps.isEmpty {
-                var best = 0
-                for step in steps.sorted(by: { $0.date < $1.date }) where step.stars > best {
-                    add(step.date, (step.stars - best) * starBonus, .lessonStar)
-                    best = step.stars
-                }
+                for (step, gained) in steps.maxGrowth() { add(step.date, gained * starBonus, .lessonStar) }
             } else if let stars = facts.starsByLesson[lesson], stars > 0, let passed = facts.lessonPasses[lesson] {
                 add(passed, stars * starBonus, .lessonStar)
             }

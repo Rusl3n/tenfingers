@@ -91,7 +91,7 @@ struct LessonRunnerView: View {
                 sound.stop()
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-                coordinator?.recordAbandonIfNeeded()
+                coordinator?.recordAbandonIfNeeded(quitting: true)
             }
             .background {
                 if let coordinator { Color.clear.saveErrorAlert(coordinator) }

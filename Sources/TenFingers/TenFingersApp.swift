@@ -9,9 +9,13 @@ struct TenFingersApp: App {
     @State private var sound = SoundPlayer()
     @State private var systemAppearance = SystemAppearance()
     @State private var reminders: ReminderScheduler
+    /// Проверка и установка обновлений (7b); `nil`, если базу открыть нельзя.
+    @State private var updateChecker: UpdateChecker?
     /// `nil`, если базу открыть нельзя: тогда вместо приложения окно с ошибкой, а база не трогается.
     private let container: ModelContainer?
     private let storeError: String?
+    /// Откат на прежнюю версию с экрана ошибки (решение 9 фазы 7b).
+    private let recovery: StoreErrorRecovery?
 
     init() {
         // Язык интерфейса фиксируется до всего остального: дальше настройка может меняться, а язык сессии — нет.
@@ -22,18 +26,31 @@ struct TenFingersApp: App {
            ThemeMode(rawValue: old) != nil {
             defaults.set(old, forKey: SettingsKey.themeMode)
         }
-        do {
-            container = try ModelStore.makeContainer()
+        // Открытие базы; после успеха новая версия убирает `.previous` и временные папки обновления (7b, §5.3 шаг 8).
+        switch StoreLaunch.open({ try ModelStore.makeContainer() }, bundleURL: Bundle.main.bundleURL) {
+        case .opened(let opened):
+            container = opened
             storeError = nil
-        } catch ModelStoreError.newerStore, ModelStoreError.newerGeneration {
+            recovery = nil
+        case .failed(let message, let failedRecovery):
             container = nil
-            storeError = String(localized: "Прогресс сохранён более новой версией приложения. Установите последнюю версию.")
-        } catch ModelStoreError.unreadableGeneration {
-            container = nil
-            storeError = String(localized: "Не удалось прочитать версию базы прогресса. Установите последнюю версию приложения.")
-        } catch {
-            container = nil
-            storeError = String(localized: "Не удалось открыть сохранённый прогресс: \(error.localizedDescription)")
+            storeError = message
+            recovery = failedRecovery
+        }
+        if let container {
+            let context = container.mainContext
+            _updateChecker = State(initialValue: UpdateChecker(
+                defaults: .standard, fetch: UpdateFeed.fetch,
+                installer: {
+                    UpdateInstaller(
+                        bundleURL: Bundle.main.bundleURL, storeURL: ModelStore.defaultStoreURL,
+                        backupsDirectory: ProgressArchive.backupsDirectory, downloader: URLSessionDownloader(),
+                        now: { .now }, saveContext: { try context.save() },
+                        makeArchive: { try ProgressArchive.export(context: context) })
+                },
+                now: { .now }))
+        } else {
+            _updateChecker = State(initialValue: nil)
         }
         // Дни до поколения схемы 5 получают текущую цель (один раз: дни с целью не трогаются).
         if let container { DayGoals.backfillLogging(context: container.mainContext) }
@@ -55,9 +72,11 @@ struct TenFingersApp: App {
                         .environment(library)
                         .environment(sound)
                         .environment(reminders)
+                        .environment(updateChecker)
                         .modelContainer(container)
+                        .task { updateChecker?.startSchedule() }
                 } else {
-                    StoreErrorView(message: storeError ?? "")
+                    StoreErrorView(message: storeError ?? "", recovery: recovery)
                 }
             }
         }
@@ -73,6 +92,8 @@ struct TenFingersApp: App {
 /// Базу открыть нельзя: объясняем, что делать, и ничего не записываем.
 private struct StoreErrorView: View {
     let message: String
+    let recovery: StoreErrorRecovery?
+    @State private var rollBackError: String?
 
     var body: some View {
         ContentUnavailableView {
@@ -84,11 +105,26 @@ private struct StoreErrorView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            if let rollBackError {
+                Text(verbatim: rollBackError).font(.callout).foregroundStyle(.red).multilineTextAlignment(.center)
+            }
             HStack {
+                // Только если рядом с бандлом лежит `.previous`: версия поставлена обновлением и ещё не открыла базу.
+                if let recovery, recovery.canRollBack {
+                    Button("Вернуть прежнюю версию") { rollBack(recovery) }
+                }
                 Button("Показать в Finder") { Self.revealBackups() }
                 Button("Закрыть приложение") { NSApp.terminate(nil) }
                     .keyboardShortcut(.defaultAction)
             }
+        }
+    }
+
+    private func rollBack(_ recovery: StoreErrorRecovery) {
+        do {
+            try recovery.rollBack(relauncher: { _ in AppRelauncher.relaunch() })
+        } catch {
+            rollBackError = String(localized: "Не удалось вернуть прежнюю версию: \(error.localizedDescription)")
         }
     }
 

@@ -21,7 +21,7 @@ struct AnalyticsView: View {
     @State private var chart: ChartSeries = .empty
     @State private var history: [HistoryRow] = []
     /// Опыт и история испытаний; ошибка чтения прячет только их карточки, не всю аналитику.
-    @State private var year: YearState?
+    @State private var year: AnalyticsYear?
     /// Какие части экрана не прочитались из базы.
     @State private var failed: Set<Part> = []
     /// Открытая карточка «Мой прогресс».
@@ -73,7 +73,7 @@ struct AnalyticsView: View {
 
     /// Один снимок года на загрузку (кэш в `YearLoader` не пересчитывает опыт, пока история не менялась).
     private func reloadYear() {
-        year = try? YearLoader(context: modelContext).state()
+        year = (try? YearLoader(context: modelContext).state()).map(AnalyticsYear.init)
     }
 
     private func reload() {
@@ -109,12 +109,24 @@ struct AnalyticsView: View {
     }
 }
 
+/// Что «год» показывает в аналитике: график опыта по неделям и строки истории испытаний. Считается один раз при
+/// загрузке экрана, а не при каждой перерисовке `body`.
+struct AnalyticsYear: Equatable {
+    let experience: ExperienceChartModel
+    let challenges: [ChallengeHistoryRow]
+
+    init(_ state: YearState) {
+        experience = ExperienceChartModel.make(ledger: state.ledger, today: state.today)
+        challenges = ChallengeHistoryRow.rows(history: state.history)
+    }
+}
+
 /// Раскладка экрана сверху вниз: время, графики, опыт, клавиатура, пальцы, календарь, рекорды, испытания, история, курсы.
 struct AnalyticsContent: View {
     let data: AnalyticsData
     let chart: ChartSeries
     let history: [HistoryRow]
-    var year: YearState?
+    var year: AnalyticsYear?
     let unit: SpeedUnit
     let snapshot: LayoutSnapshot
     @Binding var period: AnalyticsPeriod
@@ -135,13 +147,13 @@ struct AnalyticsContent: View {
             Text("Аналитика: \(data.language.displayName)").font(.largeTitle.bold())
             TimeTotalsView(data: data)
             ProgressChartsView(chart: chart, unit: unit, period: $period)
-            if let year { ExperienceChartView(model: ExperienceChartModel.make(ledger: year.ledger, today: year.today)) }
+            if let year { ExperienceChartView(model: year.experience) }
             KeyboardHeatmapView(snapshot: snapshot, language: data.language, keys: data.keys)
             FingerStatsView(rows: data.fingers)
             ActivityCalendarView(calendar: data.calendar, share: Self.canShareProgress(data) ? shareProgress : nil)
             DayMetricsView(streak: data.streak)
             RecordsView(records: data.records, unit: unit)
-            if let year { ChallengeHistoryView(rows: ChallengeHistoryRow.rows(history: year.history)) }
+            if let year { ChallengeHistoryView(rows: year.challenges) }
             SessionHistoryView(rows: history, unit: unit)
             CourseProgressView(rows: data.courseProgress, shareCertificate: shareCertificate)
         }

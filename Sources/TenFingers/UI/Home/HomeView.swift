@@ -161,8 +161,9 @@ struct HomeView: View {
     }
 }
 
-/// Раскладка главной сверху вниз: серия (с уровнем и плашкой починки), неделя, метрики, план на сегодня, «Испытания»,
-/// продолжение курса (план выполнен или его нет), быстрые ссылки, последняя ачивка.
+/// Раскладка главной сверху вниз: серия (с уровнем и плашкой починки), неделя, метрики, вкладки («План на сегодня»,
+/// «Испытания», «Продолжить курс», «Тренировка и практика»; вкладка есть, когда есть её содержимое), последняя ачивка.
+/// Выбор вкладки помнится (`SettingsKey.homeTab`), по умолчанию — план.
 struct HomeContent: View {
     let data: HomeData
     let continueInfo: ContinueInfo?
@@ -178,15 +179,52 @@ struct HomeContent: View {
     var latestAchievement: AchievementEntry?
     var openAchievements: () -> Void = {}
     var shareProgress: (() -> Void)?
+    /// Вкладка принудительно (проверка раскладки через `ImageRenderer`); `nil` — выбранная пользователем.
+    var tabOverride: HomeTab?
+    /// Кружки на вкладках принудительно (проверка раскладки); `nil` — по `HomeTabNews`.
+    var dotsOverride: Set<HomeTab>?
+    /// Плашка обновления (7b) только на самой «Главной»: у проверок раскладки и карточек «Поделиться» его нет.
+    @Environment(UpdateChecker.self) private var updateChecker: UpdateChecker?
+    @AppStorage(SettingsKey.homeTab) private var storedTab = SettingsDefault.homeTab
+    /// Увиденные отпечатки вкладок (`HomeTabNews`); `nil` — ещё не прочитаны или первый запуск.
+    @State private var seenTabs: [String: String]?
+
+    private var availableTabs: [HomeTab] {
+        HomeTabs.available(hasPlan: dayPlan != nil, hasChallenges: challenges != nil, hasCourse: continueInfo != nil)
+    }
+
+    private var selectedTab: Binding<HomeTab> {
+        Binding(get: { tabOverride ?? HomeTabs.resolved(stored: storedTab, available: availableTabs) },
+                set: { storedTab = $0.rawValue })
+    }
+
+    private var fingerprints: [HomeTab: String] {
+        HomeTabNews.fingerprints(plan: dayPlan, challenges: challenges, course: continueInfo)
+    }
+
+    private var dots: Set<HomeTab> {
+        dotsOverride ?? HomeTabNews.dots(fingerprints: fingerprints, seen: seenTabs, selected: selectedTab.wrappedValue)
+    }
+
+    /// Показанная вкладка считается увиденной: при появлении, смене вкладки и смене её содержимого.
+    private func markSeen() {
+        guard tabOverride == nil, dotsOverride == nil else { return }
+        seenTabs = HomeTabNews.markSeen(selected: selectedTab.wrappedValue, fingerprints: fingerprints)
+    }
 
     var body: some View {
         ScrollView { column }
             .scrollContentBackground(.hidden)
+            .onAppear(perform: markSeen)
+            .onChange(of: selectedTab.wrappedValue) { markSeen() }
+            .onChange(of: fingerprints) { markSeen() }
     }
 
     /// Содержимое без прокрутки (его же рисует проверка через `ImageRenderer`: прокрутку тот не отрисовывает).
     var column: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Плашка обновления — в самом верху, выше огня и «Искры» (просьба пользователя: в середине её приходилось искать).
+            if let updateChecker, updateChecker.showsBanner { UpdateBanner(checker: updateChecker) }
             StreakHeader(streak: data.streak, todaySeconds: data.todaySeconds, goalMinutes: data.goalMinutes,
                          level: level, shareProgress: shareProgress)
             if let banner = RepairBannerModel.make(streak: data.streak, todaySeconds: data.todaySeconds) {
@@ -194,12 +232,19 @@ struct HomeContent: View {
             }
             WeekStrip(days: data.week)
             MetricsCard(data: data, unit: unit)
-            if let dayPlan { DayPlanCard(model: dayPlan, start: startPlan) }
-            // «Продолжить курс» — обычный запуск урока без пункта плана: после выполненного плана или без плана.
-            if let challenges { ChallengesCard(model: challenges) }
-            if dayPlan?.isDone ?? true, let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }
-            QuickLinks(data: data, openTraining: openTraining, startWeakSpots: startWeakSpots,
-                       openPractice: openPractice)
+            HomeTabsSection(tabs: availableTabs, selection: selectedTab, dots: dots) {
+                switch selectedTab.wrappedValue {
+                case .plan:
+                    if let dayPlan { DayPlanCard(model: dayPlan, start: startPlan) }
+                case .challenges:
+                    if let challenges { ChallengesCard(model: challenges) }
+                case .course:
+                    if let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }
+                case .quick:
+                    QuickLinks(data: data, openTraining: openTraining, startWeakSpots: startWeakSpots,
+                               openPractice: openPractice)
+                }
+            }
             if let latestAchievement { LatestAchievementCard(entry: latestAchievement, open: openAchievements) }
         }
         .padding(24)

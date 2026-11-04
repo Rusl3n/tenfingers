@@ -47,3 +47,13 @@ private func translation(of text: String, in table: [String: String]) -> String?
     let english = try #require(en[HelpText.spark])
     #expect(english.contains("Spark") && english.contains("Freezes don't apply"))
 }
+
+/// Уровень считается заново по всей истории и может опуститься (поднята цель дня): подсказка не обещает «только растёт».
+@Test func levelHelpDoesNotPromiseTheLevelOnlyGrows() throws {
+    #expect(!HelpText.level.contains("только растёт"))
+    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Localization/en.lproj/Localizable.strings")
+    let en = try #require(try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
+    let english = try #require(en[HelpText.level])
+    #expect(!english.contains("only goes up") && english.contains("can drop"))
+}

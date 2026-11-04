@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// «Продолжить курс» (или «Пересдать проверку»): следующий урок и кнопка «Начать».
+/// Содержимое вкладки «Продолжить курс» (или «Пересдать проверку»): следующий урок и кнопка «Начать».
+/// Название вкладки не повторяется: у обычного урока подпись — только этап. Рамка — в `HomeTabsSection`.
 struct ContinueCard: View {
     let info: ContinueInfo
     let start: (LessonRun) -> Void
@@ -13,7 +14,7 @@ struct ContinueCard: View {
                         if info.retakeCheck {
                             Text("Пересдать проверку · \(info.stageTitle)")
                         } else {
-                            Text("Продолжить курс · \(info.stageTitle)")
+                            Text(verbatim: info.stageTitle)
                         }
                     }
                     .font(.subheadline).foregroundStyle(.secondary)
@@ -32,7 +33,6 @@ struct ContinueCard: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(16)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

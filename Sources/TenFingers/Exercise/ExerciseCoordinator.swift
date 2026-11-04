@@ -181,8 +181,9 @@ final class ExerciseCoordinator {
     /// Уход без кнопки (меню, закрытие окна, выход из приложения, «Начать урок заново»): показать ошибку уже негде,
     /// поэтому записываем молча. Брошенное упражнение тоже может сделать день полным: при `announce` (экран остаётся,
     /// например «Начать урок заново») тост и звук сразу, иначе объявление откладывается до следующего показа главной
-    /// (`FullDayPending`).
-    func recordAbandonIfNeeded(announce: Bool = false) {
+    /// (`FullDayPending`). `quitting` — выход из приложения: тосты года не строятся (смотреть их некому), а показанные
+    /// уровень и испытания в `UserDefaults` не трогаются.
+    func recordAbandonIfNeeded(announce: Bool = false, quitting: Bool = false) {
         guard let session, !session.isRecorded else { return }
         session.stop()
         session.onFinish = nil
@@ -207,13 +208,13 @@ final class ExerciseCoordinator {
         }
         // Ачивки выдаются всегда, но без звука: итога с карточками на этом пути нет (уход или «Начать урок заново»),
         // их увидят непросмотренными в разделе «Ачивки».
-        checkAchievements(announce: false, afterStreak: false)
+        checkAchievements(announce: false, afterStreak: false, yearToasts: !quitting)
         onSaved?()
     }
 
     /// Проверка ачивок после сохранения. Звук `.achievement` — через `streakDelay` после звука результата,
     /// а если в этом сохранении день стал полным — ещё через `streakDelay` после звука серии.
-    private func checkAchievements(announce: Bool, afterStreak: Bool) {
+    private func checkAchievements(announce: Bool, afterStreak: Bool, yearToasts: Bool = true) {
         guard let achievements else { return }
         let earned = EarnedCard.cards(from: achievements.checkLogging(reason: .afterSave))
         newAchievements = earned
@@ -224,7 +225,7 @@ final class ExerciseCoordinator {
         if announce, !visible.isEmpty { afterDelay(delay) { [playSound] in playSound(.achievement) } }
         // Тосты года — после карточек ачивок; на итоге — с той же паузой после звука результата и своим звуком,
         // если звука ачивок нет.
-        guard let yearCheck else { return }
+        guard yearToasts, let yearCheck else { return }
         if announce {
             let withSound = visible.isEmpty
             afterDelay(delay) { yearCheck(withSound) }

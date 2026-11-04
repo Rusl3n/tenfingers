@@ -26,6 +26,9 @@ struct ChallengesCardModel: Equatable {
 
     let week: ChallengeSection?
     let month: ChallengeSection?
+    /// Какие периоды и испытания сейчас и какие из них выполнены: по нему вкладка узнаёт о новом периоде или
+    /// только что выполненном испытании (`HomeTabNews`). Заголовки с «осталось N дн.» для этого не годятся.
+    let fingerprint: String
 
     /// `nil`, если испытаний нет (занятий ещё не было): карточки на главной тогда нет.
     static func make(week: ChallengePeriodResult?, month: ChallengePeriodResult?, today: String, unit: SpeedUnit,
@@ -38,9 +41,18 @@ struct ChallengesCardModel: Equatable {
             let rows = period.results.map { row($0, parameters: period.parameters, unit: unit, bundle: bundle, locale: locale) }
             return ChallengeSection(header: header, rows: rows)
         }
+        let weekResult = week, monthResult = month
         let week = section(week, isWeek: true), month = section(month, isWeek: false)
         guard week != nil || month != nil else { return nil }
-        return ChallengesCardModel(week: week, month: month)
+        return ChallengesCardModel(week: week, month: month, fingerprint: fingerprint(week: weekResult, month: monthResult))
+    }
+
+    private static func fingerprint(week: ChallengePeriodResult?, month: ChallengePeriodResult?) -> String {
+        [week, month].compactMap { $0 }.map { period in
+            let ids = period.results.map(\.id.rawValue).joined(separator: ",")
+            let done = period.results.filter { $0.completedAt != nil }.map(\.id.rawValue).joined(separator: ",")
+            return "\(period.period.key):\(ids):\(done)"
+        }.joined(separator: "|")
     }
 
     /// Дней до конца периода, считая сегодняшний (после конца периода — 0).
@@ -69,27 +81,25 @@ struct ChallengesCardModel: Equatable {
     }
 }
 
-/// «Испытания» на главной: после плана на сегодня. Стиль — как у `DayPlanCard`.
+/// Содержимое вкладки «Испытания». Заголовок вкладки и рамка — в `HomeTabsSection`.
 struct ChallengesCard: View {
     let model: ChallengesCardModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Text("Испытания").font(.title3.bold())
-                InfoButton(text: HelpText.challenges)
-            }
-            if let week = model.week { sectionView(week) }
-            if let month = model.month { sectionView(month) }
+            if let week = model.week { sectionView(week, showsInfo: true) }
+            if let month = model.month { sectionView(month, showsInfo: model.week == nil) }
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
     }
 
-    private func sectionView(_ section: ChallengeSection) -> some View {
+    private func sectionView(_ section: ChallengeSection, showsInfo: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(verbatim: section.header).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text(verbatim: section.header).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                Spacer()
+                if showsInfo { InfoButton(text: HelpText.challenges) }
+            }
             ForEach(section.rows, id: \.id) { row in
                 HStack(spacing: 10) {
                     Image(systemName: row.isDone ? ChallengesCardModel.doneIcon : "circle")

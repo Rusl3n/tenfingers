@@ -997,7 +997,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
         .map { String(body[Range($0.range(at: 1), in: body)!]) })
     #expect(keys.count > 15)
     // Не настройки: состояние окна или устройства (язык интерфейса), прежний ключ темы, служебные флаг очистки
-    // уведомлений и предел очереди уведомлений этого Mac, лист «Новый курс» показан, тост «План выполнен» за день и показанные тосты уровня и испытаний (состояние устройства);
+    // уведомлений и предел очереди уведомлений этого Mac, лист «Новый курс» показан, тост «План выполнен» за день и показанные тосты уровня и испытаний (состояние устройства), выбранная вкладка «Главной» (состояние окна) и увиденные отпечатки вкладок (состояние устройства);
     // профиль — отдельным разделом архива.
     let excluded: Set<String> = [SettingsKey.settingsSection, SettingsKey.legacyTheme, SettingsKey.interfaceLanguage,
                                  SettingsKey.onboardingCompleted, SettingsKey.achievementsFilter,
@@ -1005,7 +1005,10 @@ private func fillPreferences(_ defaults: UserDefaults) {
                                  SettingsKey.remindersResetDone, SettingsKey.reminderSystemLimit,
                                  SettingsKey.reminderSystemLimitProbedAt, SettingsKey.newCourseIntroShown,
                                  SettingsKey.dayPlanAnnouncedDay, SettingsKey.yearAnnouncedLevel,
-                                 SettingsKey.yearAnnouncedChallenges]
+                                 SettingsKey.yearAnnouncedChallenges,
+                                 SettingsKey.updateAutoCheck, SettingsKey.updateLastCheck,
+                                 SettingsKey.updateSkippedVersion, SettingsKey.updateFeedURL,
+                                 SettingsKey.homeTab, SettingsKey.homeTabSeen]
     let archived = Set(ArchivedSettings.entries.map(\.key))
     #expect(keys.subtracting(excluded).subtracting(archived).isEmpty,
             "не в архиве: \(keys.subtracting(excluded).subtracting(archived).sorted())")

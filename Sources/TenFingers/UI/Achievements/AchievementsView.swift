@@ -130,13 +130,6 @@ struct AchievementsContent: View {
     }
 }
 
-/// Красный кружок «есть новое» на кнопках фильтров.
-private struct NewDot: View {
-    var body: some View {
-        Circle().fill(.red).frame(width: 9, height: 9).accessibilityHidden(true)
-    }
-}
-
 /// Пустое сочетание фильтров: подсказка и кнопка сброса.
 private struct EmptyAchievements: View {
     let reset: () -> Void

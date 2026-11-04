@@ -216,16 +216,32 @@ struct AchievementService {
             currentGoalSeconds: currentGoal, today: today)
     }
 
-    /// Сегодняшний логический день (`yyyy-MM-dd`) по часу начала дня и часовому поясу службы.
-    /// Ключ кэша снимка года (решение 16): сессии, последняя `endedAt`, логический день и текущая цель.
+    /// Ключ кэша снимка года (решение 16): сессии, последняя `endedAt`, логический день, текущая цель и отпечаток
+    /// записей дней (число, время, занятия, цели): правка дня без новой сессии тоже сбрасывает снимок.
     func yearKey() throws -> YearStateKey {
         var latest = FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.endedAt, order: .reverse)])
         latest.fetchLimit = 1
         return YearStateKey(sessions: try context.fetchCount(FetchDescriptor<SessionRecord>()),
                             lastEndedAt: try context.fetch(latest).first?.endedAt,
-                            today: logicalToday(), goalSeconds: goalSeconds())
+                            today: logicalToday(), goalSeconds: goalSeconds(),
+                            days: try dayFingerprint())
     }
 
+    /// Дешёвый отпечаток `DayRecord`: суммы целых (миллисекунды времени, занятия, брошенные, цели), не зависящие от
+    /// порядка выборки. Схема не меняется — отдельной «даты изменения» у дня нет.
+    private func dayFingerprint() throws -> YearStateKey.DayFingerprint {
+        var fingerprint = YearStateKey.DayFingerprint()
+        for record in try context.fetch(FetchDescriptor<DayRecord>()) {
+            fingerprint.count += 1
+            fingerprint.activeMilliseconds += Int((record.activeSeconds * 1000).rounded())
+            fingerprint.completed += record.completedExercises
+            fingerprint.abandoned += record.abandonedExercises
+            fingerprint.goalMilliseconds += Int(((record.goalSeconds ?? 0) * 1000).rounded())
+        }
+        return fingerprint
+    }
+
+    /// Сегодняшний логический день (`yyyy-MM-dd`) по часу начала дня и часовому поясу службы.
     func logicalToday() -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone

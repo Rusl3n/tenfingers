@@ -53,6 +53,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/TenFingers" "$APP/Contents/MacOS/"
 cp -R "$BIN/TenFingers_TypingCore.bundle" "$APP/Contents/Resources/"
 cp scripts/AppIcon.icns "$APP/Contents/Resources/"
+# Помощник перезапуска после обновления (7b): установщик копирует его во временную папку и запускает через nohup
+cp scripts/update-relaunch.sh "$APP/Contents/Resources/"
 # Переводы приложения (Localizable.strings, InfoPlist.strings): ресурсы исполняемого таргета не попадают в Bundle.main
 cp -R Localization/*.lproj "$APP/Contents/Resources/"
 cp scripts/Info.plist "$APP/Contents/Info.plist"

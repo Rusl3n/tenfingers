@@ -70,6 +70,8 @@ enum DayPlanRows {
 
 /// Данные карточки: строки, второй возврат, выполнен ли план и есть ли что запускать «Продолжить».
 struct DayPlanCardModel: Equatable {
+    /// Логический день плана: по нему вкладка узнаёт, что план новый (`HomeTabNews`).
+    let day: String
     let rows: [DayPlanRow]
     let extra: String?
     let isDone: Bool
@@ -77,6 +79,7 @@ struct DayPlanCardModel: Equatable {
 
     static func make(plan: DayPlan, course: Course?, canContinue: Bool) -> DayPlanCardModel {
         DayPlanCardModel(
+            day: plan.day,
             rows: plan.items.map {
                 DayPlanRow(slot: $0.slot, icon: $0.done ? DayPlanRows.doneIcon : DayPlanRows.icon($0.slot),
                            title: DayPlanRows.title($0.slot), detail: DayPlanRows.detail($0.action, course: course),
@@ -87,8 +90,8 @@ struct DayPlanCardModel: Equatable {
     }
 }
 
-/// «План на сегодня» на главной (§10.1, решение 17): четыре пункта и одна кнопка «Продолжить» — первый
-/// незасчитанный пункт. План выполнен — «План выполнен» вместо кнопки.
+/// Содержимое вкладки «План на сегодня» (§10.1, решение 17): четыре пункта и одна кнопка «Продолжить» — первый
+/// незасчитанный пункт. План выполнен — «План выполнен» вместо кнопки. Заголовок вкладки и рамка — в `HomeTabsSection`.
 struct DayPlanCard: View {
     let model: DayPlanCardModel
     let start: () -> Void
@@ -96,9 +99,6 @@ struct DayPlanCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
-                Text("План на сегодня").font(.title3.bold())
-                InfoButton(text: HelpText.dayPlan)
-                Spacer()
                 if model.isDone {
                     Label("План выполнен", systemImage: DayPlanRows.doneIcon)
                         .font(.headline)
@@ -109,6 +109,8 @@ struct DayPlanCard: View {
                         .keyboardShortcut(.defaultAction)
                         .disabled(!model.canContinue)
                 }
+                Spacer()
+                InfoButton(text: HelpText.dayPlan)
             }
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(model.rows, id: \.slot) { row in
@@ -125,7 +127,6 @@ struct DayPlanCard: View {
                 }
             }
         }
-        .padding(16)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

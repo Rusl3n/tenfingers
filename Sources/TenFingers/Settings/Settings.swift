@@ -18,6 +18,12 @@ enum SettingsKey {
     static let yearAnnouncedChallenges = "yearAnnouncedChallenges"
     /// Фильтр экрана «Ачивки» (`AchievementsFilter`): all | earned | locked | new. Не архивируется: состояние окна.
     static let achievementsFilter = "achievementsFilter"
+    /// Выбранная вкладка нижней части «Главной» (`HomeTab`): plan | challenges | course | quick. Не архивируется:
+    /// состояние окна.
+    static let homeTab = "homeTab"
+    /// Последний увиденный «отпечаток» каждой вкладки «Главной» (`HomeTabNews`): словарь `[String: String]`,
+    /// ключ — `HomeTab.rawValue`. Не архивируется: состояние устройства. Нет ключа — первый запуск.
+    static let homeTabSeen = "homeTabSeen"
     static let themeMode = "themeMode"
     static let lightPalette = "lightPalette"
     static let darkPalette = "darkPalette"
@@ -91,6 +97,12 @@ enum SettingsKey {
     static let shareAchievementShowReason = "shareAchievementShowReason"
     /// Дата получения на карточке ачивки (по умолчанию да).
     static let shareAchievementShowDate = "shareAchievementShowDate"
+    /// Обновления (7b): автоматическая проверка (Bool, по умолчанию да), время последней успешной проверки (Date),
+    /// пропущенная версия (String) и адрес `release.json` для сборок `-dev` (String). Не архивируются: состояние устройства.
+    static let updateAutoCheck = "updateAutoCheck"
+    static let updateLastCheck = "updateLastCheck"
+    static let updateSkippedVersion = "updateSkippedVersion"
+    static let updateFeedURL = "updateFeedURL"
     /// Прежний ключ темы (system/light/dark), читается один раз как начальное значение `themeMode`.
     static let legacyTheme = "theme"
 }
@@ -118,6 +130,8 @@ enum SettingsDefault {
     static let reminderTone = ReminderTone.mixed.rawValue
     static let reminderEscalating = false
     static let adultHumor = true
+    static let updateAutoCheck = true
+    static let homeTab = "plan"
 }
 
 /// Настройки, которые читаются вне SwiftUI (`@AppStorage` здесь не подходит: значение нужно в момент вызова).

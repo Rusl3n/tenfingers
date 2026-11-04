@@ -162,6 +162,10 @@ private func fiveFull() -> [(String, DayActivity)] { (1...5).map { (oct($0), ful
         // «На волоске»: пропуск вчера, сегодня ничего или только одна цель.
         "FFFFF-",
         "FFFFF-F",
+        // Заморозка тратится после починки, повторные пропуски, починка на границе недельного ожидания.
+        "FFFFFFFF-D--FFFFFFFFFF-DD-D",
+        "HHH-H-DHHH-DFFFFFFFH-D--F-",
+        "FFFFFFF-DFFFFFFF-DFFFFFFF-F",
     ]
     for history in histories {
         var list: [(String, DayActivity)] = []
@@ -181,6 +185,8 @@ private func fiveFull() -> [(String, DayActivity)] { (1...5).map { (oct($0), ful
                                                  allowRepair: false)
         #expect(with.current >= without.current, "\(history): серия")
         #expect(with.longest >= without.longest, "\(history): рекорд")
+        // Показ: рекорд не меньше текущей серии (в том числе «на волоске», где она показана целой).
+        #expect(with.longest >= with.current, "\(history): рекорд не меньше серии")
         #expect(with.statuses.keys.sorted() == without.statuses.keys.sorted(), "\(history)")
         for (day, status) in with.statuses where status != without.statuses[day] {
             #expect(without.statuses[day] == DayStatus.none && status == .repaired, "\(history): \(day)")

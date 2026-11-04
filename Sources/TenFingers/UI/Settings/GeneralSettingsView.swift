@@ -62,6 +62,7 @@ struct GeneralSettingsView: View {
                     }
                 }
             }
+            UpdateSettingsSection()
             Section("Окно") {
                 Toggle("Закрывать приложение вместе с окном", isOn: $quitOnWindowClose)
                     .help(HelpText.quitOnClose)

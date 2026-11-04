@@ -118,6 +118,50 @@ private func at(_ text: String) -> Date {
     #expect(cache.yearBuilds == 4)
 }
 
+/// Правка записи дня без новой сессии (например, время или цель дня) тоже сбрасывает кэш снимка.
+@MainActor @Test func yearLoaderNoticesDayRecordChangesWithoutANewSession() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateTwoWeeks(context)
+    let cache = AchievementFactsCache()
+    let loader = YearLoader(context: context, service: makeService(context, cache: cache))
+    _ = try loader.state()
+    _ = try loader.state()
+    #expect(cache.yearBuilds == 1)
+
+    let record = try #require(try context.fetch(FetchDescriptor<DayRecord>()).first { $0.logicalDay == "2026-11-03" })
+    record.activeSeconds = 5000
+    try context.save()
+    let updated = try loader.state()
+    #expect(cache.yearBuilds == 2, "время дня изменилось — снимок пересчитан")
+    #expect(updated.streak.statuses["2026-11-03"] == .full)
+
+    record.goalSeconds = 300
+    try context.save()
+    _ = try loader.state()
+    #expect(cache.yearBuilds == 3, "цель дня изменилась — снимок пересчитан")
+
+    context.insert(DayRecord(logicalDay: "2026-11-01"))
+    try context.save()
+    _ = try loader.state()
+    #expect(cache.yearBuilds == 4, "появилась запись дня — снимок пересчитан")
+    _ = try loader.state()
+    #expect(cache.yearBuilds == 4, "без правок — из кэша")
+}
+
+/// График опыта и строки истории испытаний считаются при загрузке экрана один раз (`AnalyticsYear`), и они те же,
+/// что строили бы `ExperienceChartModel.make` и `ChallengeHistoryRow.rows` по снимку.
+@MainActor @Test func analyticsYearPrecomputesChartAndHistoryRows() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populateTwoWeeks(context)
+    let state = try YearLoader(context: context, service: makeService(context)).state()
+    let year = AnalyticsYear(state)
+    #expect(year.experience == ExperienceChartModel.make(ledger: state.ledger, today: state.today))
+    #expect(year.challenges == ChallengeHistoryRow.rows(history: state.history))
+    #expect(year.experience.hasData && !year.challenges.isEmpty)
+}
+
 /// После проверки ачивок снимок года берёт её факты: упражнения для `facts()` читаются один раз, а не дважды.
 @MainActor @Test func yearLoaderReusesFactsOfTheAchievementCheck() throws {
     let container = try ModelStore.makeContainer(inMemory: true)
@@ -381,4 +425,35 @@ private func period(_ period: ChallengePeriod, _ results: [ChallengeResult],
     #expect(calls.isEmpty && delayed.count == 1)
     delayed.forEach { $0() }
     #expect(calls == [true])
+}
+
+/// Уход из приложения: брошенное упражнение записывается, ачивки проверяются, а тосты года не строятся (смотреть их
+/// некому) и показанные уровень и испытания не запоминаются. Обычный уход (смена экрана) проверку года делает.
+@MainActor @Test func quittingTheAppSkipsTheYearCheckButOtherExitsRunIt() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    let coordinator = ExerciseCoordinator(recorder: recorder, playSound: { _ in }, goalSeconds: { 1e9 },
+                                          afterDelay: { _, _ in })
+    coordinator.achievements = AchievementService(recorder: recorder, goalSeconds: { 1e9 }, timeZone: msk,
+                                                  now: { Date() }, catalog: [])
+    var calls: [Bool] = []
+    coordinator.yearCheck = { calls.append($0) }
+
+    func startAbandoned() {
+        let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: "аоаоаоао")
+        let session = coordinator.start(spec: spec, language: .ru, mode: .practice, lessonId: nil, hint: .full) { _, _ in }
+        session.layoutLanguage = .ru
+        _ = session.handleKey(characters: "а", keyCode: 3, modifiers: [], timestamp: 0)
+        _ = session.handleKey(characters: "о", keyCode: 38, modifiers: [], timestamp: 1.5)
+    }
+
+    startAbandoned()
+    coordinator.recordAbandonIfNeeded(quitting: true)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 1, "брошенное записано")
+    #expect(calls.isEmpty, "при выходе из приложения тосты года не строятся")
+
+    startAbandoned()
+    coordinator.recordAbandonIfNeeded()
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 2)
+    #expect(calls == [false], "обычный уход (экран остаётся) — проверка года без звука")
 }

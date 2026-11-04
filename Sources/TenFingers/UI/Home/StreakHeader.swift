@@ -23,7 +23,7 @@ struct StreakHeader: View {
     let streak: StreakSummary
     let todaySeconds: Double
     let goalMinutes: Int
-    /// Уровень и полоска до следующего под огнём; `nil` — снимок года прочитать не удалось.
+    /// Уровень и полоска до следующего под «Искрой»; `nil` — снимок года прочитать не удалось.
     var level: LevelLine?
     @Environment(\.palette) private var palette
     /// Открывает карточку «Мой прогресс»; `nil` — кнопки «Поделиться» нет.
@@ -33,7 +33,7 @@ struct StreakHeader: View {
     nonisolated static func canShare(_ streak: StreakSummary) -> Bool { !streak.statuses.isEmpty }
 
     var body: some View {
-        // Две колонки: под огнём — уровень, под «Искрой» — цель дня, полосы одной ширины (`BarCell`).
+        // Две колонки: под огнём — цель дня (огонь горит за неё), под «Искрой» — уровень, полосы одной ширины (`BarCell`).
         // Колонки фиксированной ширины (`barWidth`): числа не обрезаются, длинные подписи переносятся — шапка влезает и в самое узкое окно.
         Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
             let spark = Self.spark(streak)
@@ -42,18 +42,13 @@ struct StreakHeader: View {
                 flameBlock
                 if let spark { sparkBlock(spark) }
             }
-            if level != nil || spark != nil {
-                GridRow(alignment: .top) {
-                    Group {
-                        if let level { LevelLineView(line: level) } else { Color.clear.frame(height: 0) }
-                    }
-                    .modifier(BarCell(leading: Self.flameWidth + 16))
-                    if spark != nil { todayLine.modifier(BarCell(leading: Self.sparkWidth + 10)) }
-                }
+            GridRow(alignment: .top) {
+                todayLine.modifier(BarCell(leading: Self.flameWidth + 16))
+                if spark != nil, let level { LevelLineView(line: level).modifier(BarCell(leading: Self.sparkWidth + 10)) }
             }
-            // «Искры» ещё нет (ни одного дня занятий) — цель дня под огнём, а не над пустой колонкой.
-            if spark == nil {
-                GridRow { todayLine.modifier(BarCell(leading: Self.flameWidth + 16)) }
+            // «Искры» ещё нет (ни одного дня занятий) — уровень под целью дня, а не над пустой колонкой.
+            if spark == nil, let level {
+                GridRow { LevelLineView(line: level).modifier(BarCell(leading: Self.flameWidth + 16)) }
             }
             // Одна кнопка на оба блока: карточка «Мой прогресс» показывает и огонь, и «Искру».
             if let shareProgress, Self.canShare(streak) {

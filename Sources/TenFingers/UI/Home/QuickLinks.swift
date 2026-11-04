@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Быстрые переходы: тренировка, слабые места, практика.
+/// Содержимое вкладки «Тренировка и практика» (рамка — `HomeTabsSection`): быстрые переходы: тренировка, слабые места, практика.
 struct QuickLinks: View {
     let data: HomeData
     let openTraining: () -> Void

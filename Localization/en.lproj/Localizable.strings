@@ -11,7 +11,6 @@
 /* Главная */
 "Курс: %@" = "Course: %@";
 "Сегодня %lld из %lld мин" = "Today: %lld of %lld min";
-"Продолжить курс · %@" = "Continue the course · %@";
 "Курс пройден" = "Course completed";
 "Пройдено %@ курса" = "%@ of the course completed";
 "Начать" = "Start";
@@ -754,7 +753,7 @@
 "Серия на волоске: наберите сегодня %lld мин (двойная цель), чтобы спасти %@" = "Streak at risk: earn %lld min today (double goal) to save %@";
 "Серия под угрозой" = "Streak at risk";
 "%@ / %@ опыта" = "%@ / %@ XP";
-"Опыт начисляется за время занятий (точная работа ценится выше), за уроки, звёзды, пороги этапов, полные дни и выполненные испытания. Опыт не сгорает: уровень только растёт." = "Experience is earned for practice time (accurate work counts more), lessons, stars, stage thresholds, full days and completed challenges. Experience never expires: your level only goes up.";
+"Опыт начисляется за время занятий (точная работа ценится выше), за уроки, звёзды, пороги этапов, полные дни и выполненные испытания. Опыт не сгорает, но уровень считается заново по всей истории: если поднять цель дня, старые дни без записанной цели пересчитаются, и уровень может опуститься." = "Experience is earned for practice time (accurate work counts more), lessons, stars, stage thresholds, full days and completed challenges. Experience never expires, but your level is recalculated from your whole history: if you raise the daily goal, older days with no recorded goal are recounted and your level can drop.";
 "Три испытания недели и одно месяца подбираются заново каждый понедельник и первого числа. Выполненное испытание даёт опыт, а все три за неделю — награду сверху." = "Three weekly challenges and one monthly challenge are picked anew every Monday and on the 1st. A completed challenge gives experience, and all three in a week earn an extra reward.";
 "Вчерашний день пропущен, но серию можно спасти: наберите сегодня двойную цель. Починка действует не чаще раза в 7 дней и только если нет заморозок." = "Yesterday was missed, but the streak can be saved: reach double your goal today. A repair works at most once every 7 days and only when there are no freezes.";
 
@@ -769,3 +768,54 @@
 "Ранг скорости зависит от лучшей скорости на языке: каждые 100 зн/мин — новая ступень, независимо от единицы в настройках. Шкала: %@." = "Speed rank depends on your best speed in a language: every 100 characters per minute is a new step, whatever unit is set in Settings. Scale: %@.";
 "Неделя" = "Week";
 "Опыт" = "Experience";
+
+/* Обновления 7b: проверка, плашка, настройки, откат */
+"Формат описания выпуска не поддерживается этой версией" = "This version can't read the release description. Download the update from the release page";
+"Новая версия требует более новой macOS" = "The new version needs a newer macOS";
+"информации о выпусках пока нет" = "no release information yet";
+"сервер ответил кодом %lld" = "the server replied with code %lld";
+"ответ сервера не распознан" = "the server's reply was not understood";
+"Скачивание… %lld%%" = "Downloading… %lld%%";
+"Проверка" = "Verifying";
+"Резервная копия" = "Backup";
+"Установка" = "Installing";
+"Версия %@ пропущена" = "Version %@ is skipped";
+"Проверка обновлений…" = "Checking for updates…";
+"Установлена последняя версия" = "You have the latest version";
+"Доступна версия %@" = "Version %@ is available";
+"Не удалось проверить: %@" = "Couldn't check: %@";
+"Сборка для разработки, обновления выключены" = "Development build, updates are off";
+"Установка версии %@" = "Installing version %@";
+"Не удалось установить обновление" = "Couldn't install the update";
+"Приложение запущено из временного места. Перенесите его в папку «Программы» и повторите." = "The app is running from a temporary location. Move it to the Applications folder and try again.";
+"Нет прав на запись в папку с приложением. Скачайте .dmg вручную со страницы релиза." = "No permission to write to the app's folder. Download the .dmg manually from the release page.";
+"Прогресс записан более новой версией приложения, чем в этом обновлении." = "Your progress was saved by a newer version of the app than this update.";
+"Скачанный файл не прошёл проверку контрольной суммы." = "The downloaded file failed the checksum check.";
+"Размер скачанного файла не совпал с ожидаемым." = "The downloaded file's size doesn't match the expected size.";
+"Скачанное приложение не прошло проверку: %@." = "The downloaded app failed verification: %@.";
+"Подпись скачанного приложения не прошла проверку." = "The downloaded app's signature failed verification.";
+"Не удалось сделать резервную копию прогресса." = "Couldn't make a backup of your progress.";
+"Не удалось заменить приложение, и прежняя версия не встала на место. Она лежит рядом: TenFingers.app.previous. Переименуйте её в TenFingers.app." = "Couldn't replace the app, and the previous version did not return to its place. It is next to the app: TenFingers.app.previous. Rename it to TenFingers.app.";
+"Не удалось заменить приложение." = "Couldn't replace the app.";
+"Установка отменена." = "Installation cancelled.";
+"Не удалось прочитать версию базы прогресса." = "Couldn't read the progress database version.";
+"Не удалось начать установку: %@" = "Couldn't start the installation: %@";
+"Не удалось скачать обновление: %@" = "Couldn't download the update: %@";
+"Новая версия установлена, но не перезапустилась. Закройте приложение и откройте его снова вручную. Прогресс не изменён." = "The new version is installed but didn't restart. Quit the app and open it again manually. Your progress is unchanged.";
+"Прогресс не изменён." = "Your progress is unchanged.";
+"Приложение и прогресс не изменены." = "The app and your progress are unchanged.";
+"Резервная копия прогресса: %@" = "Progress backup: %@";
+"Что нового" = "What's new";
+"Установить" = "Install";
+"Пропустить эту версию" = "Skip this version";
+"Открыть страницу релиза" = "Open the release page";
+"Обновления" = "Updates";
+"Проверять обновления автоматически" = "Check for updates automatically";
+"Проверить сейчас" = "Check now";
+"Вернуть прежнюю версию" = "Restore the previous version";
+"Не удалось вернуть прежнюю версию: %@" = "Couldn't restore the previous version: %@";
+
+/* Главная: вкладки */
+"Продолжить курс" = "Continue the course";
+"Тренировка и практика" = "Training and practice";
+"есть новое" = "has news";

@@ -91,6 +91,20 @@ public struct LessonStarStep: Equatable, Sendable {
     }
 }
 
+extension Collection where Element == LessonStarStep {
+    /// Шаги, на которых максимум действующих звёзд урока вырос (убывание и возврат не считаются), по возрастанию даты;
+    /// `gained` — на сколько звёзд сверх прежнего максимума. Один помощник и для опыта, и для испытаний.
+    func maxGrowth() -> [(step: LessonStarStep, gained: Int)] {
+        var best = 0
+        var growth: [(step: LessonStarStep, gained: Int)] = []
+        for step in sorted(by: { $0.date < $1.date }) where step.stars > best {
+            growth.append((step, step.stars - best))
+            best = step.stars
+        }
+        return growth
+    }
+}
+
 /// Всё, что движок ачивок знает об истории пользователя. Собирает приложение; движок только сравнивает.
 public struct AchievementFacts: Sendable {
     /// Все упражнения (завершённые и брошенные) по возрастанию `endedAt`.

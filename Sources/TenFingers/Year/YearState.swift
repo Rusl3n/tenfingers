@@ -20,10 +20,9 @@ struct YearState: Equatable {
     /// Сегодняшний логический день (`yyyy-MM-dd`).
     let today: String
 
-    /// Снимок по готовым фактам: испытания считаются один раз и идут и в журнал опыта.
+    /// Снимок по готовым фактам: испытания и журнал опыта считаются на одном `Evaluator`.
     static func build(_ facts: AchievementFacts) -> YearState {
-        let challenges = Challenges.evaluate(facts)
-        let ledger = Experience.ledger(facts, challenges: challenges)
+        let (challenges, ledger) = Experience.yearParts(facts)
         let progress = LevelCurve.progress(forExperience: ledger.total)
         let today = facts.today ?? ""
         let goal = facts.currentGoalSeconds ?? Double(Challenges.defaultGoalMinutes * 60)
@@ -38,12 +37,23 @@ struct YearState: Equatable {
     }
 }
 
-/// Ключ кэша снимка года (решение 16): число сессий, последняя `endedAt`, сегодняшний логический день и текущая цель.
+/// Ключ кэша снимка года (решение 16): число сессий, последняя `endedAt`, сегодняшний логический день, текущая цель и
+/// отпечаток записей дней (правка `DayRecord` без новой сессии).
 struct YearStateKey: Equatable {
+    /// Суммы по `DayRecord` (целые, не зависят от порядка выборки).
+    struct DayFingerprint: Equatable {
+        var count = 0
+        var activeMilliseconds = 0
+        var completed = 0
+        var abandoned = 0
+        var goalMilliseconds = 0
+    }
+
     let sessions: Int
     let lastEndedAt: Date?
     let today: String
     let goalSeconds: Double
+    var days = DayFingerprint()
 }
 
 /// Загрузчик снимка года: факты — через `AchievementService` (общий кэш упражнений), снимок — в кэше фактов, пока

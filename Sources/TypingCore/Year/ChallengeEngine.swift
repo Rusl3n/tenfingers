@@ -69,9 +69,7 @@ struct ChallengeEngine {
 
         var growth: [String: [(lesson: String, date: Date)]] = [:]
         for (lesson, steps) in facts.lessonStarSteps {
-            var best = 0
-            for step in steps.sorted(by: { $0.date < $1.date }) where step.stars > best {
-                best = step.stars
+            for (step, _) in steps.maxGrowth() {
                 growth[dayKey(step.date), default: []].append((lesson, step.date))
             }
         }

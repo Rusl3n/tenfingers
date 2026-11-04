@@ -5,7 +5,7 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.1-blue" alt="Version 2.3.1">
+  <img src="https://img.shields.io/badge/version-2.4.0-blue" alt="Version 2.4.0">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -72,8 +72,12 @@
    xattr -dr com.apple.quarantine /Applications/TenFingers.app
    ```
 
-3. Updates: for now, new versions are installed the same way as the first one. In upcoming versions the app will offer updates by itself.
+3. Updates: see the section below.
 4. Fallback — [build from source](#build-from-source).
+
+## Updates
+
+The app checks for new versions by itself ("Check for updates automatically" in Settings → General can turn this off; "Check now" is there too). When a version is out, a banner appears at the top of Home: "What's new", "Install" or "Skip this version". On install, the app downloads the version, verifies its size, checksum and signature, replaces itself and restarts. Your progress is kept: before replacing, two verified copies are made — of the database and of the progress archive — in `TenFingers.backups/before-update-*`; the three latest are kept. If the new version cannot open the database, the error screen offers a "Restore the previous version" button.
 
 ## Build from source
 

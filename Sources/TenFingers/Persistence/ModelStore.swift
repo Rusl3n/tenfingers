@@ -52,9 +52,15 @@ enum ModelStore {
             return try ModelContainer(for: schema,
                                       configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
         }
-        let directory = URL.applicationSupportDirectory.appending(path: "TenFingers", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return try makeContainer(at: directory.appending(path: "TenFingers.store"))
+        let url = defaultStoreURL
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return try makeContainer(at: url)
+    }
+
+    /// ~/Library/Application Support/TenFingers/TenFingers.store
+    static var defaultStoreURL: URL {
+        URL.applicationSupportDirectory.appending(path: "TenFingers", directoryHint: .isDirectory)
+            .appending(path: "TenFingers.store")
     }
 
     /// Открывает базу по адресу. Базу более новой версии не открывает и не трогает (иначе SwiftData
