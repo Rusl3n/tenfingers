@@ -448,6 +448,8 @@
 "Счётчики" = "Counters";
 "Свои тексты" = "Custom texts";
 "Повторные получения ачивок" = "Repeated achievement grants";
+"Ритм" = "Rhythm";
+"Результаты игры «Ритм»" = "Rhythm game results";
 "резервная копия записалась не полностью." = "the backup was not written completely.";
 "Не удалось прочитать прогресс" = "Couldn’t read your progress";
 "Данные не изменены. Попробуйте ещё раз." = "Nothing was changed. Please try again.";
@@ -772,6 +774,73 @@
 "Неделя" = "Week";
 "Опыт" = "Experience";
 
+/* Ритм: пункт, выбор, поле и простые итоги */
+"Ритм идёт" = "Rhythm in progress";
+"Игра будет завершена. Начать новое занятие?" = "The game will be ended. Start a new activity?";
+"Закрытые буквы" = "Locked letters";
+"Проблемные" = "Trouble letters";
+"Слова" = "Words";
+"Лёгкий" = "Easy";
+"Средний" = "Medium";
+"Сложный" = "Hard";
+"Эксперт" = "Expert";
+"Под меня" = "My pace";
+"Бесконечный" = "Endless";
+"Пульс" = "Pulse";
+"Грув" = "Groove";
+"Драйв" = "Drive";
+"Точно" = "Perfect";
+"Хорошо" = "Good";
+"Рано" = "Early";
+"Поздно" = "Late";
+"Мимо" = "Miss";
+"Не та буква" = "Wrong key";
+"Пропуск" = "Skipped";
+"Трек пройден" = "Track cleared";
+"Не пройден" = "Failed";
+"Оценка %@" = "Grade %@";
+"Очки" = "Score";
+"Макс. комбо" = "Max combo";
+"К выбору" = "Back to setup";
+"Заново" = "Restart";
+"мизинец" = "pinky";
+"безымянный" = "ring";
+"средний" = "middle";
+"указательный" = "index";
+"Пробел" = "Space";
+"Комбо %lld" = "Combo %lld";
+"Esc — пауза" = "Esc to pause";
+"Здоровье" = "Health";
+"Трек" = "Track";
+"Ритм: %@" = "Rhythm: %@";
+"Режим нот" = "Note mode";
+"Стиль бита" = "Beat style";
+"Играть" = "Play";
+"Нот в минуту: %lld" = "Notes per minute: %lld";
+"Нет истории скорости: как «Лёгкий»" = "No speed history: same as Easy";
+"Лучшие очки" = "Best score";
+"Лучшая оценка" = "Best grade";
+"Пройдите трек, чтобы поставить первый рекорд" = "Clear a track to set the first record";
+"Все буквы уже открыты" = "All letters are already unlocked";
+"Пока мало открытых букв" = "Not enough unlocked letters yet";
+"Мало слов из открытых букв" = "Too few words from unlocked letters";
+"Нет статистики букв" = "No letter statistics yet";
+
+/* Ритм: сдвиг звука */
+"Сдвиг звука" = "Sound offset";
+"Если бит отстаёт в Bluetooth-наушниках, сдвиньте звук раньше. На оценку сдвиг не влияет." = "If the beat lags in Bluetooth headphones, shift the sound earlier. The offset does not affect scoring.";
+"%@ мс" = "%@ ms";
+
+/* Ритм: разбор в итогах */
+"Новый рекорд!" = "New record!";
+"Сильные" = "Strongest";
+"Слабые" = "Weakest";
+"Путаницы" = "Mix-ups";
+"Потренировать слабые" = "Train weak letters";
+"в такт" = "on the beat";
+"рано на %lld мс" = "early by %lld ms";
+"поздно на %lld мс" = "late by %lld ms";
+"нажато %@ вместо %@ ×%lld" = "pressed %@ instead of %@ ×%lld";
 /* Обновления 7b: проверка, плашка, настройки, откат */
 "Формат описания выпуска не поддерживается этой версией" = "This version can't read the release description. Download the update from the release page";
 "Новая версия требует более новой macOS" = "The new version needs a newer macOS";
@@ -822,3 +891,15 @@
 "Продолжить курс" = "Continue the course";
 "Тренировка и практика" = "Training and practice";
 "есть новое" = "has news";
+"Рано и поздно" = "Early and late";
+"Попадания" = "Hits";
+"Нот: %lld" = "Notes: %lld";
+"Включить звук игры" = "Turn game sound on";
+"Выключить звук игры" = "Turn game sound off";
+"Игра окончена" = "Game over";
+"Продержались" = "Survived";
+"Темп" = "Tempo";
+"%lld нот/мин" = "%lld notes/min";
+"Темп растёт от %lld до %lld нот в минуту, пока хватает здоровья" = "The tempo climbs from %lld to %lld notes per minute while your health lasts";
+"Лучшее: %@ · очки: %@" = "Best: %@ · points: %@";
+"Сыграйте в бесконечный режим, чтобы поставить первый рекорд" = "Play endless mode to set your first record";

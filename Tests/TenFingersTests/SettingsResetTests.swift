@@ -33,6 +33,26 @@ import TypingCore
     }
 }
 
+@Test func soundResetAlsoResetsTheRhythmSoundOffset() {
+    let (defaults, name) = makeTestDefaults("test.soundreset.")
+    defer { removeTestDefaults(name) }
+    defaults.set(-70, forKey: SettingsKey.rhythmSoundOffsetMs)
+    #expect(!SoundSettingsDefaults.isDefault(in: defaults))
+    SoundSettingsDefaults.reset(in: defaults)
+    #expect(SoundSettingsDefaults.isDefault(in: defaults))
+    #expect(RhythmSoundOffset.milliseconds(in: defaults) == 0)
+}
+
+@Test func soundResetAlsoTurnsTheRhythmSoundBackOn() {
+    let (defaults, name) = makeTestDefaults("test.soundreset.")
+    defer { removeTestDefaults(name) }
+    defaults.set(true, forKey: SettingsKey.rhythmMuted)
+    #expect(!SoundSettingsDefaults.isDefault(in: defaults))
+    SoundSettingsDefaults.reset(in: defaults)
+    #expect(SoundSettingsDefaults.isDefault(in: defaults))
+    #expect(!defaults.bool(forKey: SettingsKey.rhythmMuted))
+}
+
 @Test func soundResetLeavesForeignKeysAlone() {
     let (defaults, name) = makeTestDefaults("test.soundreset.")
     defer { removeTestDefaults(name) }

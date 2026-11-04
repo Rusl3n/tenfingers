@@ -756,3 +756,12 @@ private func step(_ end: String, lesson: String = "ru2.s2.04", index: Int = 2, c
     #expect(AchievementEngine.evaluate(facts(third), catalog: both)
             == [EarnedAchievement(id: "challenge.week", date: at("2026-11-04 12:00"))])
 }
+
+@Test func speedRecordIgnoresRhythmGame() {
+    // Заход игры: 300 нот, точность 1, скорости нет — не рекорд и не точка отсчёта.
+    let game = fact("2026-11-02 10:00", mode: .rhythm, chars: 300, cpm: 0, session: "g")
+    let base = fact("2026-11-02 11:00", cpm: 150, session: "a")
+    let faster = fact("2026-11-02 12:00", cpm: 160, session: "b")
+    #expect(found("speed.record", richFacts([game, base, faster])).map(\.key) == ["b"])
+    #expect(found("speed.record", richFacts([game, base])).isEmpty)
+}

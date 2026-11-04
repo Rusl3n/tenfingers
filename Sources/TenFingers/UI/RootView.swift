@@ -4,7 +4,7 @@ import SwiftUI
 import TypingCore
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case home, course, training, practice, analytics, achievements, settings
+    case home, course, training, practice, rhythm, analytics, achievements, settings
 
     var id: String { rawValue }
 
@@ -14,6 +14,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .course: String(localized: "Курс")
         case .training: String(localized: "Тренировка")
         case .practice: String(localized: "Практика")
+        case .rhythm: String(localized: "Ритм")
         case .analytics: String(localized: "Аналитика")
         case .achievements: String(localized: "Ачивки")
         case .settings: String(localized: "Настройки")
@@ -26,6 +27,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .course: "graduationcap"
         case .training: "target"
         case .practice: "text.book.closed"
+        case .rhythm: "music.note"
         case .analytics: "chart.xyaxis.line"
         case .achievements: "trophy"
         case .settings: "gearshape"
@@ -41,6 +43,9 @@ struct TrainingRun: Identifiable, Equatable {
     var planSlot: PlanSlot? = nil
     /// Порций у запуска из плана: после последней — выход (`PlanPortions`); `nil` — без предела.
     var portions: Int? = nil
+    /// Буквы для слабых мест из игры «Ритм»: ключи тренировки — те из них, что открыты; `nil` или ни одной
+    /// открытой — обычный расчёт.
+    var focus: [Character]? = nil
 }
 
 /// Запуск занятия по пальцу («Тренировка → Пальцы»): новый `id` на каждый запуск.
@@ -55,13 +60,14 @@ struct FingerRun: Identifiable, Equatable {
     var portions: Int? = nil
 }
 
-/// То, что сейчас занимает окно вместо раздела: урок курса, тренировка или практика.
+/// То, что сейчас занимает окно вместо раздела: урок курса, тренировка, практика или игра «Ритм».
 enum RunKind: Identifiable, Equatable {
     case lesson(LessonRun)
     case adaptive(TrainingRun)
     case weakSpots(TrainingRun)
     case finger(FingerRun)
     case practice(PracticeRun)
+    case rhythm(RhythmRun)
 
     /// Новый на каждый запуск: по нему пересоздаётся экран и скрывается боковая панель.
     var id: UUID {
@@ -70,6 +76,7 @@ enum RunKind: Identifiable, Equatable {
         case .adaptive(let run), .weakSpots(let run): run.id
         case .finger(let run): run.id
         case .practice(let run): run.id
+        case .rhythm(let run): run.id
         }
     }
 
@@ -79,6 +86,7 @@ enum RunKind: Identifiable, Equatable {
         case .adaptive(let run), .weakSpots(let run): run.language
         case .finger(let run): run.language
         case .practice(let run): run.language
+        case .rhythm(let run): run.language
         }
     }
 
@@ -89,6 +97,7 @@ enum RunKind: Identifiable, Equatable {
         case .adaptive(let run), .weakSpots(let run): run.planSlot
         case .finger(let run): run.planSlot
         case .practice(let run): run.planSlot
+        case .rhythm: nil
         }
     }
 
@@ -100,6 +109,7 @@ enum RunKind: Identifiable, Equatable {
         case .weakSpots: String(localized: "Слабые места идут")
         case .finger: String(localized: "Пальцы идут")
         case .practice: String(localized: "Практика идёт")
+        case .rhythm: String(localized: "Ритм идёт")
         }
     }
 
@@ -111,6 +121,7 @@ enum RunKind: Identifiable, Equatable {
         case .weakSpots: String(localized: "Слабые места будут завершены. Начать новое занятие?")
         case .finger: String(localized: "Занятие по пальцу будет завершено. Начать новое занятие?")
         case .practice: String(localized: "Практика будет завершена. Начать новое занятие?")
+        case .rhythm: String(localized: "Игра будет завершена. Начать новое занятие?")
         }
     }
 }
@@ -242,6 +253,12 @@ struct RootView: View {
             else { return }
             withAnimation { columnVisibility = next }
         }
+        .onChange(of: presence.showsResult) { _, shown in
+            guard let next = SidebarPolicy.visibility(afterResult: shown, hasRun: activeRun != nil,
+                                                      isRunVisible: isRunVisible, current: columnVisibility)
+            else { return }
+            withAnimation { columnVisibility = next }
+        }
         .onChange(of: isRunHidden, initial: true) { _, hidden in
             if hidden { installEscapeMonitor() } else { removeEscapeMonitor() }
         }
@@ -342,6 +359,7 @@ struct RootView: View {
         case .course: CourseMapView(focus: $courseFocus, start: { start(.lesson($0)) })
         case .training: TrainingView(start: { start($0) })
         case .practice: PracticeView(start: { start($0) })
+        case .rhythm: RhythmHomeView(start: { start($0) })
         case .analytics: AnalyticsView()
         case .achievements: AchievementsView()
         case .settings: SettingsView()
@@ -368,11 +386,16 @@ struct RootView: View {
             AdaptiveRunnerView(language: training.language, planSlot: training.planSlot, portions: training.portions,
                                onExit: end)
         case .weakSpots(let training):
-            WeakSpotsRunnerView(language: training.language, planSlot: training.planSlot, onExit: end)
+            WeakSpotsRunnerView(language: training.language, planSlot: training.planSlot, focus: training.focus,
+                                onExit: end)
         case .finger(let finger):
             FingerRunnerView(run: finger, onExit: end)
         case .practice(let practice):
             PracticeRunnerView(run: practice, onExit: end)
+        case .rhythm(let rhythm):
+            RhythmPlayView(run: rhythm, onExit: end, onTrainWeak: { letters in
+                start(.weakSpots(TrainingRun(language: rhythm.language, focus: letters)))
+            })
         }
     }
 

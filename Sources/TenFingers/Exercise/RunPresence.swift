@@ -23,6 +23,13 @@ final class RunPresence {
     /// Последнее событие паузы: по нему `RootView` разворачивает или сворачивает меню.
     private(set) var lastEvent: PauseEvent?
 
+    /// Запуск показывает итоги (пока только «Ритм»): `RootView` разворачивает меню, новый заход сворачивает его.
+    private(set) var showsResult = false
+
+    func resultChanged(_ shown: Bool) {
+        if showsResult != shown { showsResult = shown }
+    }
+
     func pauseChanged(_ paused: Bool, reason: PauseReason) {
         isPaused = paused
         lastEvent = PauseEvent(id: (lastEvent?.id ?? 0) + 1, paused: paused, reason: reason)
@@ -78,7 +85,7 @@ enum SidebarPolicy {
         switch (paused, reason) {
         case (true, .escape): target = .all
         case (false, .escape), (false, .hidden): target = .detailOnly
-        case (_, .focusLoss), (true, .hidden): return nil
+        case (_, .focusLoss), (_, .layout), (true, .hidden): return nil
         }
         return target == current ? nil : target
     }
@@ -86,6 +93,14 @@ enum SidebarPolicy {
     /// Событие паузы применяется к меню только пока запуск есть: после «Выйти» меню восстанавливает
     /// `RootView`, а снятие паузы при остановке сессии приходит позже и не должно его сворачивать.
     /// Пауза скрытого запуска меню не трогает.
+    /// Итоги видимого запуска разворачивают меню, новый заход с итогов сворачивает его обратно.
+    static func visibility(afterResult shown: Bool, hasRun: Bool, isRunVisible: Bool,
+                           current: NavigationSplitViewVisibility) -> NavigationSplitViewVisibility? {
+        guard hasRun, isRunVisible else { return nil }
+        let target: NavigationSplitViewVisibility = shown ? .all : .detailOnly
+        return target == current ? nil : target
+    }
+
     static func visibility(after event: PauseEvent, hasRun: Bool, isRunVisible: Bool,
                            current: NavigationSplitViewVisibility) -> NavigationSplitViewVisibility? {
         guard hasRun, isRunVisible || !event.paused else { return nil }

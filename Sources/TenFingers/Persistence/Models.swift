@@ -230,6 +230,47 @@ import SwiftData
     }
 }
 
+/// Результат одного захода игры «Ритм» (поколение схемы 7, решение 9). Рядом с ним заход пишется и как обычная
+/// `SessionRecord` (`mode` `rhythm`): время, день и ачивки; здесь — то, чего в сессии нет: очки, оценка, разбор.
+/// `judgements` — JSON `[String: Int]` (`RhythmReport.counts`), `report` — JSON `RhythmReport`.
+@Model final class RhythmResult {
+    var id: UUID
+    var language: String
+    /// `RhythmNoteMode.rawValue`.
+    var mode: String
+    /// `RhythmLevelID.rawValue`.
+    var level: String
+    var bpm: Int
+    var startedAt: Date
+    var endedAt: Date
+    var score: Int
+    var accuracy: Double
+    var maxCombo: Int
+    /// `RhythmGrade.rawValue`: S, A, B, C, D.
+    var grade: String
+    var cleared: Bool
+    var judgements: Data
+    var report: Data
+
+    init(language: String, mode: String, level: String, bpm: Int, startedAt: Date, endedAt: Date, score: Int,
+         accuracy: Double, maxCombo: Int, grade: String, cleared: Bool, judgements: Data, report: Data) {
+        id = UUID()
+        self.language = language
+        self.mode = mode
+        self.level = level
+        self.bpm = bpm
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.score = score
+        self.accuracy = accuracy
+        self.maxCombo = maxCombo
+        self.grade = grade
+        self.cleared = cleared
+        self.judgements = judgements
+        self.report = report
+    }
+}
+
 enum CounterName {
     static let wrongLayoutStarts = "wrongLayoutStarts"
     static let capsLockPresses = "capsLockPresses"

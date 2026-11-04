@@ -156,7 +156,7 @@ struct ChallengeEngine {
     private func medianCpm(before firstDay: String) -> Double {
         let days = StreakCalculator.dayKeys(from: StreakCalculator.dayKey(firstDay, offset: -14),
                                             to: StreakCalculator.dayKey(firstDay, offset: -1))
-        let speeds = completed(in: days).map(\.cpm).sorted()
+        let speeds = completed(in: days).filter { $0.mode != .rhythm }.map(\.cpm).sorted()
         guard !speeds.isEmpty else { return Challenges.defaultCpm }
         let middle = speeds.count / 2
         return speeds.count % 2 == 1 ? speeds[middle] : (speeds[middle - 1] + speeds[middle]) / 2
@@ -173,7 +173,9 @@ struct ChallengeEngine {
         }
         if stageOpen { available.append(.monthStage) }
         // `m.growth`: в прошлом месяце хотя бы 10 завершённых упражнений.
-        if completed(in: periodDays(previousMonth(of: period))).count >= Self.pass { available.append(.monthGrowth) }
+        if completed(in: periodDays(previousMonth(of: period))).filter({ $0.mode != .rhythm }).count >= Self.pass {
+            available.append(.monthGrowth)
+        }
         return available
     }
 
@@ -198,7 +200,8 @@ struct ChallengeEngine {
         case .monthChars:
             return summing(id, charsTarget(parameters, factor: 20, step: 5000), list)
         case .weekClean:
-            return reaching(id, 5, list.filter { $0.chars >= 100 && $0.wrongKeystrokes == 0 }.map(\.endedAt))
+            return reaching(id, 5, list.filter { $0.mode != .rhythm && $0.chars >= 100 && $0.wrongKeystrokes == 0 }
+                .map(\.endedAt))
         case .weekStars:
             var first: [String: Date] = [:]
             for day in days {
@@ -216,7 +219,7 @@ struct ChallengeEngine {
         case .weekSpeed:
             // Скорость ≥ 1,1·C без дробей: cpm·10 ≥ C·11; ошибок не больше 2 на 100 знаков: ошибки·50 ≤ знаки.
             let fast = list.filter {
-                Analytics.isQualifyingLength(kind: $0.exerciseKind, chars: $0.chars)
+                Analytics.isQualifyingLength(mode: $0.mode, kind: $0.exerciseKind, chars: $0.chars)
                     && $0.cpm * 10 >= parameters.cpm * 11 && $0.wrongKeystrokes * 50 <= $0.chars
             }
             return reaching(id, 1, fast.map(\.endedAt))
@@ -233,7 +236,8 @@ struct ChallengeEngine {
         case .monthStage:
             return reaching(id, 1, days.flatMap { stageDates[$0] ?? [] })
         case .monthGrowth:
-            return growth(id, list, previous: completed(in: periodDays(previousMonth(of: period))))
+            return growth(id, list.filter { $0.mode != .rhythm },
+                          previous: completed(in: periodDays(previousMonth(of: period))).filter { $0.mode != .rhythm })
         }
     }
 

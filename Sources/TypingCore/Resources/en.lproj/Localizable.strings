@@ -468,6 +468,22 @@
 "achievement.fun.slow_steady.title" = "Slow and Steady";
 "achievement.fun.slow_steady.detail" = "Not a single error, and no rush. The tortoise is proud";
 
+/* Rhythm achievements */
+"achievement.rhythm.first.title" = "First Track";
+"achievement.rhythm.first.detail" = "A track cleared from start to finish. The metronome approves";
+"achievement.rhythm.fullcombo.title" = "Not a Single Miss";
+"achievement.rhythm.fullcombo.detail" = "A whole track without one slip. Your fingers never lost the step";
+"achievement.rhythm.perfect.title" = "Perfect Timing";
+"achievement.rhythm.perfect.detail" = "Every note exactly on the beat. Even the metronome is surprised";
+"achievement.rhythm.combo100.title" = "A Hundred in Time";
+"achievement.rhythm.combo100.detail" = "A hundred notes in a row without a slip. The combo builds itself";
+"achievement.rhythm.s.expert.title" = "Rhythm Expert";
+"achievement.rhythm.s.expert.detail" = "Grade S on the fastest level. Your fingers are simply dancing";
+"achievement.rhythm.allmodes.title" = "All Modes";
+"achievement.rhythm.allmodes.detail" = "Open and closed letters, problem letters and words: a cleared track in each";
+"achievement.rhythm.hour.title" = "An Hour in Time";
+"achievement.rhythm.hour.detail" = "Sixty minutes of play. Your fingers have found their sense of rhythm";
+
 /* Ачивки 6d: ступени, объём и дистанция */
 "achievement.accuracy.sniper.100.title" = "Legendary Sniper";
 "achievement.accuracy.sniper.100.detail" = "A hundred bullseyes. The targets ran away long ago";
@@ -596,6 +612,19 @@
 "achievement.condition.slowAndSteady" = "A lesson step with no errors but slower than the lesson target";
 "achievement.condition.firstTry" = "A lesson step on the first try: no errors, not slower than the lesson target";
 "achievement.condition.allFingersDrilled" = "Finish the finger accuracy drill for each of the eight fingers";
+"achievement.condition.rhythmCleared" = "A Rhythm track cleared to the end";
+"achievement.condition.rhythmFullCombo" = "A Rhythm track cleared without a single Miss";
+"achievement.condition.rhythmAllPerfect" = "A Rhythm track cleared with every note Perfect";
+"achievement.condition.rhythmCombo" = "Combo on a cleared Rhythm track: at least %lld";
+"achievement.condition.rhythmGrade" = "Grade %1$@ on a cleared Rhythm track, level “%2$@”";
+"achievement.condition.rhythmAllModes" = "A track cleared in each of the four Rhythm modes";
+"achievement.condition.rhythmMinutes" = "Minutes in the Rhythm game: %lld";
+"achievement.condition.rhythmLevel.easy" = "Easy";
+"achievement.condition.rhythmLevel.medium" = "Medium";
+"achievement.condition.rhythmLevel.hard" = "Hard";
+"achievement.condition.rhythmLevel.expert" = "Expert";
+"achievement.condition.rhythmLevel.personal" = "My pace";
+"achievement.condition.rhythmLevel.endless" = "Endless";
 
 /* Ачивки: условия как утверждение для полученной (AchievementConditionText.earnedForms) */
 "achievement.condition.earned.firstLesson" = "First lesson of the course completed";

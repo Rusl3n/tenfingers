@@ -90,7 +90,7 @@ struct DayPlanLoader {
 
         return DayPlanInput(
             today: today, goalMinutes: settings.goalMinutes,
-            medianCpm: Self.median(recent.filter { $0.completed && $0.day < today }.map(\.speed)),
+            medianCpm: Self.median(recent.filter { $0.completed && $0.day < today && $0.mode != .rhythm }.map(\.speed)),
             continueTarget: target,
             courseCompleted: course?.isCompleted(passed: passed, checkStars: checkStars) ?? false,
             lastReviewId: lastReviewId, lastSpeedupId: lastSpeedupId,

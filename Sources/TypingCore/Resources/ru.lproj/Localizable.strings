@@ -468,6 +468,22 @@
 "achievement.fun.slow_steady.title" = "Тише едешь — дальше будешь";
 "achievement.fun.slow_steady.detail" = "Ни одной ошибки, хоть и не торопились. Черепаха гордится";
 
+/* Ачивки «Ритм» */
+"achievement.rhythm.first.title" = "Первый трек";
+"achievement.rhythm.first.detail" = "Трек пройден до конца. Метроном одобряет";
+"achievement.rhythm.fullcombo.title" = "Ни одного «Мимо»";
+"achievement.rhythm.fullcombo.detail" = "Целый трек без единого промаха. Пальцы не сбились с шага";
+"achievement.rhythm.perfect.title" = "Слух абсолютный";
+"achievement.rhythm.perfect.detail" = "Каждая нота — ровно в долю. Даже метроном удивлён";
+"achievement.rhythm.combo100.title" = "Сто в такт";
+"achievement.rhythm.combo100.detail" = "Сто нот подряд без промаха. Комбо растёт сам собой";
+"achievement.rhythm.s.expert.title" = "Эксперт ритма";
+"achievement.rhythm.s.expert.detail" = "Оценка S на самом быстром уровне. Пальцы просто танцуют";
+"achievement.rhythm.allmodes.title" = "На все лады";
+"achievement.rhythm.allmodes.detail" = "Открытые и закрытые буквы, проблемные и слова: везде есть пройденный трек";
+"achievement.rhythm.hour.title" = "Час в такт";
+"achievement.rhythm.hour.detail" = "Шестьдесят минут в игре. Пальцы обрели чувство ритма";
+
 /* Ачивки 6d: ступени, объём и дистанция */
 "achievement.accuracy.sniper.100.title" = "Снайпер-легенда";
 "achievement.accuracy.sniper.100.detail" = "Сто метких. Мишени давно разбежались";
@@ -596,6 +612,19 @@
 "achievement.condition.slowAndSteady" = "Шаг урока без единой ошибки, но медленнее цели урока";
 "achievement.condition.firstTry" = "Шаг урока с первой попытки: без ошибок и не медленнее цели урока";
 "achievement.condition.allFingersDrilled" = "Пройдите «Точность пальца» для каждого из восьми пальцев";
+"achievement.condition.rhythmCleared" = "Трек «Ритма» пройден до конца";
+"achievement.condition.rhythmFullCombo" = "Трек «Ритма» пройден без единого «Мимо»";
+"achievement.condition.rhythmAllPerfect" = "Трек «Ритма» пройден, и все ноты — «Точно»";
+"achievement.condition.rhythmCombo" = "Комбо на пройденном треке «Ритма»: не меньше %lld";
+"achievement.condition.rhythmGrade" = "Оценка %1$@ на пройденном треке «Ритма», уровень «%2$@»";
+"achievement.condition.rhythmAllModes" = "Пройдено по треку в каждом из четырёх режимов «Ритма»";
+"achievement.condition.rhythmMinutes" = "Минут в игре «Ритм»: %lld";
+"achievement.condition.rhythmLevel.easy" = "Лёгкий";
+"achievement.condition.rhythmLevel.medium" = "Средний";
+"achievement.condition.rhythmLevel.hard" = "Сложный";
+"achievement.condition.rhythmLevel.expert" = "Эксперт";
+"achievement.condition.rhythmLevel.personal" = "Под меня";
+"achievement.condition.rhythmLevel.endless" = "Бесконечный";
 
 /* Ачивки: условия как утверждение для полученной (AchievementConditionText.earnedForms) */
 "achievement.condition.earned.firstLesson" = "Пройден первый урок курса";

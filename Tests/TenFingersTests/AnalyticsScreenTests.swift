@@ -17,7 +17,7 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
 // MARK: - Меню
 
 @Test func sidebarHasAnalyticsBeforeSettings() {
-    #expect(SidebarItem.allCases == [.home, .course, .training, .practice, .analytics, .achievements, .settings])
+    #expect(SidebarItem.allCases == [.home, .course, .training, .practice, .rhythm, .analytics, .achievements, .settings])
     #expect(SidebarItem.analytics.icon == "chart.xyaxis.line")
 }
 
@@ -50,6 +50,18 @@ private let noon = Date(timeIntervalSince1970: 1_773_144_000)
     // Точка дня — полдень этого дня.
     #expect(utc().dateComponents([.year, .month, .day, .hour], from: chart.points[0].date)
             == DateComponents(year: 2026, month: 3, day: 1, hour: 12))
+}
+
+/// День только с игрой (есть завершённые заходы, обычных упражнений нет) точки скорости и точности не даёт.
+@Test func chartSkipsDaysWithOnlyRhythmGames() {
+    let daily = [
+        DailyPoint(day: "2026-03-01", cpm: 100, accuracy: 0.9, seconds: 60, sessions: 1),
+        DailyPoint(day: "2026-03-02", cpm: 0, accuracy: 0, seconds: 600, sessions: 2, typedSessions: 0, typedSeconds: 0),
+        DailyPoint(day: "2026-03-03", cpm: 200, accuracy: 0.95, seconds: 900, sessions: 3, typedSessions: 1, typedSeconds: 60),
+    ]
+    let chart = ChartSeries.make(daily, calendar: utc())
+    #expect(chart.points.map(\.day) == ["2026-03-01", "2026-03-03"])
+    #expect(chart.points.map(\.cpm) == [100, 200])
 }
 
 @Test func chartWithOnePointIsNotEnough() {

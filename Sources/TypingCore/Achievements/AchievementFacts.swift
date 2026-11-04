@@ -76,6 +76,33 @@ public struct ExerciseFact: Equatable, Sendable {
     }
 }
 
+/// Один заход игры «Ритм» из сохранённого `RhythmResult` (решение 12): то, что нужно `AchievementEngine`.
+public struct RhythmFact: Equatable, Sendable {
+    public let endedAt: Date
+    public let mode: RhythmNoteMode
+    public let level: RhythmLevelID
+    /// Трек пройден до конца при здоровье > 0.
+    public let cleared: Bool
+    public let grade: RhythmGrade
+    public let maxCombo: Int
+    /// Оценённых нот с исходом `miss` (не та буква и пропуск).
+    public let misses: Int
+    /// Все оценённые ноты — `perfect` (и их хотя бы одна).
+    public let allPerfect: Bool
+
+    public init(endedAt: Date, mode: RhythmNoteMode, level: RhythmLevelID, cleared: Bool, grade: RhythmGrade,
+                maxCombo: Int, misses: Int, allPerfect: Bool) {
+        self.endedAt = endedAt
+        self.mode = mode
+        self.level = level
+        self.cleared = cleared
+        self.grade = grade
+        self.maxCombo = maxCombo
+        self.misses = misses
+        self.allPerfect = allPerfect
+    }
+}
+
 /// Изменение действующих звёзд урока по истории (`LessonScoring.effectiveStars`): после завершённого упражнения
 /// урока в `date` звёзд стало `stars`. `checkCpm` — скорость проверки, давшей эти звёзды (`nil`, если неизвестна).
 /// Заполняет приложение (только уроки издания 2).
@@ -145,6 +172,8 @@ public struct AchievementFacts: Sendable {
     public let currentGoalSeconds: Double?
     /// Сегодняшний логический день: для него запись цели (`DayActivity.goalSeconds`) не используется.
     public let today: String?
+    /// Заходы игры «Ритм» (любой порядок); время игры берётся из `exercises` (сессии `rhythm`).
+    public let rhythm: [RhythmFact]
 
     public init(exercises: [ExerciseFact] = [], days: [String: DayActivity] = [:],
                 abandonedByDay: [String: Int] = [:], languagesByDay: [String: Set<Language>] = [:],
@@ -154,7 +183,9 @@ public struct AchievementFacts: Sendable {
                 openLetterDates: [Language: [Character: Date]] = [:],
                 counters: [String: Int] = [:], yoKeyStatCorrect: Int = 0,
                 lessonStarSteps: [String: [LessonStarStep]] = [:], lessonStepCounts: [String: Int] = [:],
+                rhythm: [RhythmFact] = [],
                 timeZone: TimeZone, now: Date, currentGoalSeconds: Double? = nil, today: String? = nil) {
+        self.rhythm = rhythm
         self.exercises = exercises
         self.days = days
         self.abandonedByDay = abandonedByDay

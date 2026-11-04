@@ -76,14 +76,8 @@ struct ResultRecorder {
             textTraits: result.textTraits.union(TextTraits.connected(source: source)).rawValue
         ))
 
-        let dayRecord = try fetchOrCreateDay(day)
-        // День следует текущей цели, пока в нём занимаются; после — остаётся с целью последней записи.
-        dayRecord.goalSeconds = goalSeconds()
-        dayRecord.activeSeconds += result.activeSeconds
-        if result.completed { dayRecord.completedExercises += 1 } else { dayRecord.abandonedExercises += 1 }
-        if !dayRecord.languages.contains(result.language.rawValue) {
-            dayRecord.languages.append(result.language.rawValue)
-        }
+        try updateDay(day, activeSeconds: result.activeSeconds, completed: result.completed,
+                      language: result.language)
 
         for (character, sample) in KeyStats.samples(from: result) {
             let stat = try fetchOrCreateKeyStat(language: result.language.rawValue, character: String(character))
@@ -101,6 +95,66 @@ struct ResultRecorder {
             for ms in sample.intervalsMs { stat.ewmaMs = KeyStats.ewma(stat.ewmaMs, ms) }
             stat.recent = KeyStats.appendRecent(stat.recent, sample.outcomes)
         }
+    }
+
+    /// Заход игры «Ритм» (решения 8–9): сессия `rhythm` (скорости нет, `cpm` 0), день, статистика букв и `RhythmResult`.
+    /// Статистика букв — как у обычного упражнения, но без времени (`ewmaMs` не трогается) и без сочетаний: в игре
+    /// буквы идут по такту, а не по скорости пальцев. Новая строка буквы получает код клавиши из раскладки
+    /// (`outcome.keyCodes`), а если кода нет — не создаётся; код существующей строки не меняется. Сессия и день
+    /// «завершены» по `outcome.completed` (у бесконечного режима это и конец по здоровью), `RhythmResult.cleared` — по
+    /// `outcome.cleared`, `bpm` бесконечного — бит последней оценённой ступени. Только меняет контекст, сохраняет `commit`.
+    func recordRhythm(_ outcome: RhythmOutcome) throws {
+        let day = LogicalDay.key(for: outcome.endedAt, dayStartHour: dayStartHour())
+        let report = outcome.report
+        context.insert(SessionRecord(
+            mode: ExerciseMode.rhythm.rawValue, language: outcome.language.rawValue, lessonId: nil,
+            startedAt: outcome.startedAt, endedAt: outcome.endedAt, logicalDay: day,
+            activeSeconds: outcome.activeSeconds, chars: outcome.notes, errorCount: outcome.misses, cpm: 0,
+            accuracy: report.accuracy, completed: outcome.completed, hintLevel: HintLevel.full.rawValue,
+            maxErrorStreak: outcome.maxMissStreak, wrongKeystrokes: outcome.wrongKeystrokes, exerciseKind: nil,
+            source: "rhythm:\(outcome.mode.rawValue)", fingerPresses: FingerCounts.data(outcome.fingerPresses),
+            fingerErrors: FingerCounts.data(outcome.fingerErrors), textTraits: 0))
+
+        try updateDay(day, activeSeconds: outcome.activeSeconds, completed: outcome.completed, language: outcome.language)
+
+        for (character, misses) in outcome.keySamples {
+            let language = outcome.language.rawValue
+            let stat: KeyStat
+            if let existing = try existingKeyStat(language: language, character: String(character)) {
+                stat = existing   // код клавиши уже записан тренировками: не перезаписывается
+            } else if let code = outcome.keyCodes[character] {
+                stat = KeyStat(language: language, character: String(character))
+                stat.keyCode = Int(code)
+                context.insert(stat)
+            } else {
+                // Клавиши для символа в раскладке нет: строка с `keyCode` 0 попала бы на физическую «A».
+                continue
+            }
+            stat.presses += misses.count
+            stat.errors += misses.filter { $0 }.count
+            stat.recent = KeyStats.appendRecent(stat.recent, misses)
+        }
+
+        context.insert(RhythmResult(
+            language: outcome.language.rawValue, mode: outcome.mode.rawValue, level: outcome.level.id.rawValue,
+            bpm: Self.beatBPM(of: outcome), startedAt: outcome.startedAt, endedAt: outcome.endedAt, score: outcome.score,
+            accuracy: report.accuracy, maxCombo: outcome.maxCombo, grade: report.grade.rawValue,
+            cleared: outcome.cleared, judgements: Self.json(report.counts), report: Self.json(report)))
+    }
+
+    /// Темп бита записи: у обычного уровня — его `bpm`, у бесконечного — бит последней оценённой ступени.
+    private static func beatBPM(of outcome: RhythmOutcome) -> Int {
+        guard outcome.level.id == .endless, let peak = outcome.report.peakNotesPerMinute else {
+            return outcome.level.bpm
+        }
+        return RhythmEndless.beatBPM(notesPerMinute: peak)
+    }
+
+    private static func json<T: Encodable>(_ value: T) -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        // Словарь строк и чисел и `RhythmReport` кодируются всегда.
+        return (try? encoder.encode(value)) ?? Data("{}".utf8)
     }
 
     /// Вызывается после проверочного упражнения урока; `stars` — по 5-звёздной шкале, `stars == 0` — урок не засчитан.
@@ -153,6 +207,18 @@ struct ResultRecorder {
         text.offset = min(max(offset, 0), text.body.count)
     }
 
+    /// Общая часть записи любого упражнения: время, число упражнений, язык и цель дня.
+    private func updateDay(_ key: String, activeSeconds: Double, completed: Bool, language: Language) throws {
+        let dayRecord = try fetchOrCreateDay(key)
+        // День следует текущей цели, пока в нём занимаются; после — остаётся с целью последней записи.
+        dayRecord.goalSeconds = goalSeconds()
+        dayRecord.activeSeconds += activeSeconds
+        if completed { dayRecord.completedExercises += 1 } else { dayRecord.abandonedExercises += 1 }
+        if !dayRecord.languages.contains(language.rawValue) {
+            dayRecord.languages.append(language.rawValue)
+        }
+    }
+
     private func fetchOrCreateDay(_ key: String) throws -> DayRecord {
         let descriptor = FetchDescriptor<DayRecord>(predicate: #Predicate { $0.logicalDay == key })
         if let existing = try context.fetch(descriptor).first { return existing }
@@ -161,10 +227,14 @@ struct ResultRecorder {
         return created
     }
 
-    private func fetchOrCreateKeyStat(language: String, character: String) throws -> KeyStat {
+    private func existingKeyStat(language: String, character: String) throws -> KeyStat? {
         let descriptor = FetchDescriptor<KeyStat>(
             predicate: #Predicate { $0.language == language && $0.character == character })
-        if let existing = try context.fetch(descriptor).first { return existing }
+        return try context.fetch(descriptor).first
+    }
+
+    private func fetchOrCreateKeyStat(language: String, character: String) throws -> KeyStat {
+        if let existing = try existingKeyStat(language: language, character: character) { return existing }
         let created = KeyStat(language: language, character: character)
         context.insert(created)
         return created

@@ -145,22 +145,11 @@ struct ExerciseView: View {
 
     @ViewBuilder private var overlay: some View {
         if session.layoutMismatch {
-            banner(icon: "keyboard", title: LayoutPrompt.switchTo(session.language),
-                   subtitle: String(localized: "Нажатия в другой раскладке не засчитываются"))
+            LayoutMismatchBanner(language: session.language)
         } else if session.isPaused {
-            banner(icon: "pause.circle", title: String(localized: "Пауза"),
-                   subtitle: String(localized: "Нажмите любую клавишу, чтобы продолжить"))
+            OverlayBanner(icon: "pause.circle", title: String(localized: "Пауза"),
+                          subtitle: String(localized: "Нажмите любую клавишу, чтобы продолжить"))
         }
-    }
-
-    private func banner(icon: String, title: String, subtitle: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 34))
-            Text(title).font(.title2.bold())
-            Text(subtitle).foregroundStyle(.secondary)
-        }
-        .padding(28)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func visibilityChanged() {

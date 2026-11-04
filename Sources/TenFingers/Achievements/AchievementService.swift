@@ -212,7 +212,9 @@ struct AchievementService {
             openLetterDates: try openLetterDates(passes: passes, exercises: exercises, now: now),
             counters: counters, yoKeyStatCorrect: yoKeyStatCorrect,
             lessonStarSteps: lessonStars.steps,
-            lessonStepCounts: stepCounts(exercises), timeZone: timeZone, now: now,
+            lessonStepCounts: stepCounts(exercises),
+            rhythm: try context.fetch(FetchDescriptor<RhythmResult>()).compactMap(Self.rhythmFact),
+            timeZone: timeZone, now: now,
             currentGoalSeconds: currentGoal, today: today)
     }
 
@@ -263,6 +265,32 @@ struct AchievementService {
             fingerErrors: FingerCounts.counts(record.fingerErrors), yoCorrect: record.yoPresses,
             stepIndex: record.stepIndex, sessionId: record.id.uuidString, startedAt: record.startedAt,
             textTraits: record.textTraits, planSlot: record.planSlot.flatMap(PlanSlot.init(rawValue:)))
+    }
+
+    /// Заход игры «Ритм» → факт (решение 12). Промахи и «все точно» — из сохранённых оценок нот (`judgements`, а если их
+    /// не прочитать — из разбора `report`); запись с неизвестным режимом, уровнем или оценкой (из более новой версии)
+    /// пропускается.
+    static func rhythmFact(_ result: RhythmResult) -> RhythmFact? {
+        guard let mode = RhythmNoteMode(rawValue: result.mode), let level = RhythmLevelID(rawValue: result.level),
+              let grade = RhythmGrade(rawValue: result.grade) else { return nil }
+        let decoder = JSONDecoder()
+        // Пустой словарь (умолчание «{}» при чтении архива) — нечитаемые оценки, как и мусор.
+        let stored = try? decoder.decode([String: Int].self, from: result.judgements)
+        let reported = (try? decoder.decode(RhythmReport.self, from: result.report))?.counts
+        let counts = [stored, reported].compactMap { $0 }.first { !$0.isEmpty }
+        let misses: Int
+        let allPerfect: Bool
+        if let counts {
+            misses = (counts["wrongKey"] ?? 0) + (counts["skipped"] ?? 0)
+            let evaluated = counts.values.reduce(0, +)
+            allPerfect = evaluated > 0 && counts["perfect"] == evaluated
+        } else {
+            // Оценок нот нет ни там, ни там: консервативно — ни «полного комбо», ни «все точно».
+            misses = 1
+            allPerfect = false
+        }
+        return RhythmFact(endedAt: result.endedAt, mode: mode, level: level, cleared: result.cleared, grade: grade,
+                          maxCombo: result.maxCombo, misses: misses, allPerfect: allPerfect)
     }
 
     /// Звёзды уроков обоих изданий — только `LessonScoring.effectiveStars` с целью урока `Course.targetCpm(for:)`

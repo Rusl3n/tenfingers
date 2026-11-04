@@ -19,9 +19,9 @@ import SwiftData
 /// `AdaptiveUnlock` и `SessionRecord.source` (поколение 2), `AchievementRecord` (поколение 3), необязательные
 /// `SessionRecord.fingerPresses`, `fingerErrors`, `yoPresses` (поколение 4), необязательная `DayRecord.goalSeconds`
 /// (поколение 5), `AchievementGrant` и необязательные `SessionRecord.stepIndex`, `planSlot`, `textTraits`
-/// (поколение 6) добавлены внутри той же версии: изменение аддитивное, SwiftData переносит базу облегчённой
+/// (поколение 6), `RhythmResult` (поколение 7) добавлены внутри той же версии: изменение аддитивное, SwiftData переносит базу облегчённой
 /// миграцией (проверено тестами на базах прежних схем: `LegacySchemaPhase2`, `LegacySchemaGeneration2`,
-/// `LegacySchemaGeneration3`, `LegacySchemaGeneration4`, `LegacySchemaGeneration5`).
+/// `LegacySchemaGeneration3`, `LegacySchemaGeneration4`, `LegacySchemaGeneration5`, `LegacySchemaGeneration6`).
 enum SchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
 
@@ -29,7 +29,7 @@ enum SchemaV1: VersionedSchema {
         [
             SessionRecord.self, LessonProgress.self, KeyStat.self, BigramStat.self, DayRecord.self,
             CounterRecord.self, AdaptiveState.self, CustomText.self, AdaptiveUnlock.self, AchievementRecord.self,
-            AchievementGrant.self,
+            AchievementGrant.self, RhythmResult.self,
         ]
     }
 }

@@ -1,7 +1,13 @@
 import SwiftUI
 
+/// Вкладка «страницы в странице»: значок и подпись сегмента переключателя.
+protocol PageTab: Hashable, Identifiable {
+    var icon: String { get }
+    var title: String { get }
+}
+
 /// Вкладки нижней части «Главной» в порядке слева направо.
-enum HomeTab: String, CaseIterable, Identifiable {
+enum HomeTab: String, CaseIterable, Identifiable, PageTab {
     case plan, challenges, course, quick
 
     var id: String { rawValue }
@@ -84,11 +90,11 @@ private struct EqualWidthRow: Layout {
 
 /// Переключатель вкладок на всю ширину колонки: сегменты одной ширины, выбранный залит акцентным цветом.
 /// Сделан на чистом SwiftUI: системный сегментный `Picker` не растягивается и не рисуется в `ImageRenderer`.
-struct HomeTabBar: View {
-    let tabs: [HomeTab]
-    @Binding var selection: HomeTab
+struct HomeTabBar<Tab: PageTab>: View {
+    let tabs: [Tab]
+    @Binding var selection: Tab
     /// Вкладки с красным кружком «есть новое» (`HomeTabNews.dots`).
-    var dots: Set<HomeTab> = []
+    var dots: Set<Tab> = []
     @Environment(\.palette) private var palette
 
     var body: some View {
@@ -131,10 +137,10 @@ struct HomeTabBar: View {
 }
 
 /// Страница внутри страницы: переключатель вкладок и под ним содержимое выбранной в карточке на всю ширину.
-struct HomeTabsSection<Content: View>: View {
-    let tabs: [HomeTab]
-    @Binding var selection: HomeTab
-    var dots: Set<HomeTab> = []
+struct HomeTabsSection<Tab: PageTab, Content: View>: View {
+    let tabs: [Tab]
+    @Binding var selection: Tab
+    var dots: Set<Tab> = []
     @ViewBuilder let content: Content
     @Environment(\.palette) private var palette
 

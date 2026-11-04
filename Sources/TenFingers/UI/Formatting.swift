@@ -16,6 +16,12 @@ enum Formatting {
         return String(format: "%02d:%02d", total / 60, total % 60)
     }
 
+    /// «3:42» (минуты без нуля впереди, секунды — двумя знаками); 0 — «0:00».
+    static func minutesSeconds(_ seconds: Double) -> String {
+        let total = max(0, Int(seconds))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
     /// «97,4%» (разделитель — по региону пользователя). `rounding: .down` отбрасывает лишние знаки:
     /// 99,49% — «99,4%», а не «99,5%» (результат рядом с порогом не должен выглядеть достигшим его).
     static func percent(_ value: Double, rounding: FloatingPointRoundingRule? = nil, locale: Locale = .current) -> String {

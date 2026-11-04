@@ -1,7 +1,10 @@
 import SwiftUI
 import Testing
 import TypingCore
+import WidgetKit
+import WidgetSnapshot
 @testable import TenFingers
+@testable import TenFingersWidget
 
 /// Рендерит картинки для README в docs/images. Запуск: RENDER_DOCS=1 swift test --filter renderReadmeImages
 @MainActor
@@ -18,6 +21,55 @@ private func render<V: View>(_ view: V, to name: String) throws {
     try png.write(to: dir.appendingPathComponent(name))
 }
 
+/// Рендер через `NSHostingView` в окне за пределами экрана: в отличие от `ImageRenderer` рисует и элементы AppKit
+/// (кнопки, переключатели, списки выбора), а кнопки с поповерами не превращает в жёлтые заглушки. Окно делается
+/// главным, чтобы акцентные кнопки не были серыми, как у неактивного окна, и тут же убирается.
+/// Ширина задаётся; высота — по содержимому или `height`; `crop` оставляет только верхние `crop` точек.
+/// Масштаб — 2 (как у `render`).
+@MainActor
+private func renderHosted<V: View>(_ view: V, width: CGFloat, height: CGFloat? = nil, crop: CGFloat? = nil,
+                                   to name: String) throws {
+    let dir = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("docs/images")
+    let host = NSHostingView(rootView: view.frame(width: width, height: height))
+    host.appearance = NSAppearance(named: .aqua)
+    let size = host.fittingSize
+    let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: size.width, height: size.height),
+                          styleMask: [.titled], backing: .buffered, defer: false)
+    window.appearance = host.appearance
+    window.contentView = host
+    window.makeKeyAndOrderFront(nil)
+    defer { window.orderOut(nil) }
+    host.frame = NSRect(origin: .zero, size: size)
+    host.layoutSubtreeIfNeeded()
+    // Без контекста окна `cacheDisplay` рисует в масштабе 1: свой растр в двойном разрешении.
+    let area = NSRect(x: 0, y: 0, width: size.width, height: min(crop ?? size.height, size.height))
+    let rep = try #require(NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: Int(area.width * 2), pixelsHigh: Int(area.height * 2), bitsPerSample: 8,
+        samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+    rep.size = area.size
+    host.cacheDisplay(in: area, to: rep)
+    let png = try #require(rep.representation(using: .png, properties: [:]))
+    try png.write(to: dir.appendingPathComponent(name))
+}
+
+/// Курс с русскими названиями этапов и уроков. Названия в курсе — русские ключи перевода, а в тестах строки ядра
+/// берутся на английском (язык процесса, `Bundle.main` без переводов приложения), поэтому ключам добавлен невидимый
+/// пробел нулевой ширины: перевода у такого ключа нет, и `localizedTitle` возвращает русский текст как есть.
+private func russianCourse(_ course: Course) throws -> Course {
+    func mark(_ value: Any) -> Any {
+        if let array = value as? [Any] { return array.map(mark) }
+        guard let object = value as? [String: Any] else { return value }
+        return object.reduce(into: [String: Any]()) { result, pair in
+            if pair.key == "title", let title = pair.value as? String { result[pair.key] = title + "\u{200B}" }
+            else { result[pair.key] = mark(pair.value) }
+        }
+    }
+    let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(course))
+    return try JSONDecoder().decode(Course.self, from: JSONSerialization.data(withJSONObject: mark(json)))
+}
+
 /// Подписи легенды на английском из Localization/en.lproj: в тестах `Bundle.main` не содержит локализации приложения.
 private func englishLegendTitles() throws -> [String] {
     let url = URL(fileURLWithPath: #filePath)
@@ -29,7 +81,7 @@ private func englishLegendTitles() throws -> [String] {
 }
 
 @MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
-func renderReadmeImages() throws {
+func renderReadmeImages() async throws {
     let ru = try #require(KeyboardLayoutService.source(withID: "com.apple.keylayout.RussianWin"))
     let en = try #require(KeyboardLayoutService.source(withID: "com.apple.keylayout.ABC"))
     let ruSnap = KeyboardLayoutService.snapshot(for: ru, shape: .ansi)
@@ -73,20 +125,29 @@ func renderReadmeImages() throws {
         to: "exercise-text.png"
     )
 
-    // Главная с серией: прокрутку `ImageRenderer` не рисует, поэтому — `HomeContent.column`.
-    // Курс английский: строки ядра (название языка) в тестах берутся на языке системы, а «English» читается
-    // одинаково в любом интерфейсе. Остальные строки — исходные русские.
-    try render(
-        HomeContent(data: homeFixture(), continueInfo: ContinueInfo(
-                        lessonTitle: "Буквы E и N", stageTitle: "Основной ряд", percent: 23,
-                        retakeCheck: false, lessonRun: LessonRun(language: .en, lessonId: "en.1.3")),
-                    unit: .cpm, startLesson: { _ in }, openTraining: {}, startWeakSpots: {}, openPractice: {})
-            .column
-            .frame(width: 820)
-            .background(light.background)
-            .environment(\.palette, light)
-            .environment(\.colorScheme, .light),
-        to: "home.png"
+    // Главная с серией, «Искрой», планом дня и плашкой обновления сверху. Рисуется через `NSHostingView`
+    // (`renderHosted`): `ImageRenderer` заменяет кнопки с поповерами жёлтыми заглушками. Прокрутки нет —
+    // берётся `HomeContent.column`; плашка кладётся над ним сама: окружение `HomeContent` у `column` не работает.
+    // Плашка — настоящий `UpdateChecker` с поддельной сетью (вымышленный выпуск 2.6.0). Курс английский: название
+    // языка («English») читается одинаково в любом интерфейсе; остальные строки — исходные русские.
+    let checker = try await updateChecker(offering: "2.6.0")
+    let enCourse = try #require(ContentLibrary().courses[.en])
+    try renderHosted(
+        VStack(spacing: 0) {
+            UpdateBanner(checker: checker).padding(.horizontal, 24).padding(.top, 24)
+            HomeContent(data: homeFixture(), continueInfo: ContinueInfo(
+                            lessonTitle: "Буквы E и N", stageTitle: "Основной ряд", percent: 23,
+                            retakeCheck: false, lessonRun: LessonRun(language: .en, lessonId: "en.1.3")),
+                        unit: .cpm, level: LevelLine.make(level: 14, title: .of(level: 14), gained: 320, needed: 500),
+                        challenges: challengesFixture(), dayPlan: dayPlanFixture(course: enCourse),
+                        startLesson: { _ in }, openTraining: {}, startWeakSpots: {}, openPractice: {},
+                        tabOverride: .plan, dotsOverride: [.challenges])
+                .column
+        }
+        .background(light.background)
+        .environment(\.palette, light)
+        .environment(\.colorScheme, .light),
+        width: 820, to: "home.png"
     )
 
     // Тепловая карта ошибок по клавишам (без переключателя режима: элементы AppKit `ImageRenderer` не рисует;
@@ -110,13 +171,13 @@ func renderReadmeImages() throws {
     )
 }
 
-/// Экран «Ачивки» (русский интерфейс): часть полученных, остальные — силуэтами с условием; видны первые строки
-/// сетки. Названия и условия берутся из ресурсов ядра на русском (в тестах строки ядра идут на языке процесса).
+/// Экран «Ачивки» (русский интерфейс): полученные, с шуткой и датой; видны первые строки
+/// сетки. Названия, шутки и условия берутся из ресурсов ядра на русском (в тестах строки ядра идут на языке процесса).
 /// Запуск: RENDER_DOCS=1 swift test --filter renderAchievementsImage
 @MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
 func renderAchievementsImage() throws {
     let base = Date(timeIntervalSince1970: 1_790_000_000)
-    let ids = ["streak.3", "streak.7", "streak.14", "speed.ru.100", "speed.ru.150", "speed.en.100", "accuracy.sniper",
+    let ids = ["streak.3", "streak.7", "streak.14", "speed.ru.100", "speed.ru.150", "spark.7", "accuracy.sniper",
                "course.first_lesson", "course.first_stage", "volume.chars.10k", "volume.hours.1", "special.night_owl",
                "letters.ru.hello", "fun.not_today"]
     let earned = ids.enumerated().map { index, id in
@@ -129,23 +190,159 @@ func renderAchievementsImage() throws {
         format: nil) as? [String: String])
     let entries = AchievementsListing.entries(catalog: AchievementCatalog.all, earned: earned, adultHumor: true)
         .map { entry in
-            AchievementEntry(
-                achievement: entry.achievement, unlockedAt: entry.unlockedAt, seen: entry.seen,
-                lockedText: AchievementConditionText.describe(entry.achievement.condition,
-                                                              display: entry.achievement.lettersDisplay,
+            let achievement = entry.achievement
+            return AchievementEntry(
+                achievement: achievement, unlockedAt: entry.unlockedAt, seen: entry.seen,
+                lockedText: AchievementConditionText.describe(achievement.condition, display: achievement.lettersDisplay,
                                                               localization: "ru"),
-                title: ruStrings[entry.achievement.titleKey])
+                title: ruStrings[achievement.titleKey], earnedText: ruStrings[achievement.detailKey],
+                reasonText: AchievementConditionText.describe(achievement.condition, display: achievement.lettersDisplay,
+                                                              localization: "ru", earned: true))
         }
     let light = LightPalette.beige.palette
-    try render(
-        AchievementsContent(entries: entries, category: .constant(nil), filter: .constant(.all), freshIds: [],
+    // Фильтр «Полученные»: иначе первые строки сетки заняли бы неполученные силуэты категории «Серия».
+    // Через `renderHosted`: переключатель фильтра — элемент AppKit.
+    try renderHosted(
+        AchievementsContent(entries: entries, category: .constant(nil), filter: .constant(.earned), freshIds: [],
                             select: { _ in })
-            .frame(width: 900, height: 800, alignment: .top)
+            .frame(height: 880, alignment: .top)
             .clipped()
             .background(light.background)
             .environment(\.palette, light)
             .environment(\.colorScheme, .light),
-        to: "achievements.png"
+        width: 900, height: 880, to: "achievements.png"
+    )
+}
+
+/// Карта курса (русский интерфейс): первый этап с пройденными уроками и звёздами, «Освежить» у слабого урока,
+/// следующий этап закрыт. Таблицу собирает та же `CourseLessonRow` и тот же заголовок этапа, что у `CourseMapView`
+/// (сам экран читает SwiftData и прокручивается: `ImageRenderer` рисует только статичное содержимое).
+/// Запуск: RENDER_DOCS=1 swift test --filter renderCourseMapImage
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderCourseMapImage() throws {
+    let course = try russianCourse(#require(ContentLibrary().courses[.ru]))
+    let stars = [5, 4, 2, 5, 3]                       // пройденные уроки первого этапа
+    let passed = Set(course.stages[0].lessons.prefix(stars.count).map(\.id))
+    let light = LightPalette.beige.palette
+    func header(_ stage: Stage, locked: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(stage.localizedTitle).foregroundStyle(.primary)
+                Spacer()
+                Text(CourseColumns.stageGoalText(stage, unit: .cpm)).foregroundStyle(.secondary)
+                Text(CourseColumns.gateText(stage)).font(.caption).foregroundStyle(.secondary)
+            }
+            .font(.callout.weight(.semibold))
+            if let locked {
+                Text(CourseColumns.opensWhenText(previousStage: locked, gate: course.stages[locked - 1].gate))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    let first = course.stages[0]
+    let rows = Array(first.lessons.prefix(8).enumerated())
+    try renderHosted(
+        VStack(alignment: .leading, spacing: 0) {
+            header(first, locked: nil)
+            ForEach(rows, id: \.element.id) { index, lesson in
+                let isPassed = index < stars.count
+                CourseLessonRow(
+                    lesson: lesson, language: .ru,
+                    overview: LessonOverview.make(lessonId: lesson.id, targetCpm: course.targetCpm(for: lesson.id) ?? 0,
+                                                  sessions: [], storedStars: isPassed ? stars[index] : 0,
+                                                  isPassed: isPassed),
+                    targetCpm: course.targetCpm(for: lesson.id) ?? 0, bestCpm: isPassed ? 96 + Double(index * 9) : 0,
+                    isPassed: isPassed, isUnlocked: course.isUnlocked(lesson.id, passed: passed, checkStars: [:]),
+                    unit: .cpm, refresh: index == 2 ? RefreshMark(isDue: true, isHard: true) : nil,
+                    isExpanded: .constant(false), start: { _ in })
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+            }
+            header(course.stages[1], locked: 1)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+        .background(light.background)
+        .environment(\.palette, light)
+        .environment(\.colorScheme, .light),
+        width: 760, to: "course.png"
+    )
+}
+
+/// Виджет на рабочем столе: настоящий `TenFingersEntryView` расширения (`@testable import TenFingersWidget`)
+/// с демо-снимком и вымышленными числами. Четыре средних виджета: серия, цель дня в пути, цель выполнена, ачивки.
+/// Подписи — исходные русские (в тестах бандла расширения с переводами нет). Рамка и фон — как у карточки виджета.
+/// Маленький виджет не рисуется: `widgetFamily` в окружении только для чтения, и вне системы виджетов
+/// виды всегда получают средний размер.
+/// Запуск: RENDER_DOCS=1 swift test --filter renderWidgetImage
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderWidgetImage() throws {
+    let now = Date()
+    func snapshot(doneMinutes: Int) -> WidgetSnapshot {
+        WidgetSnapshot(
+            writtenAt: now, logicalDay: WidgetTimeline.logicalDay(for: now), language: "ru", adultHumor: false,
+            fire: .init(days: 14, today: .full, freezes: 1), spark: .init(days: 21, today: true),
+            goal: .init(goalMinutes: 10, doneMinutes: doneMinutes),
+            next: .init(title: "Урок 12. Верхний ряд", courseLanguage: "ru"),
+            achievements: [
+                .init(id: "demo.speed", title: "Скорость 150", symbol: "bolt.fill", date: now, adult: false),
+                .init(id: "demo.week", title: "Неделя подряд", symbol: "flame.fill", date: now, adult: false),
+                .init(id: "demo.clean", title: "Чистый урок", symbol: "checkmark.seal.fill", date: now, adult: false),
+            ])
+    }
+    func widget(_ page: WidgetPage, doneMinutes: Int = 7) -> some View {
+        let snapshot = snapshot(doneMinutes: doneMinutes)
+        return TenFingersEntryView(entry: TenFingersEntry(date: now, page: page, snapshot: snapshot, showInvite: true,
+                                                          tapToSwitch: false))
+            .padding(16)
+            .frame(width: 364, height: 170)
+            .background(Color(white: 0.97), in: RoundedRectangle(cornerRadius: 22))
+            .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+    }
+    let items = snapshot(doneMinutes: 7).achievements
+    let light = LightPalette.beige.palette
+    try renderHosted(
+        VStack(spacing: 20) {
+            HStack(spacing: 20) { widget(.streak); widget(.goal) }
+            HStack(spacing: 20) { widget(.achievements(items)); widget(.goal, doneMinutes: 10) }
+        }
+        .padding(28)
+        .background(light.background)
+        .environment(\.palette, light)
+        .environment(\.colorScheme, .light),
+        width: 804, to: "widget.png"
+    )
+}
+
+/// «Настройки → Общие»: настоящий `SettingsView` с переключателями и списками выбора (`renderHosted`;
+/// `ImageRenderer` элементы AppKit не рисует). Значения — из отдельного набора настроек: светлая тема, палитра
+/// «Бежевая». Проверка обновлений говорит «Установлена последняя версия». Версия внизу — как у сборки из тестов.
+/// Запуск: RENDER_DOCS=1 swift test --filter renderSettingsImage
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderSettingsImage() async throws {
+    let (defaults, name) = makeTestDefaults("readme-settings-")
+    defer { removeTestDefaults(name) }
+    defaults.set(LightPalette.beige.rawValue, forKey: SettingsKey.lightPalette)
+    defaults.set(ThemeMode.light.rawValue, forKey: SettingsKey.themeMode)
+    defaults.set(SettingsSection.general.rawValue, forKey: SettingsKey.settingsSection)
+    let checker = try await updateChecker(offering: "2.5.0", defaults: defaults)
+    let scheduler = ReminderScheduler(center: IdleReminderCenter(), defaults: defaults,
+                                      inputs: { _ in throw CocoaError(.fileNoSuchFile) }, title: "Десять пальцев")
+    let light = LightPalette.beige.palette
+    try renderHosted(
+        SettingsView()
+            .environment(checker)
+            .environment(scheduler)
+            .environment(ReminderDraftStore(defaults: defaults))
+            .defaultAppStorage(defaults)
+            .background(light.background)
+            .environment(\.palette, light)
+            .environment(\.colorScheme, .light),
+        width: 740, height: 900, crop: 760, to: "settings.png"
     )
 }
 
@@ -225,4 +422,71 @@ private func heatmapFixture(_ snapshot: LayoutSnapshot) -> [KeyInfo] {
                                                                    ewmaMs: 180 + 120 * edge))
     }
     return HeatmapModel.merge(entries)
+}
+
+/// План дня: разминка выполнена, остальные пункты впереди.
+@MainActor private func dayPlanFixture(course: Course) -> DayPlanCardModel {
+    let lesson = course.lessons.dropFirst(5).first { $0.resolvedKind == .keys } ?? course.lessons[5]
+    let actions: [PlanAction] = [.review(focus: ["а", "о", "е"], chars: 300), .lesson(lessonId: lesson.id, retake: false),
+                                 .adaptive(portions: 2), .text(stageIndex: nil, portions: 1, chars: 450)]
+    let items = zip(PlanSlot.allCases, zip(actions, [true, false, false, false])).map {
+        PlanItem(slot: $0, action: $1.0, done: $1.1)
+    }
+    return DayPlanCardModel.make(plan: DayPlan(day: "2026-10-24", items: items, extraRefresh: nil), course: course,
+                                 canContinue: true)
+}
+
+/// Испытания недели и месяца: часть в пути, одно выполнено, одно трудное.
+private func challengesFixture() -> ChallengesCardModel? {
+    let parameters = ChallengeParameters(goalMinutes: 10, cpm: 150)
+    func result(_ id: ChallengeId, _ progress: Int, _ target: Int) -> ChallengeResult {
+        ChallengeResult(id: id, progress: progress, target: target,
+                        completedAt: progress >= target ? Date(timeIntervalSince1970: 1_790_000_000) : nil)
+    }
+    let week = ChallengePeriodResult(period: .week("2026-W43"), parameters: parameters,
+                                     results: [result(.weekGoal5, 5, 5), result(.weekChars, 2_400, 5_000),
+                                               result(.weekSpeed, 0, 1)], allDoneAt: nil)
+    let month = ChallengePeriodResult(period: .month("2026-10"), parameters: parameters,
+                                      results: [result(.monthGoal20, 13, 20)], allDoneAt: nil)
+    return ChallengesCardModel.make(week: week, month: month, today: "2026-10-24", unit: .cpm)
+}
+
+/// Установщик без дела: плашке нужен только `UpdateChecker` в состоянии «доступна версия».
+@MainActor private final class IdleInstaller: UpdateInstalling {
+    func preflight(manifest: ReleaseManifest) throws {}
+    func download(_ manifest: ReleaseManifest, zipURL: URL,
+                  progress: @escaping @Sendable (Double) -> Void) async throws -> URL { zipURL }
+    func backup(version: String) throws -> URL { URL(filePath: "/dev/null") }
+    func replace(with newApp: URL) throws {}
+    func discardDownload(_ newApp: URL) {}
+    func relaunch() throws {}
+}
+
+/// Проверка обновлений с поддельной сетью и настройками: `offering` новее установленной 2.5.0 — «доступна версия»
+/// (вымышленный выпуск), равна ей — «Установлена последняя версия».
+@MainActor private func updateChecker(offering version: String, defaults: UserDefaults? = nil) async throws -> UpdateChecker {
+    let own = defaults == nil ? makeTestDefaults("readme-update-") : nil
+    defer { own.map { removeTestDefaults($0.name) } }
+    let manifest = Data("""
+    {"format": 1, "version": "\(version)", "build": \(version == "2.5.0" ? 300 : 400), "commit": "abc",
+     "schemaGeneration": 6, "minimumSystemVersion": "15.0",
+     "zip": {"name": "TenFingers-\(version).zip", "size": 1, "sha256": "aa"},
+     "dmg": {"name": "TenFingers-\(version).dmg", "size": 2, "sha256": "bb"}, "notesURL": "https://example.com/notes"}
+    """.utf8)
+    let checker = UpdateChecker(
+        defaults: defaults ?? own!.defaults, fetch: { _ in manifest }, installer: { IdleInstaller() }, now: { Date() },
+        info: ["CFBundleShortVersionString": "2.5.0", "CFBundleVersion": "300"],
+        systemVersion: OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0), isBundledApp: true)
+    await checker.check(manual: true)
+    return checker
+}
+
+/// Центр уведомлений без дела: настройкам нужен только планировщик напоминаний.
+@MainActor private final class IdleReminderCenter: ReminderCenter {
+    func authorization() async -> ReminderAuthorization { .notDetermined }
+    func requestAuthorization() async -> ReminderAuthorization { .notDetermined }
+    func pending() async -> [ReminderNotification] { [] }
+    func removePending(ids: [String]) {}
+    func removeAll() {}
+    func add(_ notification: ReminderNotification) async {}
 }

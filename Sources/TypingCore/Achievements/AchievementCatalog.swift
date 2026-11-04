@@ -3,7 +3,7 @@
 /// Id стабильны: по ним хранятся полученные ачивки, переименовывать нельзя.
 public enum AchievementCatalog {
     public static let all: [Achievement] =
-        streak + speed + accuracy + course + milestone + volume + special + letters + fun
+        streak + speed + accuracy + course + milestone + volume + special + letters + fun + rhythm
 
     private static let streak: [Achievement] = [
         Achievement(id: "streak.3", category: .streak, icon: "flame", condition: .streak(days: 3)),
@@ -288,5 +288,18 @@ public enum AchievementCatalog {
         // 6d, идея пользователя (решение 18): ключ получения — день.
         Achievement(id: "fun.slow_steady", category: .fun, icon: "tortoise.fill", secret: true, repeatable: true,
                     condition: .slowAndSteady),
+    ]
+
+    /// Игра «Ритм» (решение 12): разовые, не секретные; дата — результат, на котором условие выполнилось.
+    private static let rhythm: [Achievement] = [
+        Achievement(id: "rhythm.first", category: .rhythm, icon: "music.note", condition: .rhythmCleared),
+        Achievement(id: "rhythm.fullcombo", category: .rhythm, icon: "flame.fill", condition: .rhythmFullCombo),
+        Achievement(id: "rhythm.perfect", category: .rhythm, icon: "star.circle.fill", condition: .rhythmAllPerfect),
+        Achievement(id: "rhythm.combo100", category: .rhythm, icon: "bolt.fill", condition: .rhythmCombo(100)),
+        Achievement(id: "rhythm.s.expert", category: .rhythm, icon: "crown.fill",
+                    condition: .rhythmGrade(.s, level: .expert)),
+        Achievement(id: "rhythm.allmodes", category: .rhythm, icon: "square.grid.2x2.fill",
+                    condition: .rhythmAllModes),
+        Achievement(id: "rhythm.hour", category: .rhythm, icon: "clock.fill", condition: .rhythmSeconds(3600)),
     ]
 }

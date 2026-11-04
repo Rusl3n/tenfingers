@@ -2,6 +2,8 @@ import Foundation
 
 public enum AchievementCategory: String, CaseIterable, Sendable {
     case streak, speed, accuracy, course, milestone, volume, special, letters, fun
+    /// Игра «Ритм» (решение 12 плана игры): ачивки по сохранённым заходам и времени в игре.
+    case rhythm
 }
 
 /// Группа клавиш курса для вех: цифры 0–9 или знаки и символы (все `newKeys` издания 2, кроме букв и цифр).
@@ -171,6 +173,24 @@ public enum AchievementCondition: Equatable, Sendable {
     case firstTry
     /// Завершено занятие «Точность пальца» (`source` `finger:<палец>:accuracy`) для каждого из восьми пальцев.
     case allFingersDrilled
+
+    // Игра «Ритм» (решение 12): разовые, по пройденным трекам (`RhythmFact.cleared`); `rhythmSeconds` — по времени
+    // сессий `rhythm`, пройденных и нет.
+
+    /// Первый пройденный трек.
+    case rhythmCleared
+    /// Трек пройден без единого `miss`.
+    case rhythmFullCombo
+    /// Трек пройден, все оценённые ноты — `perfect`.
+    case rhythmAllPerfect
+    /// Пройденный трек с максимальным комбо ≥ N.
+    case rhythmCombo(Int)
+    /// Пройденный трек на уровне `level` с оценкой `grade`.
+    case rhythmGrade(RhythmGrade, level: RhythmLevelID)
+    /// Пройдено хотя бы по одному треку в каждом из четырёх режимов нот; дата — первый пройденный трек последнего режима.
+    case rhythmAllModes
+    /// Сумма `activeSeconds` всех сессий `rhythm` (пройденных и нет) достигла N секунд.
+    case rhythmSeconds(Double)
 }
 
 public struct Achievement: Identifiable, Equatable, Sendable {

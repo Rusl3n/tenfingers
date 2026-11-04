@@ -102,7 +102,7 @@ struct ChartSeries: Equatable {
     var hasEnoughData: Bool { points.count >= 2 }
 
     static func make(_ daily: [DailyPoint], calendar: Calendar = .current) -> ChartSeries {
-        let points = daily.filter { $0.sessions > 0 }.compactMap { point in
+        let points = daily.filter { $0.typedSessions > 0 }.compactMap { point in
             AnalyticsDates.date(point.day, calendar: calendar).map {
                 ChartPoint(day: point.day, date: $0, cpm: point.cpm, accuracy: point.accuracy)
             }
@@ -288,6 +288,7 @@ enum SessionHistory {
         case .adaptive: String(localized: "Тренировка")
         case .weak: String(localized: "Слабые места")
         case .practice: String(localized: "Практика")
+        case .rhythm: String(localized: "Ритм")
         case nil: mode
         }
     }

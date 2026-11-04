@@ -88,3 +88,15 @@ private let firstSix = Set(Language.ru.adaptiveOrder.prefix(6))  // о е а и 
     #expect(WeakSpotsFocus.keys(["о": weak, "щ": weak, " ": weak], letters: firstSix, thresholdMs: 343) == ["о"])
     #expect(WeakSpotsFocus.bigrams(["то": weak, "щи": weak], letters: firstSix, thresholdMs: 343) == ["то"])
 }
+
+@Test func weakSpotsFocusFromRhythmKeepsOnlyOpenLetters() {
+    let weak = KeyMastery(ewmaMs: 900, errorRate: 0.2, presses: 50)
+    let stats: [Character: KeyMastery] = ["о": weak, "ж": weak]
+    // Фокус захода: «щ» закрыта — остаётся «ж»; расчёт по статистике не нужен.
+    let open: Set<Character> = ["о", "ж"]
+    #expect(WeakSpotsFocus.keys(stats, letters: open, thresholdMs: 343, focus: ["ж", "щ"]) == ["ж"])
+    // Все буквы фокуса закрыты — обычный расчёт.
+    #expect(WeakSpotsFocus.keys(stats, letters: open, thresholdMs: 343, focus: ["щ"]).sorted() == ["о", "ж"].sorted())
+    #expect(WeakSpotsFocus.keys(stats, letters: open, thresholdMs: 343, focus: []).sorted() == ["о", "ж"].sorted())
+    #expect(WeakSpotsFocus.keys(stats, letters: open, thresholdMs: 343, focus: nil).sorted() == ["о", "ж"].sorted())
+}

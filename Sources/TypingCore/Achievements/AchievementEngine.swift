@@ -93,6 +93,8 @@ struct Evaluator {
     let completed: [ExerciseFact]
     /// Завершённые упражнения с местным временем — для условий на время суток и дату.
     let completedLocal: [(fact: ExerciseFact, local: LocalTime)]
+    /// Пройденные треки «Ритма» по возрастанию `endedAt`.
+    let clearedTracks: [RhythmFact]
     /// Упражнения логического дня по возрастанию `endedAt`.
     let byDay: [String: [ExerciseFact]]
     /// Номера логических дней упражнений (`dayNumber`), посчитанные один раз: окна по дням смотрят их много раз.
@@ -114,6 +116,7 @@ struct Evaluator {
         utcCalendar = utc
         exercises = facts.exercises.sorted { $0.endedAt < $1.endedAt }
         completed = exercises.filter(\.completed)
+        clearedTracks = facts.rhythm.filter(\.cleared).sorted { $0.endedAt < $1.endedAt }
         completedLocal = completed.map { fact in
             let c = calendar.dateComponents([.hour, .minute, .month, .day, .weekday], from: fact.endedAt)
             return (fact, LocalTime(hour: c.hour ?? 0, minute: c.minute ?? 0, month: c.month ?? 0, day: c.day ?? 0,
@@ -174,7 +177,7 @@ struct Evaluator {
         case let .speed(language, cpm):
             return firstCompleted {
                 $0.language == language && $0.cpm >= Double(cpm)
-                    && Analytics.isSpeedRecordExercise(completed: $0.completed, kind: $0.exerciseKind,
+                    && Analytics.isSpeedRecordExercise(mode: $0.mode, completed: $0.completed, kind: $0.exerciseKind,
                                                        chars: $0.chars, accuracy: $0.accuracy)
             }
         case .perfectAccuracy:
@@ -199,7 +202,8 @@ struct Evaluator {
         case .allLessonsExcellent(let language):
             return allLessonsExcellentDate(language)
         case .volumeChars(let threshold):
-            return crossing(exercises, Double(threshold)) { Double($0.chars) }
+            // Ноты «Ритма» — не набранные знаки (решение пользователя).
+            return crossing(exercises.filter { $0.mode != .rhythm }, Double(threshold)) { Double($0.chars) }
         case .volumeHours(let hours):
             return crossing(exercises, hours * 3600) { $0.activeSeconds }
         case let .finishedBetween(startHour, endHour):
@@ -227,7 +231,8 @@ struct Evaluator {
             return distanceDate(kind, count)
         case .perfectCount(let count):
             return nth(count, of: completed.filter {
-                Analytics.isQualifyingLength(kind: $0.exerciseKind, chars: $0.chars) && $0.accuracy >= 1
+                Analytics.isQualifyingLength(mode: $0.mode, kind: $0.exerciseKind, chars: $0.chars)
+                    && $0.accuracy >= 1
             })
         case let .cleanDays(count, exercises, minimum):
             return cleanDaysDate(count: count, exercises: exercises, minimum: minimum)
@@ -243,10 +248,11 @@ struct Evaluator {
             return lettersDate(language, language.letters)
         case let .counter(name, threshold):
             return (facts.counters[name] ?? 0) >= threshold ? facts.now : nil
+        // Шуточные ачивки за ошибки — только по упражнениям, промахи «Ритма» не в счёт (решение пользователя).
         case .errorStreak(let count):
-            return exercises.first { $0.maxErrorStreak >= count }?.endedAt
+            return exercises.first { $0.mode != .rhythm && $0.maxErrorStreak >= count }?.endedAt
         case .errorsInExercise(let count):
-            return exercises.first { $0.wrongKeystrokes >= count }?.endedAt
+            return exercises.first { $0.mode != .rhythm && $0.wrongKeystrokes >= count }?.endedAt
         case .lessonReplays(let count):
             return facts.lessonAttempts.values.contains { $0 >= count } ? facts.now : nil
         case .abandonsInDay(let count):
@@ -286,7 +292,7 @@ struct Evaluator {
         case .yoPresses(let count):
             return yoDate(count)
         case .totalErrors(let count):
-            return crossing(exercises, Double(count)) { Double($0.wrongKeystrokes) }
+            return crossing(exercises.filter { $0.mode != .rhythm }, Double(count)) { Double($0.wrongKeystrokes) }
         case let .finishedAtMinute(hour, minute):
             return firstLocal { $0.hour == hour && $0.minute == minute }
         case .fridayEvening(let fromHour):
@@ -294,9 +300,26 @@ struct Evaluator {
         case .weekendStreak(let count):
             return weekendStreakDate(count)
         case let .almostPerfect(minChars, minimum):
-            return firstCompleted { $0.chars >= minChars && $0.accuracy >= minimum && $0.accuracy < 1 }
+            return firstCompleted {
+                $0.mode != .rhythm && $0.chars >= minChars && $0.accuracy >= minimum && $0.accuracy < 1
+            }
         case .allFingersDrilled:
             return allFingersDrilledDate()
+        case .rhythmCleared:
+            return clearedTracks.first?.endedAt
+        case .rhythmFullCombo:
+            return clearedTracks.first { $0.misses == 0 }?.endedAt
+        case .rhythmAllPerfect:
+            return clearedTracks.first { $0.allPerfect }?.endedAt
+        case .rhythmCombo(let combo):
+            return clearedTracks.first { $0.maxCombo >= combo }?.endedAt
+        case let .rhythmGrade(grade, level):
+            return clearedTracks.first { $0.grade == grade && $0.level == level }?.endedAt
+        case .rhythmAllModes:
+            return rhythmAllModesDate()
+        case .rhythmSeconds(let seconds):
+            // Время любых сессий `rhythm`, пройденных и брошенных: проигранный трек тоже время в игре.
+            return crossing(exercises.filter { $0.mode == .rhythm }, seconds) { $0.activeSeconds }
         }
     }
 
@@ -311,7 +334,9 @@ struct Evaluator {
     /// Скорость берёт то же правило вместе с условием «без ошибок» — `Analytics.isSpeedRecordExercise`,
     /// по которому считаются и рекорды скорости.
     private func firstQualifying(_ matches: (ExerciseFact) -> Bool) -> Date? {
-        firstCompleted { Analytics.isQualifyingLength(kind: $0.exerciseKind, chars: $0.chars) && matches($0) }
+        firstCompleted {
+            Analytics.isQualifyingLength(mode: $0.mode, kind: $0.exerciseKind, chars: $0.chars) && matches($0)
+        }
     }
 
     private func firstLocal(_ matches: (LocalTime) -> Bool) -> Date? {
@@ -360,7 +385,7 @@ struct Evaluator {
     private func accuracyRunDate(count: Int, minimum: Double) -> Date? {
         guard count > 0 else { return nil }
         var run = 0
-        for exercise in completed {
+        for exercise in completed where exercise.mode != .rhythm {
             run = exercise.accuracy >= minimum ? run + 1 : 0
             if run >= count { return exercise.endedAt }
         }
@@ -422,7 +447,7 @@ struct Evaluator {
     /// Решение 4: первое окно — `[D0, D0+6]`, последнее — `[d−6, d]` при `d ≥ D0+13`; средние — по `cpm`
     /// завершённых упражнений языка; дата — первое упражнение, на котором условие выполнилось.
     private func speedGrowthDate(_ language: Language, factor: Double, minExercises: Int) -> Date? {
-        let list = completed.filter { $0.language == language }
+        let list = completed.filter { $0.language == language && $0.mode != .rhythm }
         let numbers = list.map { dayNumbers[$0.logicalDay] }
         guard let start = numbers.compactMap({ $0 }).min() else { return nil }
         let first = zip(list, numbers).filter { $0.1.map { $0 <= start + 6 } ?? false }.map(\.0.cpm)
@@ -446,7 +471,8 @@ struct Evaluator {
             for (finger, count) in fact.fingerErrors ?? [:] { result[fingers.count + slots[finger]!] += Double(count) }
             return result
         }
-        return firstWindow(exercises.filter { $0.fingerPresses != nil }, days: days, values: counts) { _, sums in
+        let typed = exercises.filter { $0.fingerPresses != nil && $0.mode != .rhythm }
+        return firstWindow(typed, days: days, values: counts) { _, sums in
             fingers.indices.allSatisfy { slot in
                 let total = sums[slot]
                 guard total >= Double(max(presses, 1)) else { return false }
@@ -494,7 +520,7 @@ struct Evaluator {
         guard exercises > 0 else { return [] }
         var dates: [Date] = []
         for day in byDay.keys.sorted() {
-            let done = byDay[day, default: []].filter(\.completed).prefix(exercises)
+            let done = byDay[day, default: []].filter { $0.completed && $0.mode != .rhythm }.prefix(exercises)
             if done.count == exercises && done.allSatisfy({ $0.accuracy >= minimum }), let last = done.last {
                 dates.append(last.endedAt)
             }
@@ -516,10 +542,13 @@ struct Evaluator {
 
     private func abandonsDate(_ count: Int) -> Date? {
         guard count > 0 else { return nil }
+        // Проигранные и прерванные заходы «Ритма» не в счёт (решение пользователя): ни по сессиям, ни в счётчике дня.
         for day in allDayKeys {
-            let abandoned = byDay[day, default: []].filter { !$0.completed }
+            let unfinished = byDay[day, default: []].filter { !$0.completed }
+            let abandoned = unfinished.filter { $0.mode != .rhythm }
             if abandoned.count >= count { return abandoned[count - 1].endedAt }
-            if (facts.abandonedByDay[day] ?? 0) >= count, let date = noon(of: day) { return date }
+            let dayCount = (facts.abandonedByDay[day] ?? 0) - (unfinished.count - abandoned.count)
+            if dayCount >= count, let date = noon(of: day) { return date }
         }
         return nil
     }
@@ -798,6 +827,14 @@ struct Evaluator {
         }
         guard required.allSatisfy({ first[$0] != nil }) else { return nil }
         return required.compactMap { first[$0] }.max()
+    }
+
+    /// «Все четыре режима»: у каждого режима нот есть пройденный трек; дата — самое позднее из первых по режимам,
+    /// то есть первый пройденный трек последнего из режимов.
+    private func rhythmAllModesDate() -> Date? {
+        let firsts = RhythmNoteMode.allCases.map { mode in clearedTracks.first { $0.mode == mode }?.endedAt }
+        guard firsts.allSatisfy({ $0 != nil }) else { return nil }
+        return firsts.compactMap { $0 }.max()
     }
 
     // MARK: Календарь

@@ -191,9 +191,15 @@ final class ExerciseCoordinator {
         session.onFinish = nil
         session.markRecorded()
         let abandoned = session.shouldRecordAbandon ? session.makeResult() : nil
+        commitQuietly(trackingDay(endedAt: abandoned?.endedAt,
+                                  Self.abandonment(abandoned, of: session, source: source, planSlot: planSlot, recorder)),
+                      announce: announce, quitting: quitting)
+    }
+
+    /// Молчаливая запись без алерта: день, ставший «полным огнём», — тост и звук сразу (`announce`) или откладывается
+    /// до следующего показа главной (`FullDayPending`); ачивки выдаются без звука. Ошибка сохранения не показывается.
+    private func commitQuietly(_ body: @escaping () throws -> Void, announce: Bool, quitting: Bool) {
         dayCompletedKey = nil
-        let body = trackingDay(endedAt: abandoned?.endedAt,
-                               Self.abandonment(abandoned, of: session, source: source, planSlot: planSlot, recorder))
         guard (try? recorder.commit(body)) != nil else {
             dayCompletedKey = nil
             return
@@ -212,6 +218,43 @@ final class ExerciseCoordinator {
         // их увидят непросмотренными в разделе «Ачивки».
         checkAchievements(announce: false, afterStreak: false, yearToasts: !quitting)
         onSaved?()
+    }
+
+    /// Как сохраняется заход игры «Ритм».
+    enum RhythmSave {
+        /// Заход закончен, дальше экран итога с карточками ачивок и огня; ошибка — алерт, `onRetrySucceeded` / `onSaveCancelled`.
+        case finished
+        /// Кнопка «Выйти»: ошибка — алерт, после него `onExitAfterAlert`.
+        case exit
+        /// Уход без кнопки (смена занятия, «Заново», закрытие окна, выход из приложения): молча.
+        case silent(quitting: Bool)
+    }
+
+    /// Записывает заход игры «Ритм» (сессия `rhythm`, день, буквы, `RhythmResult`) тем же путём, что упражнения:
+    /// полный огонь дня, ачивки и год проверяются после сохранения. `true` — сохранено (или молча отброшено).
+    /// `outcome` — `nil`, если не оценено ни одной ноты: тогда пишется только счётчик чужой раскладки (как у упражнений),
+    /// а без него — ничего.
+    @discardableResult
+    func recordRhythm(_ outcome: RhythmOutcome?, wrongLayoutAttempted: Bool = false, how: RhythmSave) -> Bool {
+        guard outcome != nil || wrongLayoutAttempted else { return true }
+        let recorder = self.recorder
+        let body = trackingDay(endedAt: outcome?.endedAt) {
+            if let outcome { try recorder.recordRhythm(outcome) }
+            if wrongLayoutAttempted { try recorder.increment(CounterName.wrongLayoutStarts) }
+        }
+        switch how {
+        case .finished:
+            exitAfterSave = false
+            announceAfterSave = true
+            return save(body)
+        case .exit:
+            exitAfterSave = true
+            announceAfterSave = false
+            return save(body)
+        case .silent(let quitting):
+            commitQuietly(body, announce: false, quitting: quitting)
+            return true
+        }
     }
 
     /// Проверка ачивок после сохранения. Звук `.achievement` — через `streakDelay` после звука результата,

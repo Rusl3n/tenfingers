@@ -48,7 +48,8 @@ public struct SessionSummary: Equatable, Sendable {
 
     /// Подходит ли упражнение для рекорда скорости (общее правило с ачивками скорости, см. `Analytics.isSpeedRecordExercise`).
     public var isSpeedRecordExercise: Bool {
-        Analytics.isSpeedRecordExercise(completed: completed, kind: exerciseKind, chars: chars, accuracy: accuracy)
+        Analytics.isSpeedRecordExercise(mode: mode, completed: completed, kind: exerciseKind, chars: chars,
+                                        accuracy: accuracy)
     }
 }
 
@@ -62,13 +63,21 @@ public struct DailyPoint: Equatable, Sendable {
     public let seconds: Double
     /// Завершённых сессий.
     public let sessions: Int
+    /// Завершённых обычных упражнений (без ритм-игры): только за такие дни есть скорость и точность.
+    public let typedSessions: Int
+    /// Чистое время обычных упражнений дня (без ритм-игры, включая брошенные): вес дня в средних скорости и точности.
+    public let typedSeconds: Double
 
-    public init(day: String, cpm: Double, accuracy: Double, seconds: Double, sessions: Int) {
+    /// `typedSessions` и `typedSeconds` по умолчанию равны `sessions` и `seconds` (день без ритм-игры).
+    public init(day: String, cpm: Double, accuracy: Double, seconds: Double, sessions: Int,
+                typedSessions: Int? = nil, typedSeconds: Double? = nil) {
         self.day = day
         self.cpm = cpm
         self.accuracy = accuracy
         self.seconds = seconds
         self.sessions = sessions
+        self.typedSessions = typedSessions ?? sessions
+        self.typedSeconds = typedSeconds ?? seconds
     }
 }
 
@@ -147,14 +156,16 @@ public enum Analytics {
 
     /// «Подходящее» упражнение: проверка урока (любой длины: шаги курса короче порога) или текст от
     /// `recordMinimumChars` знаков. На нём держатся скорость, «Снайпер» и «Без подглядывания»; завершённость проверяет вызывающий.
-    public static func isQualifyingLength(kind: ExerciseKind?, chars: Int) -> Bool {
-        (kind?.isLessonCheck ?? false) || chars >= recordMinimumChars
+    /// Ритм-игра не подходит никогда: её ноты — не набранный текст.
+    public static func isQualifyingLength(mode: ExerciseMode, kind: ExerciseKind?, chars: Int) -> Bool {
+        mode != .rhythm && ((kind?.isLessonCheck ?? false) || chars >= recordMinimumChars)
     }
 
     /// Единое правило рекорда скорости и ачивок скорости (`speed.*`): завершённое подходящее упражнение
     /// без единой ошибки (точность 100%). Хранимые значения скорости не пересчитываются, правило только отбирает.
-    public static func isSpeedRecordExercise(completed: Bool, kind: ExerciseKind?, chars: Int, accuracy: Double) -> Bool {
-        completed && isQualifyingLength(kind: kind, chars: chars) && accuracy >= 1
+    public static func isSpeedRecordExercise(mode: ExerciseMode, completed: Bool, kind: ExerciseKind?, chars: Int,
+                                             accuracy: Double) -> Bool {
+        completed && isQualifyingLength(mode: mode, kind: kind, chars: chars) && accuracy >= 1
     }
 
     /// Клавиши с меньшим числом нажатий не попадают в тепловую карту ошибок.
@@ -165,14 +176,18 @@ public enum Analytics {
         let selected = sessions.filter { language == nil || $0.language == language }
         return Dictionary(grouping: selected, by: \.day).map { day, list in
             let done = list.filter(\.completed)
-            let chars = done.reduce(0) { $0 + $1.chars }
-            let doneSeconds = done.reduce(0.0) { $0 + $1.activeSeconds }
+            // Ритм-игра в скорость и точность дня не входит (у неё нет скорости); время и число упражнений — с ней.
+            let typed = done.filter { $0.mode != .rhythm }
+            let chars = typed.reduce(0) { $0 + $1.chars }
+            let doneSeconds = typed.reduce(0.0) { $0 + $1.activeSeconds }
             // Знаки со своим временем берутся из сохранённой скорости: у новых упражнений первый знак времени не имеет.
-            let cpm = doneSeconds > 0 ? done.reduce(0.0) { $0 + $1.speed * $1.activeSeconds } / doneSeconds : 0
+            let cpm = doneSeconds > 0 ? typed.reduce(0.0) { $0 + $1.speed * $1.activeSeconds } / doneSeconds : 0
             let accuracy = chars > 0
-                ? done.reduce(0.0) { $0 + $1.accuracy * Double($1.chars) } / Double(chars) : 0
+                ? typed.reduce(0.0) { $0 + $1.accuracy * Double($1.chars) } / Double(chars) : 0
             return DailyPoint(day: day, cpm: cpm, accuracy: accuracy,
-                              seconds: list.reduce(0.0) { $0 + $1.activeSeconds }, sessions: done.count)
+                              seconds: list.reduce(0.0) { $0 + $1.activeSeconds }, sessions: done.count,
+                              typedSessions: typed.count,
+                              typedSeconds: list.filter { $0.mode != .rhythm }.reduce(0.0) { $0 + $1.activeSeconds })
         }.sorted { $0.day < $1.day }
     }
 
@@ -202,12 +217,12 @@ public enum Analytics {
     }
 
     /// Рекорд скорости — по `isSpeedRecordExercise` (проверка урока или текст от 300 знаков, без ошибок);
-    /// рекорд точности — по завершённым упражнениям от `recordMinimumChars` знаков.
+    /// рекорд точности — по завершённым упражнениям от `recordMinimumChars` знаков. Ритм-игра рекордов не даёт.
     public static func records(_ sessions: [SessionSummary], longestStreak: Int) -> Records {
         var bestCpm: [Language: Record] = [:]
         var bestAccuracy: [Language: Record] = [:]
         let ordered = sessions
-            .filter { $0.completed && $0.activeSeconds > 0 }
+            .filter { $0.completed && $0.activeSeconds > 0 && $0.mode != .rhythm }
             .sorted { $0.endedAt < $1.endedAt }   // при равенстве побеждает более ранняя
         for s in ordered {
             if s.isSpeedRecordExercise, s.speed > (bestCpm[s.language]?.value ?? -.infinity) {

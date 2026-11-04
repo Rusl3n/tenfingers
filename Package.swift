@@ -19,6 +19,6 @@ let package = Package(
             linkerSettings: [.unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain"])]
         ),
         .testTarget(name: "TypingCoreTests", dependencies: ["TypingCore"]),
-        .testTarget(name: "TenFingersTests", dependencies: ["TenFingers", "TypingCore", "WidgetSnapshot"]),
+        .testTarget(name: "TenFingersTests", dependencies: ["TenFingers", "TenFingersWidget", "TypingCore", "WidgetSnapshot"]),
     ]
 )

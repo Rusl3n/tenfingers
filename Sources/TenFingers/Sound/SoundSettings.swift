@@ -44,13 +44,18 @@ enum SoundSettingsDefaults {
     private static let volumeTolerance = 0.001
 
     static func isDefault(in defaults: UserDefaults) -> Bool {
-        SoundSettings.activeEvents.allSatisfy { event in
+        RhythmSoundOffset.milliseconds(in: defaults) == RhythmSoundOffset.defaultMs
+            && !defaults.bool(forKey: SettingsKey.rhythmMuted)
+            && SoundSettings.activeEvents.allSatisfy { event in
             SoundSettings.isEnabled(event, defaults: defaults)
                 && abs(SoundSettings.volume(event, defaults: defaults) - SoundSettings.defaultVolume(event)) < volumeTolerance
         }
     }
 
+    /// Вместе со звуками возвращаются «Сдвиг звука» игры «Ритм» (0 мс) и звук самой игры (включён).
     static func reset(in defaults: UserDefaults) {
+        defaults.set(RhythmSoundOffset.defaultMs, forKey: SettingsKey.rhythmSoundOffsetMs)
+        defaults.set(false, forKey: SettingsKey.rhythmMuted)
         for event in SoundSettings.activeEvents {
             defaults.set(true, forKey: SoundSettings.enabledKey(event))
             defaults.set(SoundSettings.defaultVolume(event), forKey: SoundSettings.volumeKey(event))

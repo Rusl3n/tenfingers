@@ -37,6 +37,10 @@ private let situationalIds: Set<String> = [
     "fingers.all_eight",
 ]
 
+/// Ачивки игры «Ритм» вне модели целиком: игра — выбор пользователя, модель в неё не играет. В подсчёты раскладки
+/// (по неделям, по концу курса, доля ранних и ситуативных) они не входят, как и в 400-й день.
+private func isOutsideModel(_ achievement: Achievement) -> Bool { achievement.category == .rhythm }
+
 /// Несекретные неситуативные ачивки, которых средний пользователь модели не получает, и почему. К 400-му дню
 /// отсутствовать могут только они (и все они действительно отсутствуют: прочие обязаны быть получены).
 /// Пороги этих ачивок тестом не меняются: id задают порог (`speed.ru.300`).
@@ -364,7 +368,9 @@ private struct Schedule {
 private func buildSchedule() throws -> Schedule {
     let model = try generateHistory()
     let earned = AchievementEngine.evaluate(model.facts)
-    let counted = AchievementCatalog.all.filter { !$0.secret && !situationalIds.contains($0.id) }
+    let counted = AchievementCatalog.all.filter {
+        !$0.secret && !situationalIds.contains($0.id) && !isOutsideModel($0)
+    }
     return Schedule(dates: Dictionary(uniqueKeysWithValues: earned.map { ($0.id, $0.date) }),
                     dayStarts: model.dayStarts, history: model, counted: counted)
 }
@@ -437,7 +443,7 @@ private let situationalJokeIds: Set<String> = [
 
 @Test func earlyPlusSituationalAreAtMostThirtyPercentOfTheCatalog() throws {
     let schedule = try sharedSchedule.get()
-    let ids = Set(AchievementCatalog.all.map(\.id))
+    let ids = Set(AchievementCatalog.all.filter { !isOutsideModel($0) }.map(\.id))
     #expect(situationalJokeIds.isSubset(of: ids), "нет в каталоге: \(situationalJokeIds.subtracting(ids).sorted())")
     let early = schedule.earnedBy(7, among: schedule.counted).count
     let situational = situationalIds.union(situationalJokeIds).intersection(ids).count

@@ -127,6 +127,15 @@ public enum AchievementConditionText {
         case .slowAndSteady: return text("slowAndSteady")
         case .firstTry: return text("firstTry")
         case .allFingersDrilled: return text("allFingersDrilled")
+        case .rhythmCleared: return text("rhythmCleared")
+        case .rhythmFullCombo: return text("rhythmFullCombo")
+        case .rhythmAllPerfect: return text("rhythmAllPerfect")
+        case .rhythmCombo(let combo): return line("rhythmCombo", combo)
+        case let .rhythmGrade(grade, level):
+            return line("rhythmGrade", grade.rawValue, CoreText.localized("achievement.condition.rhythmLevel." + level.rawValue,
+                                                                         localization: localization))
+        case .rhythmAllModes: return text("rhythmAllModes")
+        case .rhythmSeconds(let seconds): return line("rhythmMinutes", Int((seconds / 60).rounded()))
         }
     }
 

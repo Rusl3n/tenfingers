@@ -75,6 +75,7 @@ enum ArchiveError: Error, Equatable, LocalizedError {
         case "CustomText": String(localized: "Свои тексты")
         case "AchievementRecord": String(localized: "Ачивки")
         case "AchievementGrant": String(localized: "Повторные получения ачивок")
+        case "RhythmResult": String(localized: "Результаты игры «Ритм»")
         default: model
         }
     }
@@ -84,14 +85,15 @@ enum ArchiveError: Error, Equatable, LocalizedError {
 ///
 /// Формат версии 1: `format`, `version`, `exportedAt`, `appVersion`, `schemaGeneration`, `profile`, `settings`,
 /// `lessonResume` и разделы моделей. Формат версии 2 (с поколения схемы 6): у сессий поля `stepIndex`, `planSlot`,
-/// `textTraits`, раздел `achievementGrants`; файлы версии 1 читаются. Даты — числа: секунды от 1 января 2001 года UTC (как `Date` в Foundation),
+/// `textTraits`, раздел `achievementGrants`; файлы версии 1 читаются. Формат версии 3 (с поколения схемы 7): раздел
+/// `rhythmResults`; файлы версий 1 и 2 читаются, раздела в них нет — пустой список. Даты — числа: секунды от 1 января 2001 года UTC (как `Date` в Foundation),
 /// без потери точности; при чтении принимаются и строки ISO 8601 (так писали первые сборки). Ключи упорядочены,
 /// записи разделов отсортированы: один и тот же прогресс всегда даёт один и тот же файл.
 /// Чтение терпимо к старым файлам: отсутствующие разделы и поля, у которых в модели есть значение
 /// по умолчанию, получают это значение. Файл более нового формата или поколения схемы не читается.
 enum ProgressArchive {
     static let format = "tenfingers-progress"
-    static let version = 2
+    static let version = 3
     static let fileExtension = "tenfingers"
 
     /// Тип файла: объявлен в `Info.plist` (`local.tenfingers.progress`, подтип `public.json`).
@@ -123,6 +125,8 @@ enum ProgressArchive {
         var achievements: [AchievementDTO]
         /// Получения повторяемых ачивок (поколение 6). В файле версии 1 раздела нет — пустой список.
         var achievementGrants: [AchievementGrantDTO]
+        /// Результаты игры «Ритм» (поколение 7). В файлах версий 1–2 раздела нет — пустой список.
+        var rhythmResults: [RhythmResultDTO]
 
         init(format: String = ProgressArchive.format, version: Int = ProgressArchive.version, exportedAt: Date?,
              appVersion: String, schemaGeneration: Int = SchemaGeneration.current, profile: ProfileDTO,
@@ -130,7 +134,8 @@ enum ProgressArchive {
              sessions: [SessionDTO], days: [DayDTO], keyStats: [KeyStatDTO], bigramStats: [BigramStatDTO],
              lessonProgress: [LessonProgressDTO], adaptiveStates: [AdaptiveStateDTO],
              adaptiveUnlocks: [AdaptiveUnlockDTO], counters: [CounterDTO], customTexts: [CustomTextDTO],
-             achievements: [AchievementDTO], achievementGrants: [AchievementGrantDTO] = []) {
+             achievements: [AchievementDTO], achievementGrants: [AchievementGrantDTO] = [],
+             rhythmResults: [RhythmResultDTO] = []) {
             self.format = format
             self.version = version
             self.exportedAt = exportedAt
@@ -150,6 +155,7 @@ enum ProgressArchive {
             self.customTexts = customTexts
             self.achievements = achievements
             self.achievementGrants = achievementGrants
+            self.rhythmResults = rhythmResults
         }
 
         init(from decoder: any Decoder) throws {
@@ -173,13 +179,14 @@ enum ProgressArchive {
             customTexts = try c.value(.customTexts, default: [])
             achievements = try c.value(.achievements, default: [])
             achievementGrants = try c.value(.achievementGrants, default: [])
+            rhythmResults = try c.value(.rhythmResults, default: [])
         }
 
         /// Количество записей в каждом разделе (для проверки записанной резервной копии).
         var recordCounts: [Int] {
             [sessions.count, days.count, keyStats.count, bigramStats.count, lessonProgress.count,
              adaptiveStates.count, adaptiveUnlocks.count, counters.count, customTexts.count, lessonResume.count,
-             achievements.count, achievementGrants.count]
+             achievements.count, achievementGrants.count, rhythmResults.count]
         }
 
         /// Число записей по моделям (имя совпадает с сущностью `ModelStore.schema`): по нему тест проверяет,
@@ -190,7 +197,7 @@ enum ProgressArchive {
              LessonProgressDTO.modelName: lessonProgress.count, AdaptiveStateDTO.modelName: adaptiveStates.count,
              AdaptiveUnlockDTO.modelName: adaptiveUnlocks.count, CounterDTO.modelName: counters.count,
              CustomTextDTO.modelName: customTexts.count, AchievementDTO.modelName: achievements.count,
-             AchievementGrantDTO.modelName: achievementGrants.count]
+             AchievementGrantDTO.modelName: achievementGrants.count, RhythmResultDTO.modelName: rhythmResults.count]
         }
     }
 
@@ -208,6 +215,7 @@ enum ProgressArchive {
         case "customTexts": CustomTextDTO.modelName
         case "achievements": AchievementDTO.modelName
         case "achievementGrants": AchievementGrantDTO.modelName
+        case "rhythmResults": RhythmResultDTO.modelName
         default: nil
         }
     }
@@ -248,7 +256,9 @@ enum ProgressArchive {
                 .sorted { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) },
             achievements: try all(AchievementRecord.self).map(AchievementDTO.init).sorted { $0.achievementId < $1.achievementId },
             achievementGrants: try all(AchievementGrant.self).map(AchievementGrantDTO.init)
-                .sorted { ($0.achievementId, $0.occurrence) < ($1.achievementId, $1.occurrence) })
+                .sorted { ($0.achievementId, $0.occurrence) < ($1.achievementId, $1.occurrence) },
+            rhythmResults: try all(RhythmResult.self).map(RhythmResultDTO.init)
+                .sorted { ($0.startedAt, $0.id.uuidString) < ($1.startedAt, $1.id.uuidString) })
     }
 
     /// Весь прогресс (с несохранёнными изменениями контекста) в JSON.
@@ -418,6 +428,7 @@ enum ProgressArchive {
         try each(archive.customTexts, body)
         try each(archive.achievements, body)
         try each(archive.achievementGrants, body)
+        try each(archive.rhythmResults, body)
     }
 
     /// Настройки, профиль и продолжения уроков из архива (после успешной замены базы).
@@ -942,6 +953,61 @@ extension ProgressArchive {
         func makeModel() -> any PersistentModel {
             AchievementGrant(achievementId: achievementId, occurrence: occurrence, grantedAt: grantedAt,
                              value: value, seen: seen)
+        }
+    }
+}
+
+extension ProgressArchive {
+    struct RhythmResultDTO: Codable, Equatable, ArchiveRecord {
+        var id: UUID
+        var language: String
+        var mode: String
+        var level: String
+        var bpm: Int
+        var startedAt: Date
+        var endedAt: Date
+        var score: Int
+        var accuracy: Double
+        var maxCombo: Int
+        var grade: String
+        var cleared: Bool
+        var judgements: Data
+        var report: Data
+
+        init(_ m: RhythmResult) {
+            id = m.id; language = m.language; mode = m.mode; level = m.level; bpm = m.bpm
+            startedAt = m.startedAt; endedAt = m.endedAt; score = m.score; accuracy = m.accuracy
+            maxCombo = m.maxCombo; grade = m.grade; cleared = m.cleared; judgements = m.judgements; report = m.report
+        }
+
+        init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.value(.id, default: UUID())
+            language = try c.decode(String.self, forKey: .language)
+            mode = try c.decode(String.self, forKey: .mode)
+            level = try c.decode(String.self, forKey: .level)
+            bpm = try c.value(.bpm, default: 0)
+            startedAt = try c.decode(Date.self, forKey: .startedAt)
+            endedAt = try c.decode(Date.self, forKey: .endedAt)
+            score = try c.value(.score, default: 0)
+            accuracy = try c.value(.accuracy, default: 0)
+            maxCombo = try c.value(.maxCombo, default: 0)
+            grade = try c.value(.grade, default: "D")
+            cleared = try c.value(.cleared, default: false)
+            judgements = try c.value(.judgements, default: Data("{}".utf8))
+            report = try c.value(.report, default: Data("{}".utf8))
+        }
+
+        static let modelName = "RhythmResult"
+        var isValid: Bool { !language.isEmpty && !mode.isEmpty && !level.isEmpty }
+        var uniqueKey: String? { nil }
+
+        func makeModel() -> any PersistentModel {
+            let m = RhythmResult(language: language, mode: mode, level: level, bpm: bpm, startedAt: startedAt,
+                                 endedAt: endedAt, score: score, accuracy: accuracy, maxCombo: maxCombo, grade: grade,
+                                 cleared: cleared, judgements: judgements, report: report)
+            m.id = id
+            return m
         }
     }
 }

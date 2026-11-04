@@ -77,7 +77,7 @@ private func makeFakeApp(at url: URL, version: String, generation: Int, identifi
         backups = root.appending(path: "TenFingers.backups", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
-        try makeFakeApp(at: bundle, version: "1.0.0", generation: 6, marker: "old")
+        try makeFakeApp(at: bundle, version: "1.0.0", generation: SchemaGeneration.current, marker: "old")
         container = try ModelStore.makeContainer(at: storeURL)
         let base = Date(timeIntervalSinceReferenceDate: 800_000_000)
         container.mainContext.insert(SessionRecord(
@@ -97,7 +97,7 @@ private func makeFakeApp(at url: URL, version: String, generation: Int, identifi
     }
 
     /// Архив с новой версией и описание выпуска к нему.
-    func release(version: String = "2.0.0", generation: Int = 6, identifier: String = "local.tenfingers",
+    func release(version: String = "2.0.0", generation: Int = SchemaGeneration.current, identifier: String = "local.tenfingers",
                  manifestVersion: String? = nil, manifestGeneration: Int? = nil,
                  sha: String? = nil, size: Int? = nil) throws -> (manifest: ReleaseManifest, zip: URL) {
         let staging = root.appending(path: "staging-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -188,7 +188,7 @@ func badDownloadIsRefusedAndCleaned(case kind: String) async throws {
     case "size": release = try env.release(size: 1); expected = .size
     case "identifier": release = try env.release(identifier: "other.app"); expected = .badBundle("CFBundleIdentifier")
     case "version": release = try env.release(manifestVersion: "9.9.9"); expected = .badBundle("CFBundleShortVersionString")
-    case "generation": release = try env.release(manifestGeneration: 7); expected = .badBundle("TFSchemaGeneration")
+    case "generation": release = try env.release(manifestGeneration: SchemaGeneration.current + 1); expected = .badBundle("TFSchemaGeneration")
     case "signature":
         release = try env.release()
         // портим подпись после упаковки: меняем содержимое и пакуем заново, манифест пересчитывается
@@ -200,7 +200,7 @@ func badDownloadIsRefusedAndCleaned(case kind: String) async throws {
         try shell("/usr/bin/ditto", ["-c", "-k", "--keepParent", staging.appending(path: "TenFingers.app").path, zip.path])
         let data = try Data(contentsOf: zip)
         let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        let json = #"{"format":1,"version":"2.0.0","build":1,"commit":"a","schemaGeneration":6,"minimumSystemVersion":"15.0","zip":{"name":"t.zip","size":\#(data.count),"sha256":"\#(digest)"},"dmg":{"name":"d","size":1,"sha256":"0"},"notesURL":"https://example.com"}"#
+        let json = #"{"format":1,"version":"2.0.0","build":1,"commit":"a","schemaGeneration":\#(SchemaGeneration.current),"minimumSystemVersion":"15.0","zip":{"name":"t.zip","size":\#(data.count),"sha256":"\#(digest)"},"dmg":{"name":"d","size":1,"sha256":"0"},"notesURL":"https://example.com"}"#
         release = (try ReleaseManifest.decode(Data(json.utf8)), zip)
         expected = .signature
     default:
@@ -214,7 +214,7 @@ func badDownloadIsRefusedAndCleaned(case kind: String) async throws {
         try shell("/usr/bin/ditto", ["-c", "-k", staging.path, zip.path])
         let data = try Data(contentsOf: zip)
         let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        let json = #"{"format":1,"version":"2.0.0","build":1,"commit":"a","schemaGeneration":6,"minimumSystemVersion":"15.0","zip":{"name":"t.zip","size":\#(data.count),"sha256":"\#(digest)"},"dmg":{"name":"d","size":1,"sha256":"0"},"notesURL":"https://example.com"}"#
+        let json = #"{"format":1,"version":"2.0.0","build":1,"commit":"a","schemaGeneration":\#(SchemaGeneration.current),"minimumSystemVersion":"15.0","zip":{"name":"t.zip","size":\#(data.count),"sha256":"\#(digest)"},"dmg":{"name":"d","size":1,"sha256":"0"},"notesURL":"https://example.com"}"#
         release = (try ReleaseManifest.decode(Data(json.utf8)), zip)
         expected = .badBundle("content: [\"Other.app\", \"TenFingers.app\"]")
     }
@@ -271,18 +271,18 @@ func badDownloadIsRefusedAndCleaned(case kind: String) async throws {
 @MainActor @Test func newerStoreGenerationIsRefused() throws {
     let env = try Env(storeGeneration: 9)
     defer { env.cleanUp() }
-    let (manifest, _) = try env.release()   // поколение 6 (в тесте описание «7» ниже)
-    #expect(throws: UpdateError.olderGeneration(stored: 9, update: 6)) {
+    let (manifest, _) = try env.release()   // текущее поколение (в тесте описание «текущее + 1» ниже)
+    #expect(throws: UpdateError.olderGeneration(stored: 9, update: SchemaGeneration.current)) {
         try env.installer().preflight(manifest: manifest)
     }
-    let seven = try env.release(generation: 7)
-    #expect(throws: UpdateError.olderGeneration(stored: 9, update: 7)) {
+    let seven = try env.release(generation: SchemaGeneration.current + 1)
+    #expect(throws: UpdateError.olderGeneration(stored: 9, update: SchemaGeneration.current + 1)) {
         try env.installer().preflight(manifest: seven.manifest)
     }
 }
 
 @MainActor @Test func equalOrOlderStoreGenerationPasses() throws {
-    let env = try Env(storeGeneration: 6)
+    let env = try Env(storeGeneration: SchemaGeneration.current)
     defer { env.cleanUp() }
     let (manifest, _) = try env.release()
     try env.installer().preflight(manifest: manifest)

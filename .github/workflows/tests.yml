@@ -23,6 +23,9 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: '26.6'
+      # Названия чужих продуктов в репозитории не допускаются (стоп-лист — scripts/forbidden-names.txt).
+      - name: Названия
+        run: ./scripts/check-names.sh
       - name: Версия Swift
         run: swift --version
       # Правило «без предупреждений» проверяется автоматически: любое предупреждение компилятора — ошибка.

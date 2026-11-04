@@ -171,16 +171,19 @@ private struct CategoryFilter: View {
         ChipFlow(spacing: 8) {
             chip(String(localized: "Все"), tint: .accentColor, isOn: selection == nil) { selection = nil }
             ForEach(categories, id: \.self) { category in
-                chip(AchievementStyle.title(category), tint: AchievementStyle.tint(category),
-                     isOn: selection == category, hasNew: newCategories.contains(category)) { selection = category }
+                chip(AchievementStyle.title(category), icon: AchievementStyle.chipIcon(category),
+                     tint: AchievementStyle.tint(category), isOn: selection == category, hasNew: newCategories.contains(category)) { selection = category }
             }
         }
     }
 
-    private func chip(_ title: String, tint: Color, isOn: Bool, hasNew: Bool = false,
+    private func chip(_ title: String, icon: String? = nil, tint: Color, isOn: Bool, hasNew: Bool = false,
                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
+            HStack(spacing: 5) {
+                if let icon { Image(systemName: icon).font(.callout.weight(.medium)) }
+                Text(title)
+            }
                 .font(.callout.weight(.medium))
                 .foregroundStyle(isOn ? Color.white : Color.primary)
                 .padding(.horizontal, 12).padding(.vertical, 5)

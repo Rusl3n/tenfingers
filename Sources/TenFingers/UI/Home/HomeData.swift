@@ -44,10 +44,11 @@ struct HomeData: Equatable {
         }
         // Показатели недели — по-прежнему последние 7 дней, а не календарная неделя: в понедельник она почти пуста.
         let weekSet = Set(StreakCalculator.dayKeys(from: StreakCalculator.dayKey(today, offset: -6), to: today))
-        let points = Analytics.daily(sessions, language: language).filter { weekSet.contains($0.day) && $0.sessions > 0 }
-        let weight = points.reduce(0.0) { $0 + $1.seconds }
-        let cpm = weight > 0 ? points.reduce(0.0) { $0 + $1.cpm * $1.seconds } / weight : nil
-        let accuracy = weight > 0 ? points.reduce(0.0) { $0 + $1.accuracy * $1.seconds } / weight : nil
+        let points = Analytics.daily(sessions, language: language).filter { weekSet.contains($0.day) && $0.typedSessions > 0 }
+        // Скорость и точность — только по дням с обычными упражнениями и с весом их времени: ритм-игра их не даёт.
+        let weight = points.reduce(0.0) { $0 + $1.typedSeconds }
+        let cpm = weight > 0 ? points.reduce(0.0) { $0 + $1.cpm * $1.typedSeconds } / weight : nil
+        let accuracy = weight > 0 ? points.reduce(0.0) { $0 + $1.accuracy * $1.typedSeconds } / weight : nil
         let secondsByDay = days.mapValues(\.activeSeconds)
         return HomeData(language: language, streak: streak, goalMinutes: goalMinutes,
                         todaySeconds: days[today]?.activeSeconds ?? 0, week: week,

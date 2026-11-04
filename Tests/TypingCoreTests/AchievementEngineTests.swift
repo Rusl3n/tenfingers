@@ -597,6 +597,37 @@ private func check(_ time: String, _ lessonId: String, cpm: Double, accuracy: Do
     #expect(earned(.errorsInExercise(51), f) == nil)
 }
 
+@Test func engineErrorConditionsSkipRhythm() {
+    let game = [
+        ex("2026-10-01 10:00", mode: .rhythm, maxErrorStreak: 40, wrong: 600),
+        ex("2026-10-01 11:00", mode: .rhythm, completed: false, maxErrorStreak: 12, wrong: 500),
+    ]
+    #expect(earned(.errorStreak(10), facts(game)) == nil)
+    #expect(earned(.errorsInExercise(50), facts(game)) == nil)
+    #expect(earned(.totalErrors(1000), facts(game)) == nil)
+    // Игра не добирает счёт упражнений до 1000.
+    let mixed = game + [ex("2026-10-02 10:00", wrong: 999)]
+    #expect(earned(.totalErrors(1000), facts(mixed)) == nil)
+    #expect(earned(.totalErrors(999), facts(mixed)) == at("2026-10-02 10:00"))
+}
+
+@Test func engineAbandonsAndVolumeSkipRhythm() {
+    let games = [
+        ex("2026-10-07 10:00", mode: .rhythm, chars: 300, completed: false),
+        ex("2026-10-07 10:05", mode: .rhythm, chars: 300, completed: false),
+        ex("2026-10-07 10:10", mode: .rhythm, chars: 300, completed: false),
+    ]
+    // Три проигранных трека — и в сессиях, и в счётчике дня — не дают «Не сегодня».
+    #expect(earned(.abandonsInDay(3), facts(games, abandonedByDay: ["2026-10-07": 3])) == nil)
+    let mixed = [ex("2026-10-07 09:00", completed: false), ex("2026-10-07 09:30", completed: false)] + games
+    #expect(earned(.abandonsInDay(3), facts(mixed, abandonedByDay: ["2026-10-07": 5])) == nil)
+    let third = mixed + [ex("2026-10-07 11:00", completed: false)]
+    #expect(earned(.abandonsInDay(3), facts(third, abandonedByDay: ["2026-10-07": 6])) == at("2026-10-07 11:00"))
+    // Ноты игры не идут в объём знаков.
+    #expect(earned(.volumeChars(500), facts(games + [ex("2026-10-08 10:00", chars: 499)])) == nil)
+    #expect(earned(.volumeChars(499), facts(games + [ex("2026-10-08 10:00", chars: 499)])) == at("2026-10-08 10:00"))
+}
+
 @Test func engineLessonReplaysIsDatedNow() {
     #expect(earned(.lessonReplays(10), facts(lessonAttempts: ["l1": 3, "l2": 10])) == testNow)
     #expect(earned(.lessonReplays(10), facts(lessonAttempts: ["l1": 9, "l2": 9])) == nil)
@@ -1418,4 +1449,42 @@ private func slot(_ index: Int) -> String {
     #expect(earned(.cleanDays(count: 4, exercises: 2, minimum: 0.97), f) == nil)
     // Один чистый день — прежняя «Чистюля».
     #expect(earned(.cleanDays(count: 1, exercises: 2, minimum: 0.97), f) == earned(.cleanDay(exercises: 2, minimum: 0.97), f))
+}
+
+// MARK: - Ритм-игра не входит в скорость, точность и рост
+
+/// Заход игры: 300 нот, точность 1, скорости нет.
+private func game(_ time: String, chars: Int = 300, accuracy: Double = 1, completed: Bool = true) -> ExerciseFact {
+    ex(time, mode: .rhythm, chars: chars, seconds: 90, accuracy: accuracy, cpm: 0, completed: completed,
+       source: "rhythm:open")
+}
+
+@Test func rhythmGameDoesNotEarnSpeedOrAccuracyAchievements() {
+    let list = [game("2026-10-01 10:00"), game("2026-10-01 10:10"), game("2026-10-01 10:20")]
+    let f = facts(list)
+    #expect(earned(.speed(.ru, cpm: 1), f) == nil)
+    #expect(earned(.perfectAccuracy, f) == nil)
+    #expect(earned(.perfectCount(1), f) == nil)
+    #expect(earned(.almostPerfect(minChars: 100, minimum: 0.5), facts([game("2026-10-01 10:00", accuracy: 0.9)])) == nil)
+    #expect(earned(.accuracyRun(count: 3, minimum: 0.98), f) == nil)
+    #expect(earned(.cleanDay(exercises: 3, minimum: 0.97), f) == nil)
+    #expect(earned(.cleanDays(count: 1, exercises: 1, minimum: 0.97), f) == nil)
+    // Игры не разбавляют и не прерывают настоящую серию.
+    let real = [ex("2026-10-01 10:00", accuracy: 0.99), game("2026-10-01 10:05", accuracy: 0.1),
+                ex("2026-10-01 10:10", accuracy: 0.99)]
+    #expect(earned(.accuracyRun(count: 2, minimum: 0.98), facts(real)) == at("2026-10-01 10:10"))
+    // Игры не считаются «первыми упражнениями дня» для чистого дня.
+    #expect(earned(.cleanDay(exercises: 2, minimum: 0.97), facts(real)) == at("2026-10-01 10:10"))
+}
+
+@Test func rhythmGameDoesNotMoveSpeedGrowth() {
+    func typed(_ day: Int, _ hour: Int, _ cpm: Double) -> ExerciseFact {
+        ex("2026-10-\(String(format: "%02d", day)) \(hour):00", cpm: cpm)
+    }
+    let first = (0..<5).map { typed(1 + $0 / 3, 9 + $0 % 3, 100) }
+    let last = (0..<5).map { typed(14 + $0 / 3, 9 + $0 % 3, 160) }
+    let games = (0..<20).map { game("2026-10-\(String(format: "%02d", 14 + $0 / 10)) \(10 + $0 % 10):30") }
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(first + last)) != nil)
+    #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(first + last + games))
+            == earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(first + last)))
 }

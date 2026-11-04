@@ -212,7 +212,7 @@ enum LegacySchemaGeneration5 {
 /// Поколение 6: база 1.1.0 (поколение 5, маркер «5») открывается, данные на месте, новые поля пустые,
 /// новая модель пишется и читается после повторного открытия; маркер становится 6.
 @MainActor @Test func generationFiveStoreOpensAndBecomesGenerationSix() async throws {
-    #expect(SchemaGeneration.current == 6)
+    #expect(SchemaGeneration.current >= 6)
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TenFingersGen5-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -247,7 +247,7 @@ enum LegacySchemaGeneration5 {
 
     do {
         let container = try ModelStore.makeContainer(at: url)
-        #expect(try SchemaGeneration.read(at: url) == 6)
+        #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
         let context = container.mainContext
         let session = try #require(try context.fetch(FetchDescriptor<SessionRecord>()).first)
         #expect(session.chars == 90 && session.exerciseKind == "check" && session.yoPresses == 0)
@@ -271,7 +271,7 @@ enum LegacySchemaGeneration5 {
     #expect(session.stepIndex == 3 && session.planSlot == "lesson" && session.textTraits == 5)
     let grant = try #require(try reopened.mainContext.fetch(FetchDescriptor<AchievementGrant>()).first)
     #expect(grant.occurrence == "2027-01-14" && grant.value == nil && grant.seen == false)
-    #expect(try SchemaGeneration.read(at: url) == 6)
+    #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
 }
 
 /// Сборка поколения 5 базу поколения 6 не откроет: и по маркеру, и по незнакомой сущности.
@@ -280,7 +280,7 @@ enum LegacySchemaGeneration5 {
     #expect(SchemaGeneration.canOpen(stored: 5, current: 6))
     let old = Set(Schema(LegacySchemaGeneration5.models).entities.map(\.name))
     let new = Set(ModelStore.schema.entities.map(\.name))
-    #expect(ModelStore.unknownEntities(store: new, known: old) == ["AchievementGrant"])
+    #expect(ModelStore.unknownEntities(store: new, known: old) == ["AchievementGrant", "RhythmResult"])
 }
 
 /// Пара (ачивка, ключ получения) уникальна: повтор сливается в одну запись, другой ключ — новая запись.

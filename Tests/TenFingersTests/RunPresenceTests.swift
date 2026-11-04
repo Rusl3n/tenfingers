@@ -28,12 +28,27 @@ private func sidebar(paused: Bool, reason: PauseReason,
                              isRunVisible: true, current: current)
 }
 
+@Test func resultExpandsSidebarAndNextRunCollapsesIt() {
+    #expect(SidebarPolicy.visibility(afterResult: true, hasRun: true, isRunVisible: true, current: .detailOnly) == .all)
+    #expect(SidebarPolicy.visibility(afterResult: false, hasRun: true, isRunVisible: true, current: .all) == .detailOnly)
+    #expect(SidebarPolicy.visibility(afterResult: true, hasRun: true, isRunVisible: true, current: .all) == nil)
+    // Скрытый запуск и запуск, которого уже нет, меню не трогают.
+    #expect(SidebarPolicy.visibility(afterResult: true, hasRun: true, isRunVisible: false, current: .detailOnly) == nil)
+    #expect(SidebarPolicy.visibility(afterResult: false, hasRun: false, isRunVisible: true, current: .all) == nil)
+}
+
 @Test func escapePauseExpandsSidebar() {
     #expect(sidebar(paused: true, reason: .escape, current: .detailOnly) == .all)
 }
 
 @Test func resumeAfterEscapePauseCollapsesSidebar() {
     #expect(sidebar(paused: false, reason: .escape, current: .all) == .detailOnly)
+}
+
+@Test func layoutPauseLeavesSidebarAlone() {
+    #expect(sidebar(paused: true, reason: .layout, current: .detailOnly) == nil)
+    #expect(sidebar(paused: false, reason: .layout, current: .detailOnly) == nil)
+    #expect(sidebar(paused: true, reason: .layout, current: .all) == nil)
 }
 
 @Test func focusLossPauseLeavesSidebarAlone() {

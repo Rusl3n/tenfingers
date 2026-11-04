@@ -30,7 +30,7 @@ private func cyrillicWords(_ s: String) -> [String] {
     }
 }
 
-/// Все 151 id как есть в базах пользователей: переименование или удаление должно ронять тест
+/// Все 158 id как есть в базах пользователей: переименование или удаление должно ронять тест
 /// (новая ачивка — осознанное дополнение этого списка).
 private let goldenIds: [String] = [
     "streak.3", "streak.7", "streak.14", "streak.30",
@@ -85,11 +85,14 @@ private let goldenIds: [String] = [
     "challenge.week", "challenge.month",
     // Фаза 6e (3): уровни.
     "level.10", "level.30", "level.45",
+    // Ритм (решение 12 плана игры «Ритм»).
+    "rhythm.first", "rhythm.fullcombo", "rhythm.perfect", "rhythm.combo100", "rhythm.s.expert",
+    "rhythm.allmodes", "rhythm.hour",
 ]
 
 @Test func catalogIdsMatchTheGoldenList() {
     let ids = AchievementCatalog.all.map(\.id)
-    #expect(goldenIds.count == 151 && Set(goldenIds).count == 151)
+    #expect(goldenIds.count == 158 && Set(goldenIds).count == 158)
     #expect(Set(ids) == Set(goldenIds),
             "пропали: \(Set(goldenIds).subtracting(ids).sorted()); лишние: \(Set(ids).subtracting(goldenIds).sorted())")
     #expect(ids.count == goldenIds.count)
@@ -248,7 +251,8 @@ private let goldenIds: [String] = [
     #expect(count(.milestone) == 13)
     #expect(count(.letters) == 17)
     #expect(count(.fun) == 23)
-    #expect(AchievementCatalog.all.count == 151)
+    #expect(count(.rhythm) == 7)
+    #expect(AchievementCatalog.all.count == 158)
 }
 
 @Test func everyAchievementHasRussianAndEnglishTexts() throws {
@@ -488,7 +492,7 @@ private let goldenIds: [String] = [
     #expect(achievement.repeatable && !achievement.secret && !achievement.adult)
     #expect(AchievementCatalog.all.filter { $0.category == .streak }.last?.id == "streak.repair")
     #expect(AchievementCatalog.all.filter { $0.icon == "bandage.fill" }.count == 1)
-    #expect(AchievementCatalog.all.count == 151)
+    #expect(AchievementCatalog.all.count == 158)
 }
 
 /// Испытания недели и месяца (6e): последние в `special`, повторяемые, значки свободны (у плана — `flag.checkered` и
@@ -507,7 +511,7 @@ private let goldenIds: [String] = [
     }
     #expect(AchievementCatalog.all.filter { $0.category == .special }.suffix(2).map(\.id)
             == ["challenge.week", "challenge.month"])
-    #expect(AchievementCatalog.all.count == 151)
+    #expect(AchievementCatalog.all.count == 158)
 }
 
 /// Рекорд, этапы, пять звёзд, ступени и неделя по плану (6d): категории, значки, условия и повторяемость.
@@ -537,7 +541,7 @@ private let goldenIds: [String] = [
 
 @Test func categoriesKeepTheirOrderWithMilestonesAfterTheCourse() {
     #expect(AchievementCategory.allCases == [.streak, .speed, .accuracy, .course, .milestone, .volume, .special,
-                                             .letters, .fun])
+                                             .letters, .fun, .rhythm])
 }
 
 /// Ступени «Искры» (6c): разовые ачивки серии после `streak.365`, не секретные, со значками из плана.
@@ -634,7 +638,7 @@ private let goldenIds: [String] = [
         ("fun.vibe_coder.ru", .ru, "сделай исправь продолжай давай", "moon.zzz"),
         ("fun.vibe_coder.en", .en, "fix check make refactor", "cpu"),
     ]
-    let all = AchievementCatalog.all.map(\.id)
+    let all = AchievementCatalog.all.filter { $0.category == .fun }.map(\.id)
     #expect(Array(all.suffix(3).prefix(2)) == planned.map(\.id), "«Вайбкодер» — перед идеей пользователя в конце «Забав»")
     let icons = AchievementCatalog.all.map(\.icon)
     for item in planned {

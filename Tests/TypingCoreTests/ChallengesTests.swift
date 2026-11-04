@@ -531,3 +531,43 @@ private func planDay(_ n: Int) -> [ExerciseFact] {
             == weeks.filter { $0.allDoneAt != nil }.map(\.period.key))
     #expect(found.allSatisfy { !$0.key.contains("/") && $0.date <= facts.now })
 }
+
+// MARK: - Ритм-игра в испытаниях: знаки (ноты) и время входят, чистота, скорость и рост — нет
+
+/// Заход игры: 300 нот за 90 с, скорости нет, «ошибок» нет.
+private func gameEx(_ end: String, chars: Int = 300, completed: Bool = true) -> ExerciseFact {
+    ex(end, chars: chars, cpm: 0, seconds: 90, accuracy: 1, mode: .rhythm, source: "rhythm:open", completed: completed)
+}
+
+@Test func gameNotesCountAsCharsButNotAsCleanSpeedOrGrowth() {
+    // G = 10, C = 100 → 4 000 знаков за неделю: игра добавляет свои ноты.
+    let chars = week(.weekChars, [ex(day(3), chars: 3_700), gameEx(day(4))])
+    #expect(chars.progress == 4000 && chars.completedAt == at(day(4)))
+    // Чистота: 4 чистых упражнения и заход игры — это всё ещё 4, а не 5.
+    let clean = week(.weekClean, (3...6).map { ex(day($0)) } + [gameEx(day(7))])
+    #expect(clean.progress == 4 && clean.completedAt == nil)
+    // Скорость: у захода нет скорости и он не «подходящее упражнение».
+    #expect(week(.weekSpeed, [gameEx(day(3))]).completedAt == nil)
+}
+
+@Test func gameDoesNotMoveTheMedianSpeedParameter() {
+    let before = [ex("2026-10-19 12:00", cpm: 100), ex("2026-10-25 12:00", cpm: 140), ex("2026-11-01 12:00", cpm: 120)]
+    let withGames = before + [gameEx("2026-10-26 12:00"), gameEx("2026-10-27 12:00"), gameEx("2026-10-28 12:00")]
+    #expect(Challenges.parameters(for: w45, facts: facts(withGames)).cpm == 120)
+}
+
+@Test func gameNeitherGrowsNorMakesGrowthAvailable() {
+    let october = (1...10).map { ex("2026-10-\(String(format: "%02d", $0)) 12:00", cpm: 100) }
+    let november = (1...10).map { ex("2026-11-\(String(format: "%02d", $0)) 12:00", cpm: 105) }
+    // Игры в ноябре не разбавляют среднюю скорость: девять обычных со 105 и пять игр — ещё рано, десятая обычная — готово.
+    let games = (11...15).map { gameEx("2026-11-\($0) 12:00") }
+    let nine = month(.monthGrowth, october + Array(november.prefix(9)) + games)
+    #expect(nine.completedAt == nil)
+    let ten = month(.monthGrowth, october + november + games)
+    #expect(ten.completedAt == at("2026-11-10 12:00"))
+    // Десять заходов игры в октябре не открывают рост на ноябрь.
+    let octoberGames = (1...10).map { gameEx("2026-10-\(String(format: "%02d", $0)) 12:00") }
+    #expect(!Challenges.availableMonthly(for: nov, facts: novFacts(octoberGames)).contains(.monthGrowth))
+    // Прошлый месяц из игр не мешает: средняя прошлого — по обычным.
+    #expect(month(.monthGrowth, october + octoberGames + november).completedAt == at("2026-11-10 12:00"))
+}

@@ -5,8 +5,14 @@ import TypingCore
 /// Выбор слабых мест: только открытые пользователем буквы (пробел и знаки препинания в словах не потренировать,
 /// а неоткрытые буквы ещё рано).
 enum WeakSpotsFocus {
-    static func keys(_ stats: [Character: KeyMastery], letters: Set<Character>, thresholdMs: Double) -> [Character] {
-        WeakSpots.worstKeys(stats.filter { letters.contains($0.key) }, thresholdMs: thresholdMs)
+    /// `focus` (буквы захода игры «Ритм») — ключи фокуса, которые открыты; нет такой или пусто — обычный расчёт.
+    static func keys(_ stats: [Character: KeyMastery], letters: Set<Character>, thresholdMs: Double,
+                     focus: [Character]? = nil) -> [Character] {
+        if let focus {
+            let open = focus.filter(letters.contains)
+            if !open.isEmpty { return open }
+        }
+        return WeakSpots.worstKeys(stats.filter { letters.contains($0.key) }, thresholdMs: thresholdMs)
     }
 
     static func bigrams(_ stats: [String: KeyMastery], letters: Set<Character>, thresholdMs: Double) -> [String] {

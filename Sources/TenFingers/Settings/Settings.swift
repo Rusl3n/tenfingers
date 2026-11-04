@@ -105,6 +105,18 @@ enum SettingsKey {
     static let updateFeedURL = "updateFeedURL"
     /// Прежний ключ темы (system/light/dark), читается один раз как начальное значение `themeMode`.
     static let legacyTheme = "theme"
+    /// Последний выбор экрана «Ритм»: `RhythmNoteMode`, `RhythmLevelID`, `RhythmBeatStyle` (rawValue). Не архивируется:
+    /// состояние окна.
+    static let rhythmLastMode = "rhythmLastMode"
+    static let rhythmLastLevel = "rhythmLastLevel"
+    static let rhythmLastStyle = "rhythmLastStyle"
+    /// «Сдвиг звука» игры «Ритм» (`RhythmSoundOffset`): на сколько миллисекунд бит сдвинут относительно нот
+    /// (−200…+200, шаг 10), Int, по умолчанию 0. На оценку не влияет. Не архивируется: задержка зависит от наушников
+    /// этого Mac.
+    static let rhythmSoundOffsetMs = "rhythmSoundOffsetMs"
+    /// Звук игры «Ритм» выключен кнопкой на поле (бит, щелчки попаданий и промахов), Bool, по умолчанию `false`.
+    /// Звуки приложения не трогает. Не архивируется: состояние окна.
+    static let rhythmMuted = "rhythmMuted"
 }
 
 enum SettingsDefault {

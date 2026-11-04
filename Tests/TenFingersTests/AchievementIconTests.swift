@@ -75,3 +75,26 @@ import TypingCore
         #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
     }
 }
+
+/// Значки экранов игры «Ритм» (боковая панель, «Играть», рекорд) существуют как SF Symbols.
+@Test func rhythmInterfaceIconsExist() {
+    for name in ["music.note", "play.fill", "trophy.fill"] {
+        #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
+    }
+}
+
+/// Кнопка категории «Ритм» в «Ачивках» — со значком `music.note` (существующий SF Symbol).
+@Test func rhythmCategoryChipHasAMusicNoteIcon() {
+    #expect(AchievementStyle.chipIcon(.rhythm) == "music.note")
+    #expect(NSImage(systemSymbolName: "music.note", accessibilityDescription: nil) != nil)
+}
+
+/// Значки ачивок «Ритм» (решение 12) существуют как SF Symbols, и каждый стоит у своей ачивки.
+@Test func rhythmAchievementIconsExist() {
+    let planned = ["music.note", "flame.fill", "star.circle.fill", "bolt.fill", "crown.fill", "square.grid.2x2.fill",
+                   "clock.fill"]
+    #expect(AchievementCatalog.all.filter { $0.category == .rhythm }.map(\.icon) == planned)
+    for name in planned {
+        #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
+    }
+}

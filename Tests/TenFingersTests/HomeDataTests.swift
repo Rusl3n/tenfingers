@@ -82,6 +82,28 @@ private func make(days: [String: DayActivity] = [:], sessions: [SessionSummary] 
     #expect(abs((data.weekAccuracy ?? 0) - 0.85) < 0.001)
 }
 
+private func rhythmSample(day: String, seconds: Double = 600) -> SessionSummary {
+    SessionSummary(day: day, endedAt: Date(timeIntervalSince1970: 1_773_144_000), language: .ru, mode: .rhythm,
+                   chars: 300, activeSeconds: seconds, accuracy: 0.5, completed: true, cpm: 0)
+}
+
+/// День только с игрой не тянет скорость и точность недели к нулю; в день с уроком игра не раздувает вес дня.
+@Test func metricsIgnoreRhythmGamesAndDaysWithOnlyGames() {
+    let onlyGames = make(sessions: [sample(day: "2026-03-08"), rhythmSample(day: "2026-03-09")])
+    #expect(abs((onlyGames.weekCpm ?? 0) - 300) < 0.001)
+    #expect(abs((onlyGames.weekAccuracy ?? 0) - 0.9) < 0.001)
+    let mixed = make(sessions: [
+        sample(day: "2026-03-10", chars: 600, seconds: 120, accuracy: 0.9),
+        sample(day: "2026-03-08", chars: 300, seconds: 120, accuracy: 0.8),
+        rhythmSample(day: "2026-03-10", seconds: 3000),
+    ])
+    #expect(abs((mixed.weekCpm ?? 0) - 225) < 0.001)
+    #expect(abs((mixed.weekAccuracy ?? 0) - 0.85) < 0.001)
+    // Только игра: показателей нет.
+    let gamesOnly = make(sessions: [rhythmSample(day: today)])
+    #expect(gamesOnly.weekCpm == nil && gamesOnly.weekAccuracy == nil)
+}
+
 @Test func metricsAreNilWithoutCompletedExercises() {
     let data = make(sessions: [sample(day: today, completed: false)])
     #expect(data.weekCpm == nil)

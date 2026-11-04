@@ -73,8 +73,8 @@ extension Evaluator {
         var best: [Language: Double] = [:]
         var result: [RawOccurrence] = []
         for fact in completed where fact.wrongKeystrokes == 0
-            && Analytics.isSpeedRecordExercise(completed: fact.completed, kind: fact.exerciseKind, chars: fact.chars,
-                                               accuracy: fact.accuracy) {
+            && Analytics.isSpeedRecordExercise(mode: fact.mode, completed: fact.completed, kind: fact.exerciseKind,
+                                               chars: fact.chars, accuracy: fact.accuracy) {
             let rounded = fact.cpm.rounded()
             guard let previous = best[fact.language] else {
                 best[fact.language] = rounded

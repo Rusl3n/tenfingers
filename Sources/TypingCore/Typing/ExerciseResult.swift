@@ -6,6 +6,8 @@ public enum HintLevel: String, Codable, CaseIterable, Sendable {
 
 public enum ExerciseMode: String, Codable, Sendable {
     case course, adaptive, weak, practice
+    /// Ритм-игра: скорости нет (`cpm` 0), в скорость, точность и рекорды не входит, время и число упражнений — входят.
+    case rhythm
 }
 
 public struct ExerciseResult: Sendable {

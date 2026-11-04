@@ -138,7 +138,8 @@ private func session(_ day: String, chars: Int, seconds: Double, accuracy: Doubl
 
 @Test func speedRecordRuleIsSharedWithAchievements() {
     func eligible(completed: Bool = true, kind: ExerciseKind?, chars: Int, accuracy: Double) -> Bool {
-        Analytics.isSpeedRecordExercise(completed: completed, kind: kind, chars: chars, accuracy: accuracy)
+        Analytics.isSpeedRecordExercise(mode: .practice, completed: completed, kind: kind, chars: chars,
+                                        accuracy: accuracy)
     }
     #expect(eligible(kind: .check, chars: 90, accuracy: 1))
     #expect(eligible(kind: nil, chars: 300, accuracy: 1))
@@ -229,7 +230,62 @@ private func session(_ day: String, chars: Int, seconds: Double, accuracy: Doubl
 }
 
 @Test func refreshIsAQualifyingExerciseLikeACheck() {
-    #expect(Analytics.isQualifyingLength(kind: .refresh, chars: 90) && Analytics.isQualifyingLength(kind: .check, chars: 90))
-    #expect(!Analytics.isQualifyingLength(kind: .words, chars: 90) && !Analytics.isQualifyingLength(kind: nil, chars: 90))
-    #expect(Analytics.isSpeedRecordExercise(completed: true, kind: .refresh, chars: 90, accuracy: 1))
+    func qualifies(_ kind: ExerciseKind?, chars: Int) -> Bool {
+        Analytics.isQualifyingLength(mode: .course, kind: kind, chars: chars)
+    }
+    #expect(qualifies(.refresh, chars: 90) && qualifies(.check, chars: 90))
+    #expect(!qualifies(.words, chars: 90) && !qualifies(nil, chars: 90))
+    #expect(Analytics.isSpeedRecordExercise(mode: .course, completed: true, kind: .refresh, chars: 90, accuracy: 1))
+}
+
+// MARK: - Ритм-игра: время и число упражнений входят, скорость, точность и рекорды — нет
+
+private func game(_ day: String, chars: Int = 300, seconds: Double = 90, accuracy: Double = 1,
+                  completed: Bool = true, endedAt: Double = 0) -> SessionSummary {
+    SessionSummary(day: day, endedAt: Date(timeIntervalSince1970: endedAt), language: .ru, mode: .rhythm, chars: chars,
+                   activeSeconds: seconds, accuracy: accuracy, completed: completed, cpm: 0)
+}
+
+@Test func dailyKeepsGameTimeAndCountButNotSpeedOrAccuracy() {
+    let point = Analytics.daily([
+        session("d", chars: 400, seconds: 120, accuracy: 0.98, cpm: 200),
+        game("d", chars: 300, seconds: 90, accuracy: 0.5),
+        game("d", chars: 20, seconds: 30, accuracy: 0.1, completed: false),
+    ], language: nil)[0]
+    #expect(point.cpm == 200)
+    #expect(abs(point.accuracy - 0.98) < 1e-9)
+    #expect(point.seconds == 240)
+    #expect(point.sessions == 2)
+}
+
+@Test func dayWithOnlyGamesHasNoSpeedButHasTime() {
+    let point = Analytics.daily([game("d", seconds: 90), game("d", seconds: 60)], language: nil)[0]
+    #expect(point.cpm == 0 && point.accuracy == 0)
+    #expect(point.seconds == 150 && point.sessions == 2)
+    // Обычных упражнений нет: ни скорости, ни точности, ни веса дня.
+    #expect(point.typedSessions == 0 && point.typedSeconds == 0)
+}
+
+@Test func dayWithLessonAndGameKeepsLessonSpeedAndWeight() {
+    let point = Analytics.daily([
+        session("d", chars: 400, seconds: 120, accuracy: 0.98, cpm: 200),
+        session("d", chars: 100, seconds: 30, accuracy: 0.9, completed: false, cpm: 200),
+        game("d", seconds: 600),
+    ], language: nil)[0]
+    #expect(point.cpm == 200)
+    #expect(point.typedSessions == 1)
+    // Вес дня — время обычных упражнений (с брошенным), без игры; время дня — со всем.
+    #expect(point.typedSeconds == 150 && point.seconds == 750)
+}
+
+@Test func gameNeverSetsRecords() {
+    let records = Analytics.records([game("d", chars: 300, seconds: 90, accuracy: 1, endedAt: 5)], longestStreak: 0)
+    #expect(records.bestCpm.isEmpty && records.bestAccuracy.isEmpty)
+    #expect(game("d").isSpeedRecordExercise == false)
+    #expect(!Analytics.isQualifyingLength(mode: .rhythm, kind: nil, chars: 900))
+    #expect(!Analytics.isSpeedRecordExercise(mode: .rhythm, completed: true, kind: nil, chars: 300, accuracy: 1))
+    // Обычная запись рядом рекорд даёт по-прежнему.
+    let mixed = Analytics.records([game("d", endedAt: 5), session("d", chars: 300, seconds: 60, endedAt: 10)],
+                                  longestStreak: 0)
+    #expect(mixed.bestCpm[.ru]?.value == 300 && mixed.bestAccuracy[.ru]?.value == 1)
 }

@@ -73,6 +73,20 @@ private let settings = DayPlanSettings(goalMinutes: 20, dayStartHour: 4, adaptiv
     #expect(plan.items[1].action == .lesson(lessonId: course.stages[1].lessons[2].id, retake: false))
 }
 
+/// Игра «Ритм» (скорость 0) в медиану скорости плана не входит.
+@MainActor @Test func medianSpeedIgnoresRhythmSessions() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    addSession(context, day: "2026-10-28", cpm: 150)
+    addSession(context, day: "2026-10-29", cpm: 200)
+    for day in ["2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"] {
+        addSession(context, day: day, mode: "rhythm", cpm: 0)
+    }
+    try context.save()
+    let loader = DayPlanLoader(context: context, library: ContentLibrary(), settings: settings)
+    #expect(try loader.input(language: .ru, today: today).medianCpm == 175)
+}
+
 @MainActor @Test func emptyStoreStillGivesFourItems() throws {
     let container = try ModelStore.makeContainer(inMemory: true)
     let library = ContentLibrary()

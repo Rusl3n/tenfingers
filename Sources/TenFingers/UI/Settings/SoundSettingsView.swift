@@ -3,6 +3,7 @@ import TypingCore
 
 /// Раздел «Звуки»: по строке на каждое событие.
 struct SoundSettingsView: View {
+    @AppStorage(SettingsKey.rhythmSoundOffsetMs) private var soundOffsetMs = RhythmSoundOffset.defaultMs
     @State private var isDefault = SoundSettingsDefaults.isDefault(in: .standard)
     @State private var confirmReset = false
 
@@ -10,6 +11,17 @@ struct SoundSettingsView: View {
         Form {
             Section {
                 ForEach(SoundSettings.activeEvents, id: \.self) { SoundRow(event: $0) }
+            }
+            Section("Ритм") {
+                Stepper(value: $soundOffsetMs, in: RhythmSoundOffset.range, step: RhythmSoundOffset.step) {
+                    HStack {
+                        Text("Сдвиг звука")
+                        Spacer()
+                        Text(RhythmSoundOffset.label(soundOffsetMs)).monospacedDigit().foregroundStyle(.secondary)
+                    }
+                }
+                Text("Если бит отстаёт в Bluetooth-наушниках, сдвиньте звук раньше. На оценку сдвиг не влияет.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             Section {
                 Button("Звуки по умолчанию") { confirmReset = true }

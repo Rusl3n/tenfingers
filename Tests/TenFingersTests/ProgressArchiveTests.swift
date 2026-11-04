@@ -84,6 +84,10 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
     context.insert(AchievementGrant(achievementId: "time.morning", occurrence: "2026-09-21",
                                     grantedAt: base.addingTimeInterval(70), value: 2, seen: true))
     context.insert(AchievementGrant(achievementId: "course.stage", occurrence: "ru.1", grantedAt: base.addingTimeInterval(80)))
+    context.insert(RhythmResult(language: "ru", mode: "words", level: "hard", bpm: 110, startedAt: base.addingTimeInterval(90),
+                                endedAt: base.addingTimeInterval(180), score: 54_321, accuracy: 0.9375, maxCombo: 42,
+                                grade: "B", cleared: true, judgements: Data(#"{"late":3,"perfect":13}"#.utf8),
+                                report: Data(#"{"accuracy":0.9375}"#.utf8)))
     try context.save()
 }
 
@@ -96,7 +100,8 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
     [try count(SessionRecord.self, context), try count(LessonProgress.self, context), try count(KeyStat.self, context),
      try count(BigramStat.self, context), try count(DayRecord.self, context), try count(CounterRecord.self, context),
      try count(AdaptiveState.self, context), try count(CustomText.self, context), try count(AdaptiveUnlock.self, context),
-     try count(AchievementRecord.self, context), try count(AchievementGrant.self, context)]
+     try count(AchievementRecord.self, context), try count(AchievementGrant.self, context),
+     try count(RhythmResult.self, context)]
 }
 
 private func archiveJSON(_ fields: String) -> Data {
@@ -117,14 +122,14 @@ private func archiveJSON(_ fields: String) -> Data {
     let data = try ProgressArchive.export(context: source, defaults: sourceDefaults, now: base)
     let archive = try ProgressArchive.decode(data)
     #expect(archive.format == "tenfingers-progress")
-    #expect(archive.version == 2)
+    #expect(archive.version == 3)
     #expect(archive.schemaGeneration == SchemaGeneration.current)
 
     let targetContainer = try ModelStore.makeContainer(inMemory: true)
     let target = targetContainer.mainContext
     try ProgressArchive.replaceAll(with: archive, context: target)
     #expect(try counts(target) == counts(source))
-    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2])
+    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1])
 
     let sessions = try target.fetch(FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.startedAt)]))
     #expect(Set(sessions.map(\.id)) == originalSessionIds)
@@ -213,7 +218,7 @@ private func archiveJSON(_ fields: String) -> Data {
         "SessionRecord": "sessions", "LessonProgress": "lessonProgress", "KeyStat": "keyStats",
         "BigramStat": "bigramStats", "DayRecord": "days", "CounterRecord": "counters",
         "AdaptiveState": "adaptiveStates", "AdaptiveUnlock": "adaptiveUnlocks", "CustomText": "customTexts",
-        "AchievementRecord": "achievements", "AchievementGrant": "achievementGrants",
+        "AchievementRecord": "achievements", "AchievementGrant": "achievementGrants", "RhythmResult": "rhythmResults",
     ]
     #expect(Set(ModelStore.schema.entities.map(\.name)) == Set(sections.keys))
     for entity in ModelStore.schema.entities {
@@ -229,12 +234,12 @@ private func archiveJSON(_ fields: String) -> Data {
 // MARK: - Формат и версии
 
 @Test func newerFormatVersionIsUnsupported() throws {
-    #expect(ProgressArchive.version == 2)
+    #expect(ProgressArchive.version == 3)
     let next = ProgressArchive.version + 1
     let data = archiveJSON(#""format": "tenfingers-progress", "version": \#(next), "schemaGeneration": 2"#)
     #expect(throws: ArchiveError.unsupported(next)) { _ = try ProgressArchive.decode(data) }
     let message = try #require(ArchiveError.unsupported(next).errorDescription)
-    #expect(message.contains("до 2"), "\(message)")
+    #expect(message.contains("до 3"), "\(message)")
 }
 
 @Test func archiveFromNewerSchemaGenerationIsRefused() throws {
@@ -361,7 +366,7 @@ private func archiveJSON(_ fields: String) -> Data {
 
     try ProgressArchive.replaceAll(with: archive, context: target)
     #expect(!target.hasChanges)
-    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2])
+    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1])
     let sources = Set(try target.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source))
     #expect(sources == ["library:new"])
     #expect(try target.fetch(FetchDescriptor<LessonProgress>()).allSatisfy { $0.attempts == 42 })
@@ -846,7 +851,7 @@ private struct SimulatedDiskFailure: Error {}
     do {
         let container = try ModelStore.makeContainer(at: storeURL)
         let context = container.mainContext
-        #expect(try counts(context) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2])
+        #expect(try counts(context) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1])
         #expect(try context.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source) == ["library:new"])
         #expect(try context.fetch(FetchDescriptor<CustomText>()).map(\.title) == ["Заметка new"])
         #expect(try context.fetch(FetchDescriptor<CustomText>()).first?.offset == 7)
@@ -998,6 +1003,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
     #expect(keys.count > 15)
     // Не настройки: состояние окна или устройства (язык интерфейса), прежний ключ темы, служебные флаг очистки
     // уведомлений и предел очереди уведомлений этого Mac, лист «Новый курс» показан, тост «План выполнен» за день и показанные тосты уровня и испытаний (состояние устройства), выбранная вкладка «Главной» (состояние окна) и увиденные отпечатки вкладок (состояние устройства);
+    // последний выбор экрана «Ритм» (состояние окна) и «Сдвиг звука» игры (задержка наушников этого Mac);
     // профиль — отдельным разделом архива.
     let excluded: Set<String> = [SettingsKey.settingsSection, SettingsKey.legacyTheme, SettingsKey.interfaceLanguage,
                                  SettingsKey.onboardingCompleted, SettingsKey.achievementsFilter,
@@ -1008,7 +1014,9 @@ private func fillPreferences(_ defaults: UserDefaults) {
                                  SettingsKey.yearAnnouncedChallenges,
                                  SettingsKey.updateAutoCheck, SettingsKey.updateLastCheck,
                                  SettingsKey.updateSkippedVersion, SettingsKey.updateFeedURL,
-                                 SettingsKey.homeTab, SettingsKey.homeTabSeen]
+                                 SettingsKey.homeTab, SettingsKey.homeTabSeen, SettingsKey.rhythmLastMode,
+                                 SettingsKey.rhythmLastLevel, SettingsKey.rhythmLastStyle,
+                                 SettingsKey.rhythmSoundOffsetMs, SettingsKey.rhythmMuted]
     let archived = Set(ArchivedSettings.entries.map(\.key))
     #expect(keys.subtracting(excluded).subtracting(archived).isEmpty,
             "не в архиве: \(keys.subtracting(excluded).subtracting(archived).sorted())")
@@ -1058,7 +1066,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let damaged = try #require(ArchiveError.damaged("sessions.0.language").errorDescription)
     #expect(damaged.contains("№ 1") && damaged.contains("language") && !damaged.contains("sessions"))
     for model in ["SessionRecord", "DayRecord", "KeyStat", "BigramStat", "LessonProgress", "AdaptiveState",
-                  "AdaptiveUnlock", "CounterRecord", "CustomText", "AchievementGrant"] {
+                  "AdaptiveUnlock", "CounterRecord", "CustomText", "AchievementGrant", "RhythmResult"] {
         let invalid = try #require(ArchiveError.invalidRecord(model, 1).errorDescription)
         #expect(!invalid.contains(model), "\(invalid)")
         #expect(invalid.contains("№ 2"))
@@ -1292,4 +1300,70 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let summaries = try ProgressSnapshot(context: targetContainer.mainContext).sessionSummaries()
         .sorted { $0.endedAt < $1.endedAt }
     #expect(summaries.map(\.planSlot) == [.warmup, .lesson, .training, .text])
+}
+
+// MARK: - Игра «Ритм»: архив версии 3
+
+/// Результат игры проходит экспорт → загрузку без потерь: поля, отчёт и разбор по оценкам байт в байт, `id` сохраняется;
+/// повторный экспорт совпадает с первым.
+@MainActor @Test func rhythmResultsRoundTripThroughArchive() throws {
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    try populate(source)
+    let original = try #require(try source.fetch(FetchDescriptor<RhythmResult>()).first)
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+
+    let first = try ProgressArchive.export(context: source, defaults: defaults, now: base)
+    let archive = try ProgressArchive.decode(first)
+    #expect(archive.version == 3 && archive.rhythmResults.count == 1)
+    #expect(ArchiveError.sectionTitle(model: "RhythmResult") == "Результаты игры «Ритм»")
+
+    let targetContainer = try ModelStore.makeContainer(inMemory: true)
+    let target = targetContainer.mainContext
+    try ProgressArchive.replaceAll(with: archive, context: target)
+    let restored = try #require(try target.fetch(FetchDescriptor<RhythmResult>()).first)
+    #expect(try count(RhythmResult.self, target) == 1)
+    #expect(restored.id == original.id && restored.language == "ru" && restored.mode == "words")
+    #expect(restored.level == "hard" && restored.bpm == 110 && restored.score == 54_321)
+    #expect(restored.accuracy == 0.9375 && restored.maxCombo == 42 && restored.grade == "B" && restored.cleared)
+    #expect(restored.startedAt == base.addingTimeInterval(90) && restored.endedAt == base.addingTimeInterval(180))
+    #expect(restored.judgements == original.judgements && restored.report == original.report)
+
+    let second = try ProgressArchive.export(context: target, defaults: defaults, now: base)
+    #expect(first == second)
+}
+
+/// Файл версии 2 (поколение 6) читается: раздела `rhythmResults` нет — после загрузки пусто, остальное на месте.
+@MainActor @Test func versionTwoArchiveImportsWithoutRhythmResults() throws {
+    let data = archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 2, "schemaGeneration": 6,
+        "sessions": [{
+            "id": "6F9619FF-8B86-D011-B42D-00C04FC964FF", "mode": "course", "language": "ru", "lessonId": "ru.1.1",
+            "startedAt": 811677600, "endedAt": 811677660, "logicalDay": "2026-09-21",
+            "activeSeconds": 60, "chars": 100, "errorCount": 1, "cpm": 100, "accuracy": 0.99, "completed": true,
+            "hintLevel": "full", "stepIndex": 2, "textTraits": 1
+        }],
+        "achievementGrants": [{ "achievementId": "time.morning", "occurrence": "2026-09-21", "grantedAt": 811677660 }]
+        """#)
+    let archive = try ProgressArchive.decode(data)
+    #expect(archive.version == 2 && archive.rhythmResults.isEmpty)
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try ProgressArchive.replaceAll(with: archive, context: context)
+    #expect(try count(RhythmResult.self, context) == 0)
+    #expect(try count(SessionRecord.self, context) == 1 && count(AchievementGrant.self, context) == 1)
+    #expect(try #require(try context.fetch(FetchDescriptor<SessionRecord>()).first).stepIndex == 2)
+}
+
+/// Запись раздела без языка отклоняется, база не меняется.
+@MainActor @Test func invalidRhythmResultInArchiveIsRejected() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    try populate(context)
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    var archive = try ProgressArchive.decode(ProgressArchive.export(context: context, defaults: defaults, now: base))
+    archive.rhythmResults[0].language = ""
+    #expect(throws: ArchiveError.invalidRecord("RhythmResult", 0)) { try ProgressArchive.validate(archive) }
 }

@@ -32,6 +32,8 @@ struct WeakSpotsRunnerView: View {
     let language: Language
     /// Пункт плана дня (`TrainingRun.planSlot`): пишется в каждую порцию.
     var planSlot: PlanSlot? = nil
+    /// Слабые буквы захода «Ритма» (`TrainingRun.focus`); `nil` — обычный расчёт.
+    var focus: [Character]? = nil
     let onExit: () -> Void
 
     static let portionLength = 250
@@ -139,7 +141,7 @@ struct WeakSpotsRunnerView: View {
                                             legacy: library.legacyCourses[language]))
             ?? Set(trainer.unlockedLetters(count: AdaptiveTrainer.initialLetters))
         let keys = WeakSpotsFocus.keys((try? reader.keyMastery(language: language)) ?? [:],
-                                       letters: open, thresholdMs: thresholdMs)
+                                       letters: open, thresholdMs: thresholdMs, focus: focus)
         let bigrams = WeakSpotsFocus.bigrams((try? reader.bigramMastery(language: language)) ?? [:],
                                              letters: open, thresholdMs: thresholdMs)
         for key in keys where !usedKeys.contains(key) { usedKeys.append(key) }

@@ -41,6 +41,9 @@ private let samples: [AchievementCondition] = [
     .goalMultiple(2), .slowAndSteady, .firstTry, .allFingersDrilled,
     // Фаза 6e.
     .streakRepair, .challengeWeek, .challengeMonth, .level(10),
+    // Ритм.
+    .rhythmCleared, .rhythmFullCombo, .rhythmAllPerfect, .rhythmCombo(100), .rhythmGrade(.s, level: .expert),
+    .rhythmGrade(.a, level: .personal), .rhythmAllModes, .rhythmSeconds(3600),
 ]
 
 @Test func everyConditionKindHasATextInBothLanguages() {
