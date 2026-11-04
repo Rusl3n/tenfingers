@@ -30,6 +30,9 @@ private let situationalIds: Set<String> = [
     "time.morning", "time.afternoon", "time.evening", "habit.visits.2", "habit.visits.3", "habit.visits.5",
     "habit.goal.x2", "habit.goal.x3", "special.own_words", "special.night_owl", "special.early_bird",
     "course.first_try", "fun.slow_steady",
+    // «Пластырь на серию» (6e): нужен пропущенный день без заморозок и двойная цель на следующий, а модель занимается
+    // каждый день. Испытания (`challenge.*`) и уровни (`level.*`) — прогресс, они в подсчёте.
+    "streak.repair",
     // «Восемь пальцев»: занятие «Точность пальца» по каждому пальцу — выбор пользователя, модель его не воспроизводит.
     "fingers.all_eight",
 ]
@@ -381,9 +384,18 @@ private func buildSchedule() throws -> Schedule {
     #expect(abs(Double(spaces) / Double(chars) - 0.16) < 0.005 && abs(Double(pinkies) / Double(chars) - 0.09) < 0.005)
 }
 
-@Test func catalogHasNoSixEAchievementsYet() {
-    let ids = AchievementCatalog.all.map(\.id)
-    #expect(!ids.contains { $0.hasPrefix("challenge.") || $0.hasPrefix("level.") || $0 == "streak.repair" })
+/// 6e, решение 11: `level.10` — первые ~3 недели, `level.30` — середина обучения, `level.45` — к 400-му дню.
+/// Кривая и правила опыта не подгоняются под модель: не укладывается — это сообщение контролёру.
+@Test func levelAchievementsFollowTheModelPace() throws {
+    let schedule = try sharedSchedule.get()
+    let ten = try #require(schedule.day(of: "level.10"), "«level.10» не получена")
+    let thirty = try #require(schedule.day(of: "level.30"), "«level.30» не получена")
+    let fortyFive = try #require(schedule.day(of: "level.45"), "«level.45» не получена")
+    #expect(ten > 7 && ten <= 25, "level.10 на \(ten)-й день")
+    #expect((100...200).contains(thirty), "level.30 на \(thirty)-й день")
+    #expect(fortyFive > thirty && fortyFive <= 400, "level.45 на \(fortyFive)-й день")
+    let counted = Set(schedule.counted.map(\.id))
+    #expect(["level.10", "level.30", "level.45", "challenge.week", "challenge.month"].allSatisfy(counted.contains))
 }
 
 @Test func firstWeekGivesAtMostFifteenPercentOfTheCatalog() throws {

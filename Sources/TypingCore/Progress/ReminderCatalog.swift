@@ -20,7 +20,8 @@ public struct ReminderLine: Equatable, Sendable {
 /// Каталог текстов напоминаний. Ключ фразы — русский текст в ресурсах ядра (перевод — там же).
 public enum ReminderCatalog {
     /// Какое число нужно фразе: серия (`{streak}`), минуты до огня (`{minutes}`) или никакое.
-    public enum Need: Sendable { case none, streak, minutes }
+    /// `repair` — фраза «починки» (6e): только для контекста `.repair`, числа — серия и/или минуты.
+    public enum Need: Sendable { case none, streak, minutes, repair }
 
     /// `tone` бывает только `.normal` или `.funny`; «Вперемешку» — их объединение.
     public struct Phrase: Sendable {
@@ -41,6 +42,9 @@ public enum ReminderCatalog {
         case almost(minutes: Int)
         /// Будущий день: числа к тому времени устареют, годятся только фразы без них.
         case later
+        /// Сегодня пропущенный вчера день можно починить двойной целью: серия `streak` дн., осталось `minutes` минут
+        /// до двойной цели. Фразы — свой набор, ступени не учитываются.
+        case repair(streak: Int, minutes: Int)
     }
 
     private static func phrase(_ tone: ReminderTone, _ stage: ReminderStage, _ need: Need, adult: Bool = false,
@@ -91,20 +95,30 @@ public enum ReminderCatalog {
         phrase(.funny, .drama, .minutes, adult: true, "Ещё {minutes} мин. Не останавливайтесь на самом интересном"),
         phrase(.funny, .soft, .minutes, adult: true, "Огонь разгорается. Ещё {minutes} мин — и будет жарко"),
         phrase(.funny, .insistent, .none, adult: true, "Пальцы без тренировки — как вечеринка без музыки. Включайте"),
+        // «Починка» (6e): ступень не учитывается, указана для порядка.
+        phrase(.normal, .soft, .repair, "Серия {streak} дн. на волоске: двойная цель сегодня её спасёт"),
+        phrase(.normal, .soft, .repair, "Ещё {minutes} мин — и серия в {streak} дн. будет спасена"),
+        phrase(.normal, .soft, .repair, "Вчерашний пропуск ещё можно починить: до двойной цели {minutes} мин"),
+        phrase(.funny, .soft, .repair, "Серия {streak} дн. лежит в гипсе. Двойная цель сегодня его снимет"),
+        phrase(.funny, .soft, .repair, "Подкиньте ещё {minutes} мин — и серия вернётся из больницы"),
+        phrase(.funny, .soft, .repair, "Пальцы, на починку серии в {streak} дн.! Нужна двойная цель"),
     ]
 
     /// Кандидаты для напоминания: тон (`.mixed` — оба), ступень, «взрослые» — только при `adultHumor`;
     /// числа — по контексту: с серией — фразы без чисел или с серией, без серии — без чисел,
-    /// с половинным огнём — без чисел или с минутами, будущий день — без чисел.
+    /// с половинным огнём — без чисел или с минутами, будущий день — без чисел, «починка» — только свой набор.
     public static func candidates(tone: ReminderTone, stage: ReminderStage, adultHumor: Bool,
                                   context: Context) -> [Phrase] {
         let allowed: Set<Need> = switch context {
         case .atRisk: [.none, .streak]
         case .almost: [.none, .minutes]
         case .fresh, .later: [.none]
+        case .repair: [.repair]
         }
+        // Набор «починки» ступеней не знает: берутся все его фразы выбранного тона.
+        let anyStage: Bool = if case .repair = context { true } else { false }
         return phrases.filter {
-            (tone == .mixed || $0.tone == tone) && $0.stage == stage && (adultHumor || !$0.adult)
+            (tone == .mixed || $0.tone == tone) && (anyStage || $0.stage == stage) && (adultHumor || !$0.adult)
                 && allowed.contains($0.need)
         }
     }
@@ -120,6 +134,7 @@ public enum ReminderCatalog {
         switch (chosen.need, context) {
         case (.streak, .atRisk(let value)): streak = value
         case (.minutes, .almost(let value)): minutes = value
+        case (.repair, .repair(let value, let left)): (streak, minutes) = (value, left)
         default: break
         }
         return ReminderLine(key: chosen.key, streak: streak, minutes: minutes)
@@ -132,13 +147,6 @@ public enum ReminderCatalog {
             .replacingOccurrences(of: "{minutes}", with: String(line.minutes))
     }
 
-    /// FNV-1a, 64 бита, по байтам UTF-8.
-    static func fnv1a(_ text: String) -> UInt64 {
-        var hash: UInt64 = 0xcbf29ce484222325
-        for byte in text.utf8 {
-            hash ^= UInt64(byte)
-            hash = hash &* 0x100000001b3
-        }
-        return hash
-    }
+    /// FNV-1a, 64 бита — общий помощник ядра `StableHash` (тот же выбор у испытаний недели и месяца).
+    static func fnv1a(_ text: String) -> UInt64 { StableHash.fnv1a(text) }
 }

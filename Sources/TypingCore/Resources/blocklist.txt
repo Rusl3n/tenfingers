@@ -55,7 +55,7 @@ start педик(?!ю)
 start трах(?:а|н|у)
 start секс
 start порн
-word ге(?:й|и|я|ю|ев|ям|ями|ях)
+word ге(?:й|и|я|ю|ем|ев|ям|ями|ях)
 start гейск
 start наркот
 start ублюд
@@ -116,3 +116,30 @@ word spics?
 start презик
 start презерват
 start гандон
+
+# Расовые, этнические и гомофобные оскорбления. «негр» — только формы слова: «негромко», «неграмотный» проходят;
+# «жид» — тоже формы, без «жидкий»; «хач» — без «хачапури».
+start нигг
+start нигер
+word негр(?:ы|а|у|е|ом|ов|ам|ами|ах)?
+start негрит
+start негроид
+start гомик
+start гомосек
+start лесби
+start чурк
+start хач(?!апур)
+word жид(?:ы|а|у|е|ом|ов|ам|ами|ах)?
+start жидов
+start пиндос
+start узкоглаз
+start черномаз
+start чучмек
+word negro(?:es)?
+word japs?
+word dykes?
+word homos?
+word gooks?
+word coons?
+start wetback
+word trann(?:y|ies)

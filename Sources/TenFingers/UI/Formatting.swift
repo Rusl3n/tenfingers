@@ -162,3 +162,14 @@ extension Formatting {
         }
     }
 }
+
+extension Formatting {
+    /// «осталось 5 дн.» / «1 day left» (`challenges.daysLeft %lld` в Localizable.stringsdict; без переводов — русская
+    /// форма, у неё одно сокращение на все числа).
+    static func daysLeft(_ count: Int, bundle: Bundle = .main, locale: Locale? = nil) -> String {
+        let locale = locale ?? interfaceLocale(bundle: bundle)
+        let text = String(localized: "challenges.daysLeft \(count)", bundle: bundle, locale: locale)
+        guard text.hasPrefix("challenges.daysLeft") else { return text }
+        return String(localized: "осталось \(count) дн.", bundle: bundle, locale: locale)
+    }
+}

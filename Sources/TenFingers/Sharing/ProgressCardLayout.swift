@@ -326,7 +326,7 @@ struct ProgressCalendarView: View {
         switch day.status {
         case .full: return .white
         case .half: return style.isDark ? .white : Color(white: 0.11)
-        case .frozen: return Color(white: 0.11)
+        case .frozen, .repaired: return Color(white: 0.11)
         case .none: return style.secondary
         }
     }

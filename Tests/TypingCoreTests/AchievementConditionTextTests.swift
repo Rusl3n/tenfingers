@@ -39,6 +39,8 @@ private let samples: [AchievementCondition] = [
     .distance(.texts, 100), .distance(.plans, 100), .perfectCount(100),
     .cleanDays(count: 30, exercises: 5, minimum: 0.97),
     .goalMultiple(2), .slowAndSteady, .firstTry, .allFingersDrilled,
+    // Фаза 6e.
+    .streakRepair, .challengeWeek, .challengeMonth, .level(10),
 ]
 
 @Test func everyConditionKindHasATextInBothLanguages() {
@@ -334,6 +336,14 @@ private let samples: [AchievementCondition] = [
     #expect(en(.goalMultiple(2)) == "Pure practice in a day: goal × 2")
     #expect(ru(.slowAndSteady) == "Шаг урока без единой ошибки, но медленнее цели урока")
     #expect(en(.slowAndSteady) == "A lesson step with no errors but slower than the lesson target")
+    #expect(ru(.streakRepair) == "Пропущенный день спасён: на следующий день набрана двойная цель")
+    #expect(en(.streakRepair) == "A missed day saved: you hit double your goal the next day")
+    #expect(ru(.challengeWeek) == "Выполните все три испытания недели")
+    #expect(en(.challengeWeek) == "Complete all three weekly challenges")
+    #expect(ru(.challengeMonth) == "Выполните испытание месяца")
+    #expect(en(.challengeMonth) == "Complete the monthly challenge")
+    #expect(ru(.level(30)) == "Уровень опыта: 30")
+    #expect(en(.level(30)) == "Experience level: 30")
     #expect(ru(.firstTry) == "Шаг урока с первой попытки: без ошибок и не медленнее цели урока")
     #expect(en(.firstTry) == "A lesson step on the first try: no errors, not slower than the lesson target")
     #expect(ru(.allFingersDrilled) == "Пройдите «Точность пальца» для каждого из восьми пальцев")

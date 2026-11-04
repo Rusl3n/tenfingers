@@ -7,6 +7,13 @@ struct RecordsView: View {
     let unit: SpeedUnit
     @State private var share: ShareCard?
 
+    nonisolated static let rankIcon = "speedometer"
+
+    /// Ранг скорости по рекорду языка (решение 12): название не зависит от единицы, в единицах настроек — только число рекорда.
+    nonisolated static func rankTitle(_ record: Record) -> String {
+        YearText.title(SpeedRank.of(cpm: record.value))
+    }
+
     /// Пока нет ни одного рекорда скорости и точности, объясняем, откуда они появятся.
     static func showsEmptyHint(_ records: Records) -> Bool {
         records.bestCpm.isEmpty && records.bestAccuracy.isEmpty
@@ -39,7 +46,10 @@ struct RecordsView: View {
     private func column(_ title: LocalizedStringKey, _ values: [Language: Record], shares: Bool = false,
                         format: @escaping (Double) -> String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Text(title).font(.caption).foregroundStyle(.secondary)
+                if shares { InfoButton(text: HelpText.speedRank, size: 11) }
+            }
             let present = Language.allCases.compactMap { values[$0] }
             if present.isEmpty {
                 Text("пока нет").font(.title3.weight(.semibold)).foregroundStyle(.secondary)
@@ -59,6 +69,11 @@ struct RecordsView: View {
                             .help("Поделиться")
                             .accessibilityLabel(Text("Поделиться"))
                         }
+                    }
+                    if shares {
+                        Label(Self.rankTitle(record), systemImage: Self.rankIcon)
+                            .font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                            .help(HelpText.speedRank)
                     }
                     Text(record.date.formatted(date: .long, time: .omitted))
                         .font(.caption).foregroundStyle(.secondary)

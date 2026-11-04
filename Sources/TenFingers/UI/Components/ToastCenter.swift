@@ -115,6 +115,19 @@ final class ToastCenter {
         return true
     }
 
+    /// Новый уровень (6e): «Уровень 12 · Ученик». Значок — как у ачивок уровней.
+    static func levelToast(level: Int, title: LevelTitle) -> Toast {
+        Toast(icon: "star.circle", message: YearText.levelLine(level: level, title: title), tint: AchievementToasts.tint)
+    }
+
+    /// Выполненное испытание (6e): «Испытание выполнено: Пять целей · +100 опыта». Значок — как у ачивки `challenge.week`.
+    static func challengeToast(_ id: ChallengeId, bonus: Int) -> Toast {
+        let name = YearText.title(id)
+        return Toast(icon: "checkmark.circle.fill",
+                     message: String(localized: "Испытание выполнено: \(name) · +\(bonus) опыта"),
+                     tint: AchievementToasts.tint)
+    }
+
     /// Кнопка сообщения: выполняет действие и убирает сообщение.
     func perform(_ toast: Toast) {
         guard let action = toast.action else { return }

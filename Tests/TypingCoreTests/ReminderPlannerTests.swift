@@ -193,6 +193,62 @@ private func hours(_ plan: [PlannedReminder]) -> [Int] {
     #expect(plan(config: config).allSatisfy { phrase($0).tone == .normal })
 }
 
+// MARK: - Починка (6e)
+
+private func repairSituation(today: DayStatus = .none, streak: Int = 34, minutes: Int = 12) -> ReminderSituation {
+    ReminderSituation(streak: streak, todayStatus: today, minutesLeft: 6,
+                      repair: RepairSituation(streak: streak, minutesLeft: minutes))
+}
+
+private func isRepair(_ reminder: PlannedReminder) -> Bool { phrase(reminder).need == .repair }
+
+@Test func repairPendingTodayUsesRepairSetWithNumbers() {
+    let result = plan(now: date(10, 8), config: ReminderConfig(mode: .thrice, escalating: true), situation: repairSituation())
+    let today = result.filter { $0.date < date(11, 0) }
+    #expect(today.count == 3)
+    #expect(today.allSatisfy { isRepair($0) && $0.line.streak == 34 && $0.line.minutes == 12 })
+    // Будущие дни — как раньше: фразы без чисел.
+    let later = result.filter { $0.date >= date(11, 0) }
+    #expect(!later.isEmpty)
+    #expect(later.allSatisfy { phrase($0).need == .none && $0.line.streak == 0 && $0.line.minutes == 0 })
+}
+
+@Test func repairPendingKeepsRemindersEvenWithFullFireToday() {
+    for status in [DayStatus.full, .half, .none] {
+        let result = plan(situation: repairSituation(today: status))
+        #expect(result.first?.date == date(10, 20), "статус \(status)")
+        #expect(result.first.map(isRepair) == true)
+    }
+    // Без починки полный огонь по-прежнему снимает сегодняшнее.
+    #expect(plan(situation: situation(today: .full)).first?.date == date(11, 20))
+}
+
+@Test func repairClosedFallsBackToUsualTexts() {
+    let result = plan(now: date(10, 8), config: ReminderConfig(mode: .thrice, escalating: true),
+                      situation: ReminderSituation(streak: 35, todayStatus: .full, minutesLeft: 1, repair: nil))
+    #expect(result.allSatisfy { $0.date >= date(11, 0) })
+    #expect(result.allSatisfy { !isRepair($0) })
+}
+
+@Test func repairRespectsToneAndIgnoresStage() {
+    let normal = plan(now: date(10, 8), config: ReminderConfig(mode: .thrice, tone: .normal, escalating: true),
+                      situation: repairSituation())
+    #expect(normal.filter(isRepair).allSatisfy { phrase($0).tone == .normal })
+    #expect(normal.filter(isRepair).count == 3)
+    let funny = plan(now: date(10, 8), config: ReminderConfig(mode: .thrice, tone: .funny, escalating: false),
+                     situation: repairSituation())
+    #expect(funny.filter(isRepair).allSatisfy { phrase($0).tone == .funny })
+    // Ступени не влияют на выбор: тот же слот — те же фразы при нарастающих и без.
+    let plain = plan(now: date(10, 8), config: ReminderConfig(mode: .thrice, tone: .funny, escalating: true),
+                     situation: repairSituation())
+    #expect(funny.filter(isRepair).map(\.line) == plain.filter(isRepair).map(\.line))
+    let mixed = plan(now: date(10, 0), config: ReminderConfig(mode: .interval, fromHour: 0, toHour: 23, intervalHours: 1,
+                                                              tone: .mixed, escalating: true),
+                     situation: repairSituation())
+    let tones = Set(mixed.filter(isRepair).map { phrase($0).tone })
+    #expect(tones == [.normal, .funny])
+}
+
 // MARK: - Идентификаторы
 
 /// Идентификатор — время срабатывания (по календарю планировщика), а не номер по порядку: напоминание на то же

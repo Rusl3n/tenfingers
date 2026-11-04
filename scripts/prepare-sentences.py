@@ -126,11 +126,14 @@ BLOCKED_EXAMPLES = [
     "долбоеб", "уёбок", "ебошить", "наёбка", "порно", "порнографический", "гей", "геи", "геев",
     "cocksucker", "blowjob", "dildo", "skank", "prostitute", "hooker", "stripper", "prick", "pricks", "bugger",
     "buggered", "pimp", "pimps", "penis", "vaginas", "sperm", "nude", "nudes",
+    "ниггер", "ниггеры", "нигер", "негр", "негры", "негром", "негритянской", "геем", "гомик", "лесбиянка", "чурка",
+    "хачи", "жид", "жиды", "жидовка", "пиндос", "nigger", "niggas", "negro", "negroes", "japs", "dyke", "homo", "tranny",
 ]
 CLEAN_EXAMPLES = [
     "корабля", "хлеб", "сравнить", "срам", "колебать", "небо", "ребус", "убедить", "обедать", "набег", "сук",
     "педикюр", "трахея", "класс", "sushi", "essex", "scunthorpe", "assist", "class", "grass", "dickens", "cocktail", "grape",
     "swanky", "sniggering", "сражение", "упорно", "упорный", "гейзер", "гейша", "сергей", "precious", "primp", "stripe",
+    "неграмотны", "негромко", "жидкость", "жидкий", "хачапури", "japan", "japanese", "homogeneous", "raccoon",
 ]
 
 

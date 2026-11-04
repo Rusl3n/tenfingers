@@ -10,6 +10,8 @@ import TypingCore
 struct LessonRunnerView: View {
     let run: LessonRun
     let onExit: () -> Void
+    /// «К курсу» на итоге урока или шага: раздел «Курс» с этим уроком.
+    let onToCourse: () -> Void
     let onStart: (LessonRun) -> Void
 
     private enum Phase: Equatable {
@@ -152,7 +154,7 @@ struct LessonRunnerView: View {
                                  { onStart(LessonRun(language: run.language, lessonId: review.id)) }
                              },
                              onRetry: prepare,
-                             onNext: { if let next { onStart(next) } }, onExit: onExit)
+                             onNext: { if let next { onStart(next) } }, onExit: onToCourse)
         case .stepResult(let outcome):
             StepResultView(title: StepTitle.numbered(outcome.stepIndex, outcome.title),
                            summary: outcome.summary, errors: outcome.errors,
@@ -165,7 +167,7 @@ struct LessonRunnerView: View {
                            onPracticeWeak: outcome.reviewLessonId.map { reviewId in
                                { onStart(LessonRun(language: run.language, lessonId: reviewId)) }
                            },
-                           onRetry: prepare, onExit: onExit)
+                           onRetry: prepare, onExit: onToCourse)
         }
     }
 

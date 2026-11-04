@@ -1,7 +1,8 @@
 import Foundation
 
 public enum DayStatus: String, Codable, Sendable {
-    case full, half, frozen, none
+    /// `repaired` — пропущенный день, спасённый двойной целью на следующий день (6e, §10.4).
+    case full, half, frozen, none, repaired
 }
 
 public struct DayActivity: Equatable, Sendable {
@@ -39,11 +40,24 @@ public struct StreakSummary: Equatable, Sendable {
     public let goalCurrent: Int
     public let goalLongest: Int
     public let goalTotal: Int
+    /// Починка (6e): вчера пропущен день, серия > 0, заморозок нет, а сегодня двойная цель ещё не набрана —
+    /// серия «на волоске». `current` при этом показывается целым (`repairStreak` и, если сегодня уже засчитан, +1).
+    public let repairPending: Bool
+    /// Пропущенный день, который можно спасти (`nil` вне ожидания).
+    public let repairDay: String?
+    /// Длина серии, которая спасается: серия до пропуска плюс сам пропущенный день.
+    public let repairStreak: Int
+    /// Сколько секунд сегодня осталось набрать до двойной цели.
+    public let repairNeedSeconds: Double
+    /// Двойная цель сегодняшнего дня, секунды.
+    public let repairTargetSeconds: Double
 
     public init(current: Int, fullInRow: Int, fullInCurrent: Int, freezes: Int, longest: Int,
                 today: DayStatus, statuses: [String: DayStatus],
                 visitCurrent: Int = 0, visitLongest: Int = 0, visitTotal: Int = 0,
-                goalCurrent: Int = 0, goalLongest: Int = 0, goalTotal: Int = 0) {
+                goalCurrent: Int = 0, goalLongest: Int = 0, goalTotal: Int = 0,
+                repairPending: Bool = false, repairDay: String? = nil, repairStreak: Int = 0,
+                repairNeedSeconds: Double = 0, repairTargetSeconds: Double = 0) {
         self.current = current
         self.fullInRow = fullInRow
         self.fullInCurrent = fullInCurrent
@@ -57,6 +71,11 @@ public struct StreakSummary: Equatable, Sendable {
         self.goalCurrent = goalCurrent
         self.goalLongest = goalLongest
         self.goalTotal = goalTotal
+        self.repairPending = repairPending
+        self.repairDay = repairDay
+        self.repairStreak = repairStreak
+        self.repairNeedSeconds = repairNeedSeconds
+        self.repairTargetSeconds = repairTargetSeconds
     }
 }
 
@@ -64,6 +83,10 @@ public struct StreakSummary: Equatable, Sendable {
 public enum StreakCalculator {
     public static let maxFreezes = 2
     public static let fullDaysPerFreeze = 7
+    /// Починка (6e): не чаще раза в столько дней (номер пропущенного дня минус номер прежней починки).
+    public static let repairCooldownDays = 7
+    /// Починка: время следующего дня не меньше стольких целей этого дня.
+    public static let repairGoalFactor = 2.0
 
     public static func status(_ activity: DayActivity?, goalSeconds: Double) -> DayStatus {
         guard let activity else { return .none }
@@ -75,6 +98,12 @@ public enum StreakCalculator {
     /// `goalSeconds` — текущая дневная цель: действует сегодня и для прошлых дней без записанной цели
     /// (`DayActivity.goalSeconds == nil`).
     public static func summarize(days: [String: DayActivity], today: String, goalSeconds: Double) -> StreakSummary {
+        summarize(days: days, today: today, goalSeconds: goalSeconds, allowRepair: true)
+    }
+
+    /// `allowRepair == false` — серия как до 6e, без починки (для проверки свойства «починка не укорачивает серию»).
+    static func summarize(days: [String: DayActivity], today: String, goalSeconds: Double,
+                          allowRepair: Bool) -> StreakSummary {
         let keys = days.filter { $0.value.completedExercises > 0 }.keys.sorted()
         guard let first = keys.first, first <= today else {
             return StreakSummary(current: 0, fullInRow: 0, fullInCurrent: 0, freezes: 0, longest: 0,
@@ -83,7 +112,10 @@ public enum StreakCalculator {
         var statuses: [String: DayStatus] = [:]
         var streak = 0, fullInRow = 0, fullInCurrent = 0, freezes = 0, longest = 0
         var visitRun = 0, visitLongest = 0, visitTotal = 0, goalRun = 0, goalLongest = 0, goalTotal = 0
-        for day in dayKeys(from: first, to: today) {
+        var lastRepairIndex: Int?
+        var repair = (pending: false, day: String?.none, streak: 0, need: 0.0, target: 0.0)
+        let allDays = dayKeys(from: first, to: today)
+        for (index, day) in allDays.enumerated() {
             // Прошлый день — по цели того дня (если записана), сегодня — по текущей.
             let goal = day < today ? days[day]?.goalSeconds ?? goalSeconds : goalSeconds
             let raw = status(days[day], goalSeconds: goal)
@@ -114,12 +146,41 @@ public enum StreakCalculator {
                     streak += 1
                     fullInRow = 0
                     statuses[day] = .frozen
+                } else if allowRepair, streak > 0, lastRepairIndex.map({ index - $0 >= repairCooldownDays }) ?? true,
+                          index + 1 < allDays.count {
+                    // Починка (решение 2): смотрим на следующий день.
+                    let next = allDays[index + 1]
+                    let nextIsToday = next == today
+                    let nextGoal = nextIsToday ? goalSeconds : days[next]?.goalSeconds ?? goalSeconds
+                    let target = repairGoalFactor * nextGoal
+                    if status(days[next], goalSeconds: nextGoal) == .full,
+                       (days[next]?.activeSeconds ?? 0) >= target {
+                        lastRepairIndex = index
+                        streak += 1
+                        fullInRow = 0
+                        statuses[day] = .repaired
+                    } else {
+                        if nextIsToday {
+                            // «На волоске» (решение 3): серия показывается целой, день пока не починен.
+                            repair = (true, day, streak + 1, max(0, target - (days[next]?.activeSeconds ?? 0)), target)
+                            streak += 1
+                            fullInRow = 0
+                            statuses[day] = DayStatus.none
+                        } else {
+                            streak = 0
+                            fullInRow = 0
+                            fullInCurrent = 0
+                            statuses[day] = DayStatus.none
+                        }
+                    }
                 } else {
                     streak = 0
                     fullInRow = 0
                     fullInCurrent = 0
                     statuses[day] = DayStatus.none
                 }
+            case .repaired:
+                break   // исходный статус дня никогда не `repaired`
             }
             longest = max(longest, streak)
         }
@@ -127,7 +188,9 @@ public enum StreakCalculator {
                              freezes: freezes, longest: longest, today: statuses[today] ?? .none,
                              statuses: statuses,
                              visitCurrent: visitRun, visitLongest: visitLongest, visitTotal: visitTotal,
-                             goalCurrent: goalRun, goalLongest: goalLongest, goalTotal: goalTotal)
+                             goalCurrent: goalRun, goalLongest: goalLongest, goalTotal: goalTotal,
+                             repairPending: repair.pending, repairDay: repair.day, repairStreak: repair.streak,
+                             repairNeedSeconds: repair.need, repairTargetSeconds: repair.target)
     }
 
     /// Все ключи дней от `from` до `to` включительно (григорианский календарь, UTC — ключи уже логические даты).

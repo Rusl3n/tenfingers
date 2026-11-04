@@ -39,6 +39,9 @@ final class ExerciseCoordinator {
     /// Проверка ачивок после каждого успешного сохранения (отдельной транзакцией: упражнение уже записано,
     /// а невыданное выдаст следующая проверка). `nil` — ачивки не проверяются (тесты).
     @ObservationIgnored var achievements: AchievementService?
+    /// Проверка «года» (6e) после проверки ачивок: тосты нового уровня и выполненных испытаний. Параметр — звук:
+    /// `true` только когда после сохранения будет экран итога и звука ачивок на нём нет. `nil` — не проверяется (тесты).
+    @ObservationIgnored var yearCheck: ((_ withSound: Bool) -> Void)?
     /// Ачивки, полученные в последнем сохранении (карточки на экране итога шага или порции).
     private(set) var newAchievements: [EarnedCard] = []
     /// Ачивки всех сохранений с последнего `resetRunAchievements()` (карточки на итоге урока: и с промежуточных шагов).
@@ -102,6 +105,10 @@ final class ExerciseCoordinator {
             toasts.checkPlanDone?()
         }
         coordinator.achievements = .live(context: context)
+        coordinator.yearCheck = { [toasts] withSound in
+            guard let state = try? YearLoader(context: context).state() else { return }
+            YearAnnouncer.afterSave(state: state, toasts: toasts, sound: withSound ? sound : nil)
+        }
         return coordinator
     }
 
@@ -213,8 +220,17 @@ final class ExerciseCoordinator {
         runAchievements = EarnedCard.merged(runAchievements, with: earned)
         // Новые показываются карточками на экране итога (тоста нет); скрытые («Взрослый юмор» выключен) — без звука.
         let visible = AchievementVisibility.visible(earned, adultHumor: adultHumor())
-        guard announce, !visible.isEmpty else { return }
-        afterDelay(afterStreak ? Self.streakDelay * 2 : Self.streakDelay) { [playSound] in playSound(.achievement) }
+        let delay = afterStreak ? Self.streakDelay * 2 : Self.streakDelay
+        if announce, !visible.isEmpty { afterDelay(delay) { [playSound] in playSound(.achievement) } }
+        // Тосты года — после карточек ачивок; на итоге — с той же паузой после звука результата и своим звуком,
+        // если звука ачивок нет.
+        guard let yearCheck else { return }
+        if announce {
+            let withSound = visible.isEmpty
+            afterDelay(delay) { yearCheck(withSound) }
+        } else {
+            yearCheck(false)
+        }
     }
 
     /// Начало урока или нового прохода («Ещё раз»): копилки ачивок и полного огня запуска пустеют.

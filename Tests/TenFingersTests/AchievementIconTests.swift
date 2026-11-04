@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Testing
 import TypingCore
 @testable import TenFingers
@@ -45,9 +46,32 @@ import TypingCore
     }
 }
 
+/// Значок починки серии (6e): ачивка, статус дня «Починка» и плашка «Серия на волоске» — один символ.
+@Test func repairIconExists() {
+    #expect(NSImage(systemSymbolName: "bandage.fill", accessibilityDescription: nil) != nil)
+    #expect(DayStatusStyle.icon(.repaired) == "bandage.fill")
+    #expect(!DayStatusStyle.title(.repaired).isEmpty)
+    #expect(DayStatusStyle.color(.repaired) == Color.green)
+    #expect(!HelpText.fire(.repaired).isEmpty)
+}
+
+/// Значки испытаний недели и месяца (6e) существуют как SF Symbols.
+@Test func challengeIconsExist() {
+    for name in ["checkmark.circle.fill", "calendar.circle.fill"] {
+        #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
+    }
+}
+
 /// Значки идей пользователя и «Восьми пальцев» (6d) существуют как SF Symbols.
 @Test func userIdeaIconsExist() {
     for name in ["2.square.fill", "3.square.fill", "tortoise.fill", "hand.thumbsup.fill", "hands.clap.fill"] {
+        #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
+    }
+}
+
+/// Значки ачивок уровней (6e) существуют как SF Symbols.
+@Test func levelIconsExist() {
+    for name in ["star.circle", "star.square", "crown"] {
         #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
     }
 }

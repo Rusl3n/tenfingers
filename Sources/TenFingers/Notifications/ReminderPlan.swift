@@ -49,6 +49,8 @@ struct ReminderInputs: Equatable {
     let todayStatus: DayStatus
     /// Сколько минут не хватает до полного огня (не меньше 1, пока цель не достигнута).
     let minutesLeft: Int
+    /// «Починка» открыта (`StreakSummary.repairPending`): спасаемая серия и минуты до двойной цели.
+    var repair: RepairSituation? = nil
 
     /// Читает прогресс: серия и статус дня из `StreakCalculator`, остаток до цели — из активности сегодняшнего дня.
     @MainActor
@@ -58,14 +60,18 @@ struct ReminderInputs: Equatable {
         let today = LogicalDay.key(for: now, dayStartHour: dayStartHour, calendar: calendar)
         let summary = StreakCalculator.summarize(days: days, today: today, goalSeconds: goalSeconds)
         let remaining = max(0, goalSeconds - (days[today]?.activeSeconds ?? 0))
+        let repair = summary.repairPending
+            ? RepairSituation(streak: summary.repairStreak,
+                              minutesLeft: max(1, Int((summary.repairNeedSeconds / 60).rounded(.up))))
+            : nil
         return ReminderInputs(streak: summary.current, todayStatus: summary.today,
-                              minutesLeft: max(1, Int((remaining / 60).rounded(.up))))
+                              minutesLeft: max(1, Int((remaining / 60).rounded(.up))), repair: repair)
     }
 }
 
 extension ReminderInputs {
     var situation: ReminderSituation {
-        ReminderSituation(streak: streak, todayStatus: todayStatus, minutesLeft: minutesLeft)
+        ReminderSituation(streak: streak, todayStatus: todayStatus, minutesLeft: minutesLeft, repair: repair)
     }
 }
 

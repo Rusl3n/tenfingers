@@ -243,3 +243,17 @@ private func make(days: [String: DayActivity] = [:], sessions: [SessionSummary] 
                                               checkStars: [:]))
     #expect(done.lessonTitle == nil && done.percent == 100)
 }
+
+/// «Курс» открывается на уроке из «К курсу», а без него — на текущем (как «Продолжить»); курс пройден — ни на каком.
+@Test func courseFocusPrefersRequestedLessonThenContinueTarget() throws {
+    let course = try CourseFixtureApp.ruMini()
+    let stageOne = Set(course.stages[0].lessons.map(\.id))
+    #expect(CourseFocus.lessonId(requested: "ru2.s1.03", course: course, passed: [], checkStars: [:]) == "ru2.s1.03")
+    #expect(CourseFocus.lessonId(requested: nil, course: course, passed: [], checkStars: [:]) == "ru2.s1.01")
+    // Урока нет в курсе (другой язык или прежний курс) — текущий.
+    #expect(CourseFocus.lessonId(requested: "en2.s1.01", course: course, passed: [], checkStars: [:]) == "ru2.s1.01")
+    #expect(CourseFocus.lessonId(requested: nil, course: course, passed: stageOne, checkStars: ["ru2.s1.check": 1])
+                == "ru2.s1.check")
+    #expect(CourseFocus.lessonId(requested: nil, course: course, passed: Set(course.lessons.map(\.id)),
+                                 checkStars: ["ru2.s1.check": 2, "ru2.s2.check": 3]) == nil)
+}

@@ -20,7 +20,8 @@ struct AchievementService {
         let isBackfill: Bool
         /// Новые выдачи повторяемых ачивок (6d) по возрастанию даты; при `isGrantBackfill` — вся история.
         var grants: [NewGrant] = []
-        /// Таблица выдач была пуста при запуске: выдачи записаны просмотренными, показывается одна сводка (решение 15).
+        /// При запуске выдачи записаны просмотренными и показываются одной сводкой (решение 15 6d и 6e): таблица выдач
+        /// была пуста или недостающие выдачи нашлись по обновлённым правилам и каталогу.
         var isGrantBackfill = false
     }
 
@@ -97,14 +98,20 @@ struct AchievementService {
         let existing = try context.fetch(FetchDescriptor<AchievementRecord>())
         let existingGrants = try context.fetch(FetchDescriptor<AchievementGrant>())
         let isBackfill = reason == .launch && existing.isEmpty
-        let isGrantBackfill = reason == .launch && existingGrants.isEmpty
+        // При запуске недостающая выдача — всегда результат обновления правил или каталога (после сохранения
+        // упражнения проверка идёт сразу): такие выдачи просмотрены и идут одной сводкой (решение 15 6e).
+        let grantsSeen = reason == .launch
+        let wasEmpty = reason == .launch && existingGrants.isEmpty
         let owned = Set(existing.map(\.achievementId))
         // Разовые проверяются, только пока не получены: полученные навсегда.
         let pending = catalog.filter { !owned.contains($0.id) }
         guard !pending.isEmpty || catalog.contains(where: \.repeatable) else {
-            return Outcome(new: [], isBackfill: isBackfill, isGrantBackfill: isGrantBackfill)
+            return Outcome(new: [], isBackfill: isBackfill, isGrantBackfill: wasEmpty)
         }
         let facts = try facts()
+        // Те же факты нужны снимку года сразу после проверки: он берёт их из кэша, а не собирает заново.
+        // Сбой чтения ключа не ломает проверку ачивок: снимок года тогда просто соберёт факты сам.
+        if let key = try? yearKey() { cache.stash(facts: facts, key: key) }
         // Один `Evaluator`: разовые — по их условию, повторяемые — по первому получению; все получения каталога.
         let evaluation = AchievementEngine.evaluate(facts, pending: pending, catalog: catalog)
         let earned = evaluation.earned
@@ -124,6 +131,7 @@ struct AchievementService {
             grants.append(NewGrant(achievement: achievement, occurrence: occurrence.key, value: occurrence.value,
                                    count: counts[occurrence.id] ?? 1))
         }
+        let isGrantBackfill = wasEmpty || (grantsSeen && !missing.isEmpty)
         guard !earned.isEmpty || !missing.isEmpty else {
             return Outcome(new: [], isBackfill: isBackfill, isGrantBackfill: isGrantBackfill)
         }
@@ -134,7 +142,7 @@ struct AchievementService {
             for occurrence in missing {
                 context.insert(AchievementGrant(achievementId: occurrence.id, occurrence: occurrence.key,
                                                 grantedAt: occurrence.date, value: occurrence.value,
-                                                seen: isGrantBackfill))
+                                                seen: grantsSeen))
             }
         }
         return Outcome(new: earned.compactMap { byId[$0.id] }, isBackfill: isBackfill, grants: grants,
@@ -206,6 +214,22 @@ struct AchievementService {
             lessonStarSteps: lessonStars.steps,
             lessonStepCounts: stepCounts(exercises), timeZone: timeZone, now: now,
             currentGoalSeconds: currentGoal, today: today)
+    }
+
+    /// Сегодняшний логический день (`yyyy-MM-dd`) по часу начала дня и часовому поясу службы.
+    /// Ключ кэша снимка года (решение 16): сессии, последняя `endedAt`, логический день и текущая цель.
+    func yearKey() throws -> YearStateKey {
+        var latest = FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.endedAt, order: .reverse)])
+        latest.fetchLimit = 1
+        return YearStateKey(sessions: try context.fetchCount(FetchDescriptor<SessionRecord>()),
+                            lastEndedAt: try context.fetch(latest).first?.endedAt,
+                            today: logicalToday(), goalSeconds: goalSeconds())
+    }
+
+    func logicalToday() -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return LogicalDay.key(for: now(), dayStartHour: recorder.dayStartHour(), calendar: calendar)
     }
 
     /// Запись → факт; запись с неизвестным режимом или языком (из более новой версии) пропускается.
@@ -386,20 +410,58 @@ final class AchievementFactsCache {
     private let now: () -> Date
     /// Сколько раз кэш строился полным проходом (для тестов).
     private(set) var rebuilds = 0
+    /// Снимок года (6e, решение 16): строится из фактов, пока не изменилась история; сбрасывается вместе с кэшем.
+    private var yearSnapshot: (key: YearStateKey, state: YearState)?
+    /// Сколько раз снимок года реально строился (для тестов).
+    private(set) var yearBuilds = 0
+    /// Факты последней проверки ачивок: снимок года берёт их один раз, если история, день и цель те же.
+    private var stashedFacts: (key: YearStateKey, facts: AchievementFacts)?
+    /// Сколько раз упражнения читались для сборки фактов (для тестов: одна сборка на проверку).
+    private(set) var exerciseReads = 0
+    /// Сколько раз снимок года взял готовые факты проверки (для тестов).
+    private(set) var factsReuses = 0
 
     init(now: @escaping () -> Date = Date.init) {
         self.now = now
     }
 
     func invalidate() {
+        yearSnapshot = nil
+        stashedFacts = nil
         owner = nil
         facts = []
         known = []
         latest = nil
     }
 
+    /// Снимок года для ключа `key`: готовый, пока ключ тот же, иначе `build` (единственный пересчёт опыта и испытаний).
+    func yearState(key: YearStateKey, build: () throws -> YearState) rethrows -> YearState {
+        if let yearSnapshot, yearSnapshot.key == key {
+            stashedFacts = nil
+            return yearSnapshot.state
+        }
+        let state = try build()
+        yearBuilds += 1
+        yearSnapshot = (key, state)
+        return state
+    }
+
+    /// Запоминает факты проверки ачивок под ключом снимка года.
+    func stash(facts: AchievementFacts, key: YearStateKey) {
+        stashedFacts = (key, facts)
+    }
+
+    /// Факты последней проверки, если ключ тот же; запомненное отдаётся один раз (дальше снимок кэшируется сам).
+    func takeFacts(for key: YearStateKey) -> AchievementFacts? {
+        defer { stashedFacts = nil }
+        guard let stashedFacts, stashedFacts.key == key else { return nil }
+        factsReuses += 1
+        return stashedFacts.facts
+    }
+
     /// Все упражнения по возрастанию `endedAt`; сессии с неизвестным режимом или языком пропущены.
     func exercises(in context: ModelContext) throws -> [ExerciseFact] {
+        exerciseReads += 1
         if owner == ObjectIdentifier(context), let latest {
             let since = latest
             let fresh = try context.fetch(FetchDescriptor<SessionRecord>(

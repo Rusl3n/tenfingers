@@ -41,6 +41,10 @@ extension Evaluator {
             return planWeeks(days)
         case .goalMultiple(let factor):
             return goalMultiples(factor)
+        case .streakRepair:
+            return streakRepairs()
+        case .challengeWeek, .challengeMonth:
+            return challengeOccurrences(week: condition == .challengeWeek)
         case .slowAndSteady:
             return slowSteadySteps()
         case .firstTry:
@@ -51,7 +55,7 @@ extension Evaluator {
     }
 
     /// По одному первому подходящему завершённому упражнению на логический день (один проход по истории).
-    private func dailyFirst(_ matches: (LocalTime) -> Bool) -> [(day: String, date: Date)] {
+    func dailyFirst(_ matches: (LocalTime) -> Bool) -> [(day: String, date: Date)] {
         var seen = Set<String>()
         var result: [(day: String, date: Date)] = []
         for (fact, local) in completedLocal where matches(local) && seen.insert(fact.logicalDay).inserted {
@@ -90,7 +94,7 @@ extension Evaluator {
     /// Решение 7: издание 2 — первая завершённая проверка этапа (`stageCheck`, `isLessonCheck`) со звёздами по цели
     /// урока не ниже `Stage.gate`, значение — эти звёзды; издание 1 — прежнее правило `stageDate`, без значения.
     /// Ключ — id этапа.
-    private func stagesPassed() -> [RawOccurrence] {
+    func stagesPassed() -> [RawOccurrence] {
         var checks: [String: [ExerciseFact]] = [:]
         for fact in completed where fact.exerciseKind?.isLessonCheck ?? false {
             if let lessonId = fact.lessonId { checks[lessonId, default: []].append(fact) }
@@ -208,27 +212,46 @@ extension Evaluator {
     /// но не позже `now`, и минуты за день.
     private func goalMultiples(_ factor: Int) -> [RawOccurrence] {
         guard factor > 0 else { return [] }
-        var result: [RawOccurrence] = []
-        for day in allDayKeys {
-            guard let goal = goalSeconds(of: day), goal > 0 else { continue }
-            let list = byDay[day, default: []]
-            let hasCompleted = list.contains(where: \.completed) || (facts.days[day]?.completedExercises ?? 0) > 0
-            let total = max(facts.days[day]?.activeSeconds ?? 0, list.reduce(0) { $0 + $1.activeSeconds })
-            let threshold = goal * Double(factor)
-            guard hasCompleted, total >= threshold else { continue }
-            // Значение — минуты к упражнению-пересечению включительно: проверка вживую и задним числом дают одно число.
-            var sum = 0.0
-            var occurrence: RawOccurrence = (day, min(noon(of: day) ?? facts.now, facts.now), total / 60)
-            for exercise in list {
-                sum += exercise.activeSeconds
-                if sum >= threshold {
-                    occurrence = (day, min(exercise.endedAt, facts.now), sum / 60)
-                    break
-                }
-            }
-            result.append(occurrence)
+        return allDayKeys.compactMap { day in
+            goalCrossing(day: day, factor: Double(factor)).map { (day, $0.date, $0.minutes) }
         }
-        return result
+    }
+
+    /// Момент, когда чистое время логического дня `day` достигло `factor` целей этого дня; `nil` — не достигло.
+    /// Общий помощник `habit.goal.x2|x3` и `streak.repair`. Дата — упражнение, на котором сумма перешла порог
+    /// (дни без упражнений в фактах — полдень дня), но не позже `now`.
+    func goalReachedDate(day: String, factor: Double) -> Date? {
+        goalCrossing(day: day, factor: factor)?.date
+    }
+
+    private func goalCrossing(day: String, factor: Double) -> (date: Date, minutes: Double)? {
+        guard factor > 0, let goal = goalSeconds(of: day), goal > 0 else { return nil }
+        let list = byDay[day, default: []]
+        let hasCompleted = list.contains(where: \.completed) || (facts.days[day]?.completedExercises ?? 0) > 0
+        let total = max(facts.days[day]?.activeSeconds ?? 0, list.reduce(0) { $0 + $1.activeSeconds })
+        let threshold = goal * factor
+        guard hasCompleted, total >= threshold else { return nil }
+        // Значение — минуты к упражнению-пересечению включительно: проверка вживую и задним числом дают одно число.
+        var sum = 0.0
+        for exercise in list {
+            sum += exercise.activeSeconds
+            if sum >= threshold { return (min(exercise.endedAt, facts.now), sum / 60) }
+        }
+        return (min(noon(of: day) ?? facts.now, facts.now), total / 60)
+    }
+
+    // MARK: Починка серии (6e)
+
+    /// Решение 4: ключ — починенный день X (`DayStatus.repaired`), дата — упражнение дня X+1, на котором время дня
+    /// впервые достигло двойной цели (тот же помощник, что у `habit.goal.x2`).
+    private func streakRepairs() -> [RawOccurrence] {
+        facts.streakStatuses.keys.sorted().compactMap { day in
+            guard facts.streakStatuses[day] == .repaired else { return nil }
+            let next = StreakCalculator.dayKey(day, offset: 1)
+            let date = goalReachedDate(day: next, factor: StreakCalculator.repairGoalFactor)
+                ?? min(noon(of: next) ?? facts.now, facts.now)
+            return (day, date, nil)
+        }
     }
 
     /// Цели уроков (зн/мин) курсов не ниже издания `minEdition`: lessonId → `Course.targetCpm(for:)`.

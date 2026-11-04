@@ -227,6 +227,8 @@
 "achievement.streak.fire_month.detail" = "Every day of the month at full flame. The calendar is on fire";
 "achievement.streak.insurance.title" = "Insurance Claim";
 "achievement.streak.insurance.detail" = "A freeze kicked in. Streak saved, the insurance paid off";
+"achievement.streak.repair.title" = "Patched Up";
+"achievement.streak.repair.detail" = "Missed yesterday, double today. Streak intact, nobody saw a thing";
 
 /* Ачивки: Скорость */
 "achievement.speed.ru.100.title" = "Picking Up Speed (RU)";
@@ -351,6 +353,10 @@
 "achievement.habit.goal.x2.detail" = "The daily goal done twice over. The fingers ask for more";
 "achievement.habit.goal.x3.title" = "Triple Shift";
 "achievement.habit.goal.x3.detail" = "Three daily goals in one day. The coffee got cold, the keys did not";
+"achievement.challenge.week.title" = "Week Conquered";
+"achievement.challenge.week.detail" = "Three challenges in seven days. The calendar gives a standing ovation";
+"achievement.challenge.month.title" = "Month Under Control";
+"achievement.challenge.month.detail" = "The monthly challenge is done. The other thirty days were a warm-up";
 "achievement.milestone.ru.digits.title" = "Counting in Russian";
 "achievement.milestone.ru.digits.detail" = "All ten digits are under your fingers. No more counting on them";
 "achievement.milestone.en.digits.title" = "Counting in English";
@@ -371,6 +377,12 @@
 "achievement.milestone.first_plan.detail" = "All four items of the plan are done. The planner is proud";
 "achievement.milestone.first_tier.title" = "First Tier";
 "achievement.milestone.first_tier.detail" = "The speed bar went up and so did you";
+"achievement.level.10.title" = "Level Ten";
+"achievement.level.10.detail" = "The novice is behind you, now you are an apprentice. The experience piles up on its own";
+"achievement.level.30.title" = "Master of Keys";
+"achievement.level.30.detail" = "Level thirty. The title Master sounds fully earned";
+"achievement.level.45.title" = "Nearly a Legend";
+"achievement.level.45.detail" = "Level forty-five. Only a few steps are left to Legend";
 
 /* Ачивки: Теперь вы можете… */
 "achievement.letters.ru.hello.title" = "First Word";
@@ -546,6 +558,10 @@
 "achievement.condition.ownText" = "Finish an exercise with your own text";
 "achievement.condition.fireMonth" = "Every day of a calendar month at full flame, no freezes";
 "achievement.condition.freezeSaved" = "A freeze saved your streak: you came back after a missed day";
+"achievement.condition.streakRepair" = "A missed day saved: you hit double your goal the next day";
+"achievement.condition.challengeWeek" = "Complete all three weekly challenges";
+"achievement.condition.challengeMonth" = "Complete the monthly challenge";
+"achievement.condition.level" = "Experience level: %lld";
 "achievement.condition.exactSpeed" = "Finish an exercise at exactly %lld characters per minute";
 "achievement.condition.exactSeconds" = "An exercise with exactly %lld s of active time";
 "achievement.condition.yoPresses" = "Letter Ё typed without errors, times: %lld";
@@ -644,3 +660,9 @@
 "Ещё {minutes} мин. Не останавливайтесь на самом интересном" = "{minutes} more min. Don’t stop at the best part";
 "Огонь разгорается. Ещё {minutes} мин — и будет жарко" = "The flame is picking up. {minutes} more min and it will be hot";
 "Пальцы без тренировки — как вечеринка без музыки. Включайте" = "Fingers without practice are like a party without music. Turn it on";
+"Серия {streak} дн. на волоске: двойная цель сегодня её спасёт" = "Your {streak}-day streak is hanging by a thread: a double goal today will save it";
+"Ещё {minutes} мин — и серия в {streak} дн. будет спасена" = "{minutes} more min and your {streak}-day streak will be saved";
+"Вчерашний пропуск ещё можно починить: до двойной цели {minutes} мин" = "Yesterday’s miss can still be repaired: {minutes} min to the double goal";
+"Серия {streak} дн. лежит в гипсе. Двойная цель сегодня его снимет" = "Your {streak}-day streak is in a cast. A double goal today will take it off";
+"Подкиньте ещё {minutes} мин — и серия вернётся из больницы" = "Add {minutes} more min and your streak will be back from the hospital";
+"Пальцы, на починку серии в {streak} дн.! Нужна двойная цель" = "Fingers, to the repair shop for your {streak}-day streak! A double goal is needed";

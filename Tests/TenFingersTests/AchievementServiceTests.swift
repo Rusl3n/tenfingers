@@ -1151,9 +1151,10 @@ private let phase5Ids: Set<String> = [
     #expect(try grants(context, "time.morning").count == 3)
 }
 
-/// Выдача, чьей пары нет, добавляется при запуске непросмотренной, если таблица выдач уже не пуста;
-/// новая разовая ачивка при таком запуске тоже непросмотренная и не «задним числом».
-@MainActor @Test func laterLaunchGrantsAreUnseenAndNotBackfill() throws {
+/// Выдача, чьей пары нет, добавляется при запуске просмотренной даже при непустой таблице выдач (решение 15 6e:
+/// при запуске недостающая выдача — результат обновления правил или каталога) и попадает в сводку; новая разовая
+/// ачивка при таком запуске непросмотренная и не «задним числом».
+@MainActor @Test func laterLaunchGrantsAreSeenAndSummarized() throws {
     let container = try ModelStore.makeContainer(inMemory: true)
     let context = container.mainContext
     try morningHistory(context)
@@ -1165,12 +1166,66 @@ private let phase5Ids: Set<String> = [
     context.insert(caps)
     try context.save()
     let result = try makeService(context).check(reason: .launch)
-    #expect(!result.isGrantBackfill && !result.isBackfill)
+    #expect(result.isGrantBackfill && !result.isBackfill)
     #expect(result.grants.map(\.occurrence) == ["2026-10-22"] && result.grants.first?.count == 2)
-    #expect(try grants(context, "time.morning").first { $0.occurrence == "2026-10-22" }?.seen == false)
+    #expect(try grants(context, "time.morning").first { $0.occurrence == "2026-10-22" }?.seen == true)
     #expect(try grants(context, "time.morning").first { $0.occurrence == "2026-10-21" }?.seen == true)
     let unseenRecords = try records(context).filter { !$0.seen }
     #expect(result.new.map(\.id) == ["fun.oy_vsyo"] && unseenRecords.count == 1)
+}
+
+/// Первая неделя пользователя выполнена, а таблица выдач уже не пуста (база 6d): при запуске выдачи `challenge.week`
+/// прошлых недель — просмотренные и в сводке; после сохранения упражнения новая выдача — непросмотренная.
+@MainActor @Test func pastChallengeGrantsAreSeenAtLaunchAndNewOnesAreNot() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    func day(_ key: String, seconds: Double, exercises: Int) {
+        let record = DayRecord(logicalDay: key)
+        record.activeSeconds = seconds
+        record.completedExercises = exercises
+        record.goalSeconds = 600
+        context.insert(record)
+    }
+    // Неделя 2026-W44 — первая у пользователя: три дня, три проверки урока, день с целью.
+    for (index, lesson) in ["ru.1.1", "ru.1.2", "ru.1.3"].enumerated() {
+        insertSession(context, ended: "2026-10-28 20:0\(index)", day: "2026-10-28", mode: "course", lessonId: lesson,
+                      kind: "check", seconds: 250)
+    }
+    day("2026-10-28", seconds: 750, exercises: 3)
+    for key in ["2026-10-29", "2026-10-30"] {
+        insertSession(context, ended: "\(key) 20:00", day: key, mode: "course", seconds: 200)
+        day(key, seconds: 200, exercises: 1)
+    }
+    // Неделя 2026-W45: цель и три проверки уже 2 ноября, второй день 3-го.
+    for (index, lesson) in ["ru.1.4", "ru.1.5", "ru.1.6"].enumerated() {
+        insertSession(context, ended: "2026-11-02 20:0\(index)", day: "2026-11-02", mode: "course", lessonId: lesson,
+                      kind: "check", seconds: 250)
+    }
+    day("2026-11-02", seconds: 750, exercises: 3)
+    insertSession(context, ended: "2026-11-03 20:00", day: "2026-11-03", mode: "course", seconds: 200)
+    day("2026-11-03", seconds: 200, exercises: 1)
+    // База 6d: выдача уже есть, значит, таблица не пуста и это не первый запуск выдач.
+    context.insert(AchievementGrant(achievementId: "time.morning", occurrence: "2026-10-21",
+                                    grantedAt: at("2026-10-21 08:00"), seen: true))
+    context.insert(AchievementRecord(achievementId: "course.first_lesson", unlockedAt: at("2026-10-28 20:00"), seen: true))
+    try context.save()
+
+    let launch = try makeService(context, now: at("2026-11-03 21:00")).check(reason: .launch)
+    let past = try grants(context, "challenge.week")
+    #expect(past.map(\.occurrence) == ["2026-W44"])
+    #expect(past.allSatisfy { $0.seen }, "выдачи прошлых недель при запуске — просмотренные")
+    #expect(launch.grants.contains { $0.achievement.id == "challenge.week" })
+    #expect(launch.isGrantBackfill && !launch.isBackfill)
+    #expect(try grants(context).allSatisfy { $0.seen })
+    #expect(AchievementAnnouncer.summaryCount(launch, adultHumor: true) >= 1)
+
+    // Третий день недели W45 — выдача после сохранения упражнения непросмотренная.
+    insertSession(context, ended: "2026-11-04 09:00", day: "2026-11-04", mode: "course", seconds: 200)
+    try context.save()
+    let saved = try makeService(context, now: at("2026-11-04 09:20")).check(reason: .afterSave)
+    #expect(!saved.isGrantBackfill)
+    let fresh = try grants(context, "challenge.week").filter { $0.occurrence == "2026-W45" }
+    #expect(fresh.count == 1 && fresh[0].seen == false, "новая выдача после упражнения — непросмотренная")
 }
 
 /// Сводка при запуске: N — видимые новые ачивки плюс выдачи; скрытые «взрослые» выдачи не считаются.

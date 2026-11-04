@@ -79,7 +79,7 @@ struct ActivityCalendarView: View {
 
     private var legend: some View {
         HStack(spacing: 14) {
-            ForEach([DayStatus.full, .half, .frozen, .none], id: \.self) { status in
+            ForEach([DayStatus.full, .half, .frozen, .repaired, .none], id: \.self) { status in
                 HStack(spacing: 4) {
                     Circle().fill(color(status)).frame(width: cell, height: cell)
                     Text(DayStatusStyle.title(status))

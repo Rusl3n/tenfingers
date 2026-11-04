@@ -162,5 +162,25 @@
 			<string>Система принимает только %lld напоминания — ставлю ближайшие</string>
 		</dict>
 	</dict>
+	<key>challenges.daysLeft %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>осталось %lld дн.</string>
+			<key>few</key>
+			<string>осталось %lld дн.</string>
+			<key>many</key>
+			<string>осталось %lld дн.</string>
+			<key>other</key>
+			<string>осталось %lld дн.</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

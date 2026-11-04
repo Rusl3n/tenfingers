@@ -11,6 +11,11 @@ enum SettingsKey {
     /// Логический день, за который показан тост «План выполнен» (решение 14 фазы 6c), String. Не архивируется:
     /// состояние устройства.
     static let dayPlanAnnouncedDay = "dayPlanAnnouncedDay"
+    /// Уровень, о котором уже сообщал тост (6e, решение 14), Int. Не архивируется: состояние устройства.
+    static let yearAnnouncedLevel = "yearAnnouncedLevel"
+    /// Выполненные испытания текущих недели и месяца, о которых уже сообщал тост: ключи `<период>#<id>`, [String].
+    /// Не архивируется: состояние устройства.
+    static let yearAnnouncedChallenges = "yearAnnouncedChallenges"
     /// Фильтр экрана «Ачивки» (`AchievementsFilter`): all | earned | locked | new. Не архивируется: состояние окна.
     static let achievementsFilter = "achievementsFilter"
     static let themeMode = "themeMode"

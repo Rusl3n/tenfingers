@@ -99,6 +99,10 @@ struct Evaluator {
     let dayNumbers: [String: Int]
     /// Логический день → `endedAt` упражнений, открывших 1-й, 2-й, … заход дня (решение 5): индекс k — заход k + 1.
     let visitOpenings: [String: [Date]]
+    /// Момент завершённого упражнения → его логический день (для моментов без упражнения — календарный день).
+    let dayOfDate: [Date: String]
+    /// Результаты, общие для условий одной проверки: испытания и журнал опыта (6e).
+    let cache = EvaluatorCache()
 
     init(_ facts: AchievementFacts) {
         self.facts = facts
@@ -122,6 +126,16 @@ struct Evaluator {
         }
         dayNumbers = numbers
         visitOpenings = Self.visitOpenings(completed)
+        var dayOfDate: [Date: String] = [:]
+        for fact in exercises { dayOfDate[fact.endedAt] = fact.logicalDay }
+        self.dayOfDate = dayOfDate
+    }
+
+    /// Логический день момента: по упражнению, а без него — календарный день в часовом поясе фактов.
+    func logicalDay(of date: Date) -> String {
+        if let known = dayOfDate[date] { return known }
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
     /// Заходы по дням за один проход: упражнения дня по `effectiveStartedAt`; новый заход — если от `endedAt`
@@ -196,9 +210,11 @@ struct Evaluator {
             guard count > 0 else { return nil }
             return visitOpenings.values.compactMap { $0.count >= count ? $0[count - 1] : nil }.min()
         case .speedRecord, .stagePassed, .lessonStars, .tierPassed, .planWeek, .goalMultiple, .slowAndSteady,
-             .firstTry:
+             .firstTry, .streakRepair, .challengeWeek, .challengeMonth:
             // Повторяемые: дата ачивки — первое получение (`AchievementOccurrences.swift`).
             return rawOccurrences(for: condition).map(\.date).min()
+        case .level(let level):
+            return experienceLedger().levelUps.first { $0.level == level }?.date
         case let .keysUnlocked(language, group):
             return keysDate(language, group)
         case let .cleanText(minChars, hard):
@@ -559,9 +575,9 @@ struct Evaluator {
     }
 
     /// Когда серия достигла порога в день `day`: последнее завершённое упражнение этого дня; у замороженного
-    /// дня — первое завершённое упражнение следующих дней; иначе полдень дня (общий зажим до `now` — в `evaluate`).
+    /// или починенного дня — первое завершённое упражнение следующих дней; иначе полдень дня (общий зажим до `now` — в `evaluate`).
     private func streakReachedDate(_ day: String, status: DayStatus) -> Date? {
-        let practice = status == .frozen
+        let practice = status == .frozen || status == .repaired
             ? completed.first { $0.logicalDay > day }
             : byDay[day]?.last { $0.completed }
         return practice?.endedAt ?? noon(of: day)
@@ -685,7 +701,7 @@ struct Evaluator {
     }
 
     /// Курс языка пройден по любому изданию: более ранняя дата.
-    private func courseDate(_ language: Language) -> Date? {
+    func courseDate(_ language: Language) -> Date? {
         editions(language).compactMap(courseDate).min()
     }
 

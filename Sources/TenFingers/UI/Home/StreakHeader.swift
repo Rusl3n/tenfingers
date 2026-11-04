@@ -23,6 +23,8 @@ struct StreakHeader: View {
     let streak: StreakSummary
     let todaySeconds: Double
     let goalMinutes: Int
+    /// Уровень и полоска до следующего под огнём; `nil` — снимок года прочитать не удалось.
+    var level: LevelLine?
     @Environment(\.palette) private var palette
     /// Открывает карточку «Мой прогресс»; `nil` — кнопки «Поделиться» нет.
     var shareProgress: (() -> Void)?
@@ -31,31 +33,64 @@ struct StreakHeader: View {
     nonisolated static func canShare(_ streak: StreakSummary) -> Bool { !streak.statuses.isEmpty }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                // Числа огня и «Искры» — на одной линии, значки — по центру своего числа.
-                HStack(alignment: .titleCenter, spacing: 24) {
-                    flameBlock
-                    if let spark = Self.spark(streak) { sparkBlock(spark) }
+        // Две колонки: под огнём — уровень, под «Искрой» — цель дня, полосы одной ширины (`BarCell`).
+        // Колонки фиксированной ширины (`barWidth`): числа не обрезаются, длинные подписи переносятся — шапка влезает и в самое узкое окно.
+        Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+            let spark = Self.spark(streak)
+            // Числа огня и «Искры» — на одной линии, значки — по центру своего числа.
+            GridRow(alignment: .titleCenter) {
+                flameBlock
+                if let spark { sparkBlock(spark) }
+            }
+            if level != nil || spark != nil {
+                GridRow(alignment: .top) {
+                    Group {
+                        if let level { LevelLineView(line: level) } else { Color.clear.frame(height: 0) }
+                    }
+                    .modifier(BarCell(leading: Self.flameWidth + 16))
+                    if spark != nil { todayLine.modifier(BarCell(leading: Self.sparkWidth + 10)) }
                 }
-                // Одна кнопка на оба блока: карточка «Мой прогресс» показывает и огонь, и «Искру».
-                if let shareProgress, Self.canShare(streak) {
+            }
+            // «Искры» ещё нет (ни одного дня занятий) — цель дня под огнём, а не над пустой колонкой.
+            if spark == nil {
+                GridRow { todayLine.modifier(BarCell(leading: Self.flameWidth + 16)) }
+            }
+            // Одна кнопка на оба блока: карточка «Мой прогресс» показывает и огонь, и «Искру».
+            if let shareProgress, Self.canShare(streak) {
+                GridRow {
                     ShareLinkButton(action: shareProgress)
                         .font(.callout)
                         .padding(.leading, Self.flameWidth + 16)
                 }
             }
-            Spacer(minLength: 8)
-            // Узкое окно: сжимается карточка цели, а не переносится; огонь и «Искра» держат свой размер.
-            TodayGoalCard(seconds: todaySeconds, goalMinutes: goalMinutes)
-                .frame(minWidth: 150, maxWidth: 260)
         }
+        .fixedSize()
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(palette.card, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private static let flameWidth: CGFloat = 64
+    private static let sparkWidth: CGFloat = 48
+    /// Ширина колонки текста под значком и полос уровня и цели дня: подписи длиннее переносятся,
+    /// поэтому ширина шапки не зависит от языка и длины подписей.
+    private static let barWidth: CGFloat = 240
+
+    private var todayLine: some View {
+        TodayGoalLine(seconds: todaySeconds, goalMinutes: goalMinutes)
+    }
+
+    /// Ячейка строки с полосой (уровень, цель дня): ширина полосы и отступ до текста над ней.
+    private struct BarCell: ViewModifier {
+        let leading: CGFloat
+
+        func body(content: Content) -> some View {
+            content
+                .frame(width: StreakHeader.barWidth, alignment: .leading)
+                .padding(.leading, leading)
+                .padding(.top, 4)
+        }
+    }
 
     private var flameBlock: some View {
         HStack(alignment: .titleCenter, spacing: 16) {
@@ -69,17 +104,20 @@ struct StreakHeader: View {
                     .accessibilityLabel(Text("Серия: \(days)"))
                 ForEach(Self.lines(streak), id: \.self) { line in
                     Text(line).font(.subheadline).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(Self.dayMetrics(streak), id: \.self) { line in
                     Label(line.text, systemImage: line.icon)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                         .help(line.help)
                 }
                 freezes
             }
+            .frame(width: Self.barWidth, alignment: .leading)
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .fixedSize()
     }
 
     /// Полный день — яркий огонь, половинный — приглушённый, ещё не занимались — серый.
@@ -110,7 +148,7 @@ struct StreakHeader: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 40))
                 .foregroundStyle(spark.isLitToday ? Color.yellow : Color.secondary.opacity(0.4))
-                .frame(width: 48)
+                .frame(width: Self.sparkWidth)
                 .alignmentGuide(.titleCenter) { $0[VerticalAlignment.center] }
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
@@ -121,10 +159,11 @@ struct StreakHeader: View {
                 Text("Искра").font(.subheadline).foregroundStyle(.secondary)
                 Text(spark.subtitle)
                     .font(.subheadline).foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(width: Self.barWidth, alignment: .leading)
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .fixedSize()
         .help(spark.help)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Искра: \(days)"))
@@ -132,6 +171,8 @@ struct StreakHeader: View {
 
     /// Подписи под числом дней: призыв заняться сегодня (если ещё не занимались).
     nonisolated static func lines(_ streak: StreakSummary) -> [String] {
+        // Серия «на волоске» показывается целой с пометкой (§10.4); призыв «займитесь сегодня» заменяет плашка починки.
+        if streak.repairPending { return [String(localized: "Серия под угрозой")] }
         guard streak.current > 0 else { return [String(localized: "Займитесь сегодня, чтобы начать серию")] }
         return streak.today == DayStatus.none ? [String(localized: "Займитесь сегодня, чтобы не прервать серию")] : []
     }

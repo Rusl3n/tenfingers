@@ -31,6 +31,8 @@ struct HomeView: View {
     @State private var share: ShareCard?
     /// План на сегодня (пересобирается в каждом `reload`); `nil` — прочитать не удалось: карточка «Продолжить курс».
     @State private var plan: DayPlan?
+    /// Снимок года (уровень, испытания); `nil` — прочитать не удалось: главная без уровня и «Испытаний».
+    @State private var year: YearState?
 
     private var language: Language { Language(rawValue: activeLanguage) ?? .ru }
 
@@ -38,6 +40,11 @@ struct HomeView: View {
         Group {
             if let data {
                 HomeContent(data: data, continueInfo: continueInfo, unit: SpeedUnit(rawValue: speedUnit) ?? .cpm,
+                            level: year.map { LevelLine.make($0) },
+                            challenges: year.flatMap {
+                                ChallengesCardModel.make(week: $0.week, month: $0.month, today: $0.today,
+                                                         unit: SpeedUnit(rawValue: speedUnit) ?? .cpm)
+                            },
                             dayPlan: plan.map {
                                 DayPlanCardModel.make(plan: $0, course: library.courses[language],
                                                       canContinue: planRun(for: $0) != nil)
@@ -132,6 +139,8 @@ struct HomeView: View {
             loadFailed = false
             // План — отдельно: его ошибка не прячет главную, вместо карточки плана — «Продолжить курс».
             plan = try? planLoader.plan(language: language, today: today)
+            // Год — тоже отдельно: кэш снимка не пересчитывает опыт, пока история и день те же.
+            year = try? YearLoader(context: modelContext).state()
             if plan?.isDone == true { toasts.announcePlanDone(today: today) }
         } catch {
             data = nil
@@ -152,12 +161,14 @@ struct HomeView: View {
     }
 }
 
-/// Раскладка главной сверху вниз: серия, неделя, метрики, план на сегодня (план выполнен или его нет — продолжение
-/// курса), быстрые ссылки, последняя ачивка.
+/// Раскладка главной сверху вниз: серия (с уровнем и плашкой починки), неделя, метрики, план на сегодня, «Испытания»,
+/// продолжение курса (план выполнен или его нет), быстрые ссылки, последняя ачивка.
 struct HomeContent: View {
     let data: HomeData
     let continueInfo: ContinueInfo?
     let unit: SpeedUnit
+    var level: LevelLine?
+    var challenges: ChallengesCardModel?
     var dayPlan: DayPlanCardModel?
     var startPlan: () -> Void = {}
     let startLesson: (LessonRun) -> Void
@@ -177,11 +188,15 @@ struct HomeContent: View {
     var column: some View {
         VStack(alignment: .leading, spacing: 16) {
             StreakHeader(streak: data.streak, todaySeconds: data.todaySeconds, goalMinutes: data.goalMinutes,
-                         shareProgress: shareProgress)
+                         level: level, shareProgress: shareProgress)
+            if let banner = RepairBannerModel.make(streak: data.streak, todaySeconds: data.todaySeconds) {
+                RepairBanner(model: banner)
+            }
             WeekStrip(days: data.week)
             MetricsCard(data: data, unit: unit)
             if let dayPlan { DayPlanCard(model: dayPlan, start: startPlan) }
             // «Продолжить курс» — обычный запуск урока без пункта плана: после выполненного плана или без плана.
+            if let challenges { ChallengesCard(model: challenges) }
             if dayPlan?.isDone ?? true, let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }
             QuickLinks(data: data, openTraining: openTraining, startWeakSpots: startWeakSpots,
                        openPractice: openPractice)

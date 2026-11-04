@@ -556,6 +556,51 @@ private func goalOccurrences(_ ids: [String], _ facts: AchievementFacts) -> [Ach
     #expect(ids(1800) == ["habit.goal.x2", "habit.goal.x3"])
 }
 
+// MARK: - Починка серии (6e, Task 1)
+
+@Test func streakRepairOccurrenceIsTheDayKeyAndTheExerciseThatPassedDoubleGoal() {
+    // 11-02 пропущен и починен; 11-03 — пять по 5 минут при цели 10: 2× (20 минут) набрано на четвёртом.
+    let list = (0..<5).map { timed("2026-11-03 1\($0):00", day: "2026-11-03", minutes: 5) }
+    let days = ["2026-11-03": DayActivity(activeSeconds: 1500, completedExercises: 5, goalSeconds: 600)]
+    let statuses: [String: DayStatus] = ["2026-11-01": .full, "2026-11-02": .repaired, "2026-11-03": .full]
+    let facts = AchievementFacts(exercises: list, days: days, streakStatuses: statuses, timeZone: msk,
+                                 now: testNow, currentGoalSeconds: 600, today: nil)
+    #expect(goalOccurrences(["streak.repair"], facts)
+            == [AchievementOccurrence(id: "streak.repair", key: "2026-11-02", date: at("2026-11-03 13:00"),
+                                      value: nil)])
+    // Без починенных дней получений нет; ключ не содержит «/».
+    let plain = AchievementFacts(exercises: list, days: days, streakStatuses: ["2026-11-03": .full], timeZone: msk,
+                                 now: testNow, currentGoalSeconds: 600, today: nil)
+    #expect(goalOccurrences(["streak.repair"], plain).isEmpty)
+    #expect(catalogItem("streak.repair").repeatable && catalogItem("streak.repair").category == .streak)
+}
+
+@Test func streakRepairOccurrenceNeverLandsInTheFutureOrWithoutExercises() {
+    // Упражнений следующего дня в фактах нет — полдень следующего дня; сегодняшний — не позже `now`.
+    let early = at("2026-11-03 09:00")
+    let statuses: [String: DayStatus] = ["2026-11-02": .repaired, "2026-11-03": .full]
+    let facts = AchievementFacts(days: ["2026-11-03": DayActivity(activeSeconds: 1300, completedExercises: 2)],
+                                 streakStatuses: statuses, timeZone: msk, now: early,
+                                 currentGoalSeconds: 600, today: "2026-11-03")
+    #expect(goalOccurrences(["streak.repair"], facts).map(\.date) == [early])
+}
+
+@Test func streakDaysCountARepairedDayAndDateItByTheNextPractice() {
+    // Семь дней подряд: 11-04 — починен; дата — первое завершённое упражнение следующих дней, а не полдень.
+    let statuses: [String: DayStatus] = ["2026-11-01": .full, "2026-11-02": .full, "2026-11-03": .full,
+                                         "2026-11-04": .repaired, "2026-11-05": .full, "2026-11-06": .half,
+                                         "2026-11-07": .full]
+    let list = [timed("2026-11-05 10:00", day: "2026-11-05", minutes: 20),
+                timed("2026-11-07 10:00", day: "2026-11-07", minutes: 20)]
+    let facts = AchievementFacts(exercises: list, streakStatuses: statuses, timeZone: msk, now: testNow,
+                                 currentGoalSeconds: 600, today: nil)
+    let found = AchievementEngine.evaluate(facts, catalog: [catalogItem("streak.7"), catalogItem("streak.3")])
+    #expect(Dictionary(uniqueKeysWithValues: found.map { ($0.id, $0.date) })["streak.7"] == at("2026-11-07 10:00"))
+    // Серия «без заморозок» починенный день не засчитывает, как и заморозку.
+    let noFreeze = Achievement(id: "probe", category: .streak, icon: "star", condition: .fullStreakNoFreeze(days: 4))
+    #expect(AchievementEngine.evaluate(facts, catalog: [noFreeze]).isEmpty)
+}
+
 @Test func thirtyOneMinutesGiveBothMultiples() {
     // Шесть по 5 минут и одна минута: ×2 на четвёртом, ×3 на шестом.
     let list = (0..<7).map { timed("2026-11-02 1\($0):00", day: "2026-11-02", minutes: $0 == 6 ? 1 : 5) }
@@ -688,4 +733,26 @@ private func step(_ end: String, lesson: String = "ru2.s2.04", index: Int = 2, c
     #expect(catalogItem("fun.slow_steady").category == .fun && catalogItem("fun.slow_steady").secret)
     #expect(catalogItem("course.first_try").category == .course)
     #expect(catalogItem("fingers.all_eight").category == .accuracy)
+}
+
+// MARK: - Испытания недели и месяца (6e, Task 2)
+
+@Test func challengeWeekOccurrenceIsTheWeekKeyAndTheDateOfTheThirdChallenge() {
+    // Первая неделя W45 (начало в понедельник): лёгкий набор — 3 дня, 3 проверки урока, 1 день с целью (10 минут).
+    func check(_ day: String, minutes: Double) -> ExerciseFact {
+        ExerciseFact(endedAt: at("\(day) 12:00"), logicalDay: day, language: .ru, mode: .course, lessonId: "ru2.s1.01",
+                     exerciseKind: .check, chars: 60, activeSeconds: minutes * 60, accuracy: 1, cpm: 100, completed: true)
+    }
+    func facts(_ list: [ExerciseFact]) -> AchievementFacts {
+        AchievementFacts(exercises: list, timeZone: msk, now: testNow, currentGoalSeconds: 600, today: "2026-11-08")
+    }
+    let first = [check("2026-11-02", minutes: 10), check("2026-11-03", minutes: 1)]
+    let both = [catalogItem("challenge.week"), catalogItem("challenge.month")]
+    #expect(AchievementEngine.occurrences(facts(first), catalog: both).isEmpty)
+    let third = first + [check("2026-11-04", minutes: 1)]
+    #expect(AchievementEngine.occurrences(facts(third), catalog: both)
+            == [AchievementOccurrence(id: "challenge.week", key: "2026-W45", date: at("2026-11-04 12:00"), value: nil)])
+    // Повторяемая: первое получение — дата ачивки при выдаче задним числом.
+    #expect(AchievementEngine.evaluate(facts(third), catalog: both)
+            == [EarnedAchievement(id: "challenge.week", date: at("2026-11-04 12:00"))])
 }

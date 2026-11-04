@@ -3,6 +3,8 @@ import SwiftUI
 import TypingCore
 
 struct CourseMapView: View {
+    /// Урок для прокрутки при открытии («К курсу»); раздел его забирает и обнуляет.
+    @Binding var focus: String?
     let start: (LessonRun) -> Void
 
     @Environment(ContentLibrary.self) private var library
@@ -37,65 +39,77 @@ struct CourseMapView: View {
             let today = LogicalDay.key(for: .now, dayStartHour: dayStartHour)
             // ScrollView, а не List: строки List — отдельные NSHostingView, и при масштабе интерфейса
             // (`uiScaled`) клики в них попадают мимо кнопок.
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    ForEach(Array(course.stages.enumerated()), id: \.element.id) { stageIndex, stage in
-                        Section {
-                            ForEach(Array(stage.lessons.enumerated()), id: \.element.id) { lessonIndex, lesson in
-                                let record = records[lesson.id]
-                                let target = course.targetCpm(for: lesson.id) ?? 0
-                                let overview = LessonOverview.make(lessonId: lesson.id, targetCpm: target,
-                                                                   sessions: sessions[lesson.id] ?? [],
-                                                                   storedStars: record?.bestStars ?? 0,
-                                                                   isPassed: record?.passedAt != nil)
-                                let isUnlocked = course.isUnlocked(lesson.id, passed: passed, checkStars: checkStars)
-                                // Проверку открытого этапа можно сдать, не пройдя уроки: экстерн (пока порог не взят).
-                                let isExtern = CourseColumns.showsExternHint(
-                                    edition: course.edition, isUnlocked: isUnlocked,
-                                    isStageCheck: lesson.resolvedKind == .stageCheck,
-                                    previousPassed: lessonIndex > 0 ? passed.contains(stage.lessons[lessonIndex - 1].id) : true,
-                                    bestCheckStars: checkStars[lesson.id] ?? 0, gate: stage.gate)
-                                // «Освежить»: возврат слабо сданного урока (издание 2); день зачёта — логический.
-                                let refresh = RefreshMark(RefreshSchedule.state(
-                                    lessonId: lesson.id,
-                                    passedDay: record?.passedAt.map { LogicalDay.key(for: $0, dayStartHour: dayStartHour) },
-                                    currentStars: overview.stars, sessions: sessions[lesson.id] ?? [],
-                                    targetCpm: target, today: today))
-                                CourseLessonRow(lesson: lesson, language: language, overview: overview,
-                                                targetCpm: target, bestCpm: record?.bestCpm ?? 0, isPassed: record?.passedAt != nil,
-                                                isUnlocked: isUnlocked, unit: unit,
-                                                stepPlan: stepPlan(course, lesson, isExpanded: expanded.contains(lesson.id)),
-                                                isExtern: isExtern, refresh: refresh,
-                                                isExpanded: expandedBinding(lesson.id), start: start)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                            }
-                        } header: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(alignment: .firstTextBaseline) {
-                                    Text(stage.localizedTitle).foregroundStyle(.primary)
-                                    Spacer()
-                                    Text(CourseColumns.stageGoalText(stage, unit: unit)).foregroundStyle(.secondary)
-                                    if course.edition >= 2 {
-                                        Text(CourseColumns.gateText(stage)).font(.caption).foregroundStyle(.secondary)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        ForEach(Array(course.stages.enumerated()), id: \.element.id) { stageIndex, stage in
+                            Section {
+                                ForEach(Array(stage.lessons.enumerated()), id: \.element.id) { lessonIndex, lesson in
+                                    let record = records[lesson.id]
+                                    let target = course.targetCpm(for: lesson.id) ?? 0
+                                    let overview = LessonOverview.make(lessonId: lesson.id, targetCpm: target,
+                                                                       sessions: sessions[lesson.id] ?? [],
+                                                                       storedStars: record?.bestStars ?? 0,
+                                                                       isPassed: record?.passedAt != nil)
+                                    let isUnlocked = course.isUnlocked(lesson.id, passed: passed, checkStars: checkStars)
+                                    // Проверку открытого этапа можно сдать, не пройдя уроки: экстерн (пока порог не взят).
+                                    let isExtern = CourseColumns.showsExternHint(
+                                        edition: course.edition, isUnlocked: isUnlocked,
+                                        isStageCheck: lesson.resolvedKind == .stageCheck,
+                                        previousPassed: lessonIndex > 0 ? passed.contains(stage.lessons[lessonIndex - 1].id) : true,
+                                        bestCheckStars: checkStars[lesson.id] ?? 0, gate: stage.gate)
+                                    // «Освежить»: возврат слабо сданного урока (издание 2); день зачёта — логический.
+                                    let refresh = RefreshMark(RefreshSchedule.state(
+                                        lessonId: lesson.id,
+                                        passedDay: record?.passedAt.map { LogicalDay.key(for: $0, dayStartHour: dayStartHour) },
+                                        currentStars: overview.stars, sessions: sessions[lesson.id] ?? [],
+                                        targetCpm: target, today: today))
+                                    CourseLessonRow(lesson: lesson, language: language, overview: overview,
+                                                    targetCpm: target, bestCpm: record?.bestCpm ?? 0, isPassed: record?.passedAt != nil,
+                                                    isUnlocked: isUnlocked, unit: unit,
+                                                    stepPlan: stepPlan(course, lesson, isExpanded: expanded.contains(lesson.id)),
+                                                    isExtern: isExtern, refresh: refresh,
+                                                    isExpanded: expandedBinding(lesson.id), start: start)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                }
+                            } header: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(stage.localizedTitle).foregroundStyle(.primary)
+                                        Spacer()
+                                        Text(CourseColumns.stageGoalText(stage, unit: unit)).foregroundStyle(.secondary)
+                                        if course.edition >= 2 {
+                                            Text(CourseColumns.gateText(stage)).font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .font(.callout.weight(.semibold))
+                                    if !course.isStageOpen(stageIndex, checkStars: checkStars) {
+                                        Text(CourseColumns.opensWhenText(previousStage: stageIndex, gate: course.stages[stageIndex - 1].gate))
+                                            .font(.caption).foregroundStyle(.secondary)
                                     }
                                 }
-                                .font(.callout.weight(.semibold))
-                                if !course.isStageOpen(stageIndex, checkStars: checkStars) {
-                                    Text(CourseColumns.opensWhenText(previousStage: stageIndex, gate: course.stages[stageIndex - 1].gate))
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
+                                .padding(.horizontal, 10)
+                                .padding(.top, 14)
+                                .padding(.bottom, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(palette.background)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.top, 14)
-                            .padding(.bottom, 6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(palette.background)
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                // При открытии и смене языка: урок из «К курсу» или текущий раскрыт и прокручен к середине
+                // (сверху его закрыл бы закреплённый заголовок этапа).
+                .task(id: activeLanguage) {
+                    guard let lessonId = CourseFocus.lessonId(requested: focus, course: course, passed: passed,
+                                                              checkStars: checkStars) else { return }
+                    focus = nil
+                    expanded.insert(lessonId)
+                    await Task.yield()
+                    proxy.scrollTo(lessonId, anchor: .center)
+                }
             }
             .navigationTitle("Курс · \(language.displayName)")
         }
@@ -111,6 +125,18 @@ struct CourseMapView: View {
     private func expandedBinding(_ lessonId: String) -> Binding<Bool> {
         Binding(get: { expanded.contains(lessonId) },
                 set: { if $0 { expanded.insert(lessonId) } else { expanded.remove(lessonId) } })
+    }
+}
+
+/// Урок, который «Курс» раскрывает и к которому прокручивает при открытии: из «К курсу» на итоге урока, иначе
+/// текущий — куда ведёт «Продолжить» (`continueTarget`). Курс пройден — никакой.
+enum CourseFocus {
+    static func lessonId(requested: String?, course: Course, passed: Set<String>, checkStars: [String: Int]) -> String? {
+        if let requested, course.lessons.contains(where: { $0.id == requested }) { return requested }
+        switch course.continueTarget(passed: passed, checkStars: checkStars) {
+        case .lesson(let lesson), .retakeCheck(let lesson): return lesson.id
+        case nil: return nil
+        }
     }
 }
 

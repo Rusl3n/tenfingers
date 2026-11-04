@@ -157,6 +157,8 @@ struct RootView: View {
     @State private var shareCard: ShareCard?
     /// Промежуточный экран плана вместо раздела: после выхода из запуска плана (решение 16).
     @State private var planStep: PlanStep?
+    /// Урок, к которому «Курс» прокрутит при следующем открытии («К курсу» на итоге урока); `nil` — текущий урок.
+    @State private var courseFocus: String?
 
     /// Экран запуска показан вместо раздела.
     private var isRunVisible: Bool { activeRun != nil && presence.isVisible }
@@ -266,11 +268,13 @@ struct RootView: View {
             toasts.checkPlanDone = checkPlanDone
             AchievementAnnouncer.launchCheck(service: .live(context: modelContext), toasts: toasts,
                                              adultHumor: StoredSettings.adultHumor(), open: openAchievements)
+            rememberYear()
         }
         // Загрузка прогресса из файла (`ProgressImporter`): ачивки выдаются заново, сводкой.
         .onReceive(NotificationCenter.default.publisher(for: .progressReplaced)) { _ in
             AchievementAnnouncer.progressReplaced(service: .live(context: modelContext), toasts: toasts,
                                                   adultHumor: StoredSettings.adultHumor(), open: openAchievements)
+            rememberYear()
         }
         .alert(activeRun?.replaceAlertTitle ?? "",
                isPresented: Binding(get: { pendingRun != nil }, set: { if !$0 { pendingRun = nil } }),
@@ -325,7 +329,7 @@ struct RootView: View {
     @ViewBuilder private var section: some View {
         switch selection ?? .home {
         case .home: HomeView(start: { start($0) }, navigate: { selection = $0 })
-        case .course: CourseMapView(start: { start(.lesson($0)) })
+        case .course: CourseMapView(focus: $courseFocus, start: { start(.lesson($0)) })
         case .training: TrainingView(start: { start($0) })
         case .practice: PracticeView(start: { start($0) })
         case .analytics: AnalyticsView()
@@ -348,7 +352,8 @@ struct RootView: View {
     @ViewBuilder private func runner(_ run: RunKind) -> some View {
         switch run {
         case .lesson(let lesson):
-            LessonRunnerView(run: lesson, onExit: end, onStart: { start(.lesson($0)) })
+            LessonRunnerView(run: lesson, onExit: end, onToCourse: { toCourse(lesson.lessonId) },
+                             onStart: { start(.lesson($0)) })
         case .adaptive(let training):
             AdaptiveRunnerView(language: training.language, planSlot: training.planSlot, portions: training.portions,
                                onExit: end)
@@ -407,11 +412,26 @@ struct RootView: View {
         }
     }
 
+    /// «К курсу» на итоге урока: раздел «Курс», этот урок раскрыт и прокручен к нему. У запуска плана — как «Выйти»:
+    /// дальше ведёт промежуточный экран плана.
+    private func toCourse(_ lessonId: String) {
+        end()
+        guard planStep == nil else { return }
+        selection = .course
+        courseFocus = lessonId
+    }
+
     private var planLoader: DayPlanLoader {
         DayPlanLoader(context: modelContext, library: library, settings: .stored(layout: layout))
     }
 
     private var today: String { LogicalDay.key(for: .now, dayStartHour: StoredSettings.dayStartHour()) }
+
+    /// Запуск и загрузка прогресса: уровень и выполненные испытания запоминаются как показанные, тостов за прошлое нет.
+    private func rememberYear() {
+        guard let state = try? YearLoader(context: modelContext).state() else { return }
+        YearAnnouncer.launch(state: state)
+    }
 
     /// После каждого сохранения упражнения: план активного языка выполнен — тост «План выполнен» (раз в день).
     /// Тост сегодня уже был — план не собираем.

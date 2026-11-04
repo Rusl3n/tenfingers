@@ -15,6 +15,23 @@ enum HelpText {
     static var freezes: String {
         String(localized: "Заморозка закрывает один пропущенный день, и серия не прерывается. Новая выдаётся за каждые 7 полных дней подряд, больше двух не копится. Тратится сама, если день пропущен.")
     }
+    static var fireRepaired: String {
+        String(localized: "День спасён двойной целью на следующий день. Не чаще раза в 7 дней и только без заморозок.")
+    }
+    static var level: String {
+        String(localized: "Опыт начисляется за время занятий (точная работа ценится выше), за уроки, звёзды, пороги этапов, полные дни и выполненные испытания. Опыт не сгорает: уровень только растёт.")
+    }
+    static var challenges: String {
+        String(localized: "Три испытания недели и одно месяца подбираются заново каждый понедельник и первого числа. Выполненное испытание даёт опыт, а все три за неделю — награду сверху.")
+    }
+    /// Шкала рангов скорости: каждые 100 зн/мин — ступень, названия — те же, что в рекордах (`YearText`).
+    static var speedRank: String {
+        let steps = SpeedRank.allCases.map { "\($0.rawValue * 100)+ — \(YearText.title($0))" }.joined(separator: "; ")
+        return String(localized: "Ранг скорости зависит от лучшей скорости на языке: каждые 100 зн/мин — новая ступень, независимо от единицы в настройках. Шкала: \(steps).")
+    }
+    static var repair: String {
+        String(localized: "Вчерашний день пропущен, но серию можно спасти: наберите сегодня двойную цель. Починка действует не чаще раза в 7 дней и только если нет заморозок.")
+    }
     static var spark: String {
         String(localized: "«Искра» — дни, когда завершено хотя бы одно упражнение, в том числе один шаг урока. Заморозки здесь не действуют: пропуск обнуляет счёт подряд, а «всего» считает все такие дни.")
     }
@@ -22,7 +39,7 @@ enum HelpText {
         String(localized: "«Цель» — дни, когда набрано время дневной цели того дня, то есть полный огонь. Заморозки здесь не действуют: «подряд» — полные дни без перерыва, «всего» — все полные дни.")
     }
     static var weekStrip: String {
-        String(localized: "Текущая неделя: огонь — день с занятиями, снежинка — заморозка, кружок — пропуск. Сегодня обведено пунктиром, дни впереди бледные.")
+        String(localized: "Текущая неделя: огонь — день с занятиями, снежинка — заморозка, пластырь — починка, кружок — пропуск. Сегодня обведено пунктиром, дни впереди бледные.")
     }
     static var futureDay: String {
         String(localized: "Этот день ещё впереди.")
@@ -114,6 +131,7 @@ enum HelpText {
         case .full: fireFull
         case .half: fireHalf
         case .frozen: freezes
+        case .repaired: fireRepaired
         case .none: fireNone
         }
     }
@@ -124,8 +142,8 @@ enum HelpText {
 
     /// Все тексты — для теста длины.
     static var all: [String] {
-        [fireFull, fireHalf, fireNone, freezes, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots,
+        [fireFull, fireHalf, fireNone, freezes, fireRepaired, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots,
          speedUnits, dayStart, hintMode, spaceThumb, adaptiveTarget, keyboardSize, keyboardOffset, quitOnClose, interfaceLanguage,
-         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, spark, goalDays, futureDay, firstWeekday, reminderTest, refresh, hardLesson, fingerWeak, fingerStrong, dayPlan]
+         reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, spark, level, challenges, speedRank, repair, goalDays, futureDay, firstWeekday, reminderTest, refresh, hardLesson, fingerWeak, fingerStrong, dayPlan]
     }
 }

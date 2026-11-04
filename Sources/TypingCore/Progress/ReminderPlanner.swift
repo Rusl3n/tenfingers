@@ -48,16 +48,30 @@ public struct ReminderConfig: Equatable, Sendable {
     }
 }
 
+/// Серию можно спасти двойной целью сегодня (6e, §10.4): `streak` — спасаемая серия, `minutesLeft` — минуты до двойной цели.
+public struct RepairSituation: Equatable, Sendable {
+    public let streak: Int
+    public let minutesLeft: Int
+
+    public init(streak: Int, minutesLeft: Int) {
+        self.streak = streak
+        self.minutesLeft = minutesLeft
+    }
+}
+
 /// Что известно о прогрессе на момент планирования.
 public struct ReminderSituation: Equatable, Sendable {
     public let streak: Int
     public let todayStatus: DayStatus
     public let minutesLeft: Int
+    /// Не `nil` — «починка» открыта: напоминания сегодняшнего дня берутся из её набора.
+    public let repair: RepairSituation?
 
-    public init(streak: Int, todayStatus: DayStatus, minutesLeft: Int) {
+    public init(streak: Int, todayStatus: DayStatus, minutesLeft: Int, repair: RepairSituation? = nil) {
         self.streak = streak
         self.todayStatus = todayStatus
         self.minutesLeft = minutesLeft
+        self.repair = repair
     }
 }
 
@@ -86,7 +100,8 @@ public enum ReminderPlanner {
     /// Просматривает `horizonDays + 2` календарных дня от `now` (два запасных компенсируют прошедший сегодняшний
     /// момент и дни без напоминаний) и собирает дни с напоминаниями, пока их меньше `horizonDays`;
     /// затем оставляет первые `maxPending` по времени.
-    /// - Момент в текущем логическом дне: полный огонь и заморозка — без напоминания, иначе текст по серии и остатку.
+    /// - Момент в текущем логическом дне: полный огонь и заморозка — без напоминания, иначе текст по серии и остатку;
+    ///   при открытой «починке» — всегда текст из её набора (полный огонь напоминаний не снимает), ступени не учитываются.
     /// - Момент в любом будущем логическом дне: только тексты без чисел.
     /// - Ступень — позиция времени в расписании дня (не среди оставшихся): так 20:00 остаётся «драмой»,
     ///   даже если 10:00 и 15:00 уже прошли.
@@ -109,9 +124,11 @@ public enum ReminderPlanner {
                       fire > now, !taken.contains(fire) else { continue }
                 let dayKey = LogicalDay.key(for: fire, dayStartHour: dayStartHour, calendar: calendar)
                 let context: ReminderCatalog.Context
-                if dayKey == nowDay {
+                if dayKey == nowDay, let repair = situation.repair {
+                    context = .repair(streak: repair.streak, minutes: repair.minutesLeft)
+                } else if dayKey == nowDay {
                     switch situation.todayStatus {
-                    case .full, .frozen: continue
+                    case .full, .frozen, .repaired: continue
                     case .none: context = situation.streak > 0 ? .atRisk(streak: situation.streak) : .fresh
                     case .half: context = .almost(minutes: situation.minutesLeft)
                     }

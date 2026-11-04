@@ -30,7 +30,7 @@ private func cyrillicWords(_ s: String) -> [String] {
     }
 }
 
-/// Все 145 id как есть в базах пользователей: переименование или удаление должно ронять тест
+/// Все 151 id как есть в базах пользователей: переименование или удаление должно ронять тест
 /// (новая ачивка — осознанное дополнение этого списка).
 private let goldenIds: [String] = [
     "streak.3", "streak.7", "streak.14", "streak.30",
@@ -79,11 +79,17 @@ private let goldenIds: [String] = [
     "accuracy.surgeon.50", "accuracy.sniper.100", "accuracy.clean_day.100",
     // Фаза 6d (5): идеи пользователя и «Восемь пальцев».
     "habit.goal.x2", "habit.goal.x3", "fun.slow_steady", "course.first_try", "fingers.all_eight",
+    // Фаза 6e (1): починка серии.
+    "streak.repair",
+    // Фаза 6e (2): испытания недели и месяца.
+    "challenge.week", "challenge.month",
+    // Фаза 6e (3): уровни.
+    "level.10", "level.30", "level.45",
 ]
 
 @Test func catalogIdsMatchTheGoldenList() {
     let ids = AchievementCatalog.all.map(\.id)
-    #expect(goldenIds.count == 145 && Set(goldenIds).count == 145)
+    #expect(goldenIds.count == 151 && Set(goldenIds).count == 151)
     #expect(Set(ids) == Set(goldenIds),
             "пропали: \(Set(goldenIds).subtracting(ids).sorted()); лишние: \(Set(ids).subtracting(goldenIds).sorted())")
     #expect(ids.count == goldenIds.count)
@@ -135,6 +141,8 @@ private let goldenIds: [String] = [
         case .weakSpotsClean(let count, _):
             // Первое чистое упражнение — `special.weak_spot` без числа, дальше — `special.weak_spot.<число>`.
             #expect(id == (count == 1 ? "special.weak_spot" : "special.weak_spot.\(count)"), "«\(id)»: \(count)")
+        case .level(let level):
+            #expect(id == "level.\(level)")
         default: break
         }
     }
@@ -231,16 +239,16 @@ private let goldenIds: [String] = [
     func count(_ category: AchievementCategory) -> Int {
         AchievementCatalog.all.filter { $0.category == category }.count
     }
-    #expect(count(.streak) == 15)
+    #expect(count(.streak) == 16)
     #expect(count(.speed) == 13)
     #expect(count(.accuracy) == 8)
     #expect(count(.course) == 11)
     #expect(count(.volume) == 32)
-    #expect(count(.special) == 16)
-    #expect(count(.milestone) == 10)
+    #expect(count(.special) == 18)
+    #expect(count(.milestone) == 13)
     #expect(count(.letters) == 17)
     #expect(count(.fun) == 23)
-    #expect(AchievementCatalog.all.count == 145)
+    #expect(AchievementCatalog.all.count == 151)
 }
 
 @Test func everyAchievementHasRussianAndEnglishTexts() throws {
@@ -427,7 +435,7 @@ private let goldenIds: [String] = [
                               "volume.chars.500k", "volume.exercises.2500", "volume.exercises.4000",
                               "accuracy.surgeon.50", "accuracy.sniper.100", "accuracy.clean_day.100",
                               "habit.goal.x2", "habit.goal.x3", "fun.slow_steady", "course.first_try",
-                              "fingers.all_eight"])
+                              "fingers.all_eight", "streak.repair", "challenge.week", "challenge.month"])
         .union(AchievementCatalog.all.map(\.id).filter { $0.hasPrefix("distance.") })
     for category in AchievementCategory.allCases {
         let added = planned.filter { $0.category == category }
@@ -468,7 +476,38 @@ private let goldenIds: [String] = [
     #expect(repeatable == ["special.night_owl", "special.early_bird", "fun.no_coffee", "fun.friday_night",
                            "time.morning", "time.afternoon", "time.evening", "habit.visits.2", "habit.visits.3",
                            "speed.record", "course.stage", "course.five_stars", "course.speed_tier", "plan.week",
-                           "habit.goal.x2", "habit.goal.x3", "fun.slow_steady", "course.first_try"])
+                           "habit.goal.x2", "habit.goal.x3", "fun.slow_steady", "course.first_try",
+                           "streak.repair", "challenge.week", "challenge.month"])
+}
+
+/// Починка серии (6e): последняя в блоке серии (после «Страхового случая»), повторяемая, значок пластыря.
+@Test func streakRepairAchievementMatchesThePlan() throws {
+    let achievement = try #require(AchievementCatalog.all.first { $0.id == "streak.repair" })
+    #expect(achievement.category == .streak && achievement.icon == "bandage.fill")
+    #expect(achievement.condition == .streakRepair)
+    #expect(achievement.repeatable && !achievement.secret && !achievement.adult)
+    #expect(AchievementCatalog.all.filter { $0.category == .streak }.last?.id == "streak.repair")
+    #expect(AchievementCatalog.all.filter { $0.icon == "bandage.fill" }.count == 1)
+    #expect(AchievementCatalog.all.count == 151)
+}
+
+/// Испытания недели и месяца (6e): последние в `special`, повторяемые, значки свободны (у плана — `flag.checkered` и
+/// `calendar.badge.checkmark` заняты ачивками «Первый этап» и «30 дней»).
+@Test func challengeAchievementsMatchThePlan() throws {
+    let planned: [(id: String, icon: String, condition: AchievementCondition)] = [
+        ("challenge.week", "checkmark.circle.fill", .challengeWeek), ("challenge.month", "calendar.circle.fill", .challengeMonth),
+    ]
+    let icons = AchievementCatalog.all.map(\.icon)
+    for item in planned {
+        let achievement = try #require(AchievementCatalog.all.first { $0.id == item.id })
+        #expect(achievement.category == .special && achievement.icon == item.icon)
+        #expect(achievement.condition == item.condition)
+        #expect(achievement.repeatable && !achievement.secret && !achievement.adult)
+        #expect(icons.filter { $0 == item.icon }.count == 1, "значок «\(item.icon)» занят")
+    }
+    #expect(AchievementCatalog.all.filter { $0.category == .special }.suffix(2).map(\.id)
+            == ["challenge.week", "challenge.month"])
+    #expect(AchievementCatalog.all.count == 151)
 }
 
 /// Рекорд, этапы, пять звёзд, ступени и неделя по плану (6d): категории, значки, условия и повторяемость.
@@ -492,8 +531,8 @@ private let goldenIds: [String] = [
     #expect(AchievementCatalog.all.filter { $0.category == .speed }.last?.id == "speed.record")
     #expect(AchievementCatalog.all.filter { $0.category == .course }.suffix(4).map(\.id)
             == ["course.stage", "course.five_stars", "course.speed_tier", "course.first_try"])
-    #expect(AchievementCatalog.all.filter { $0.category == .special }.suffix(3).map(\.id)
-            == ["plan.week", "habit.goal.x2", "habit.goal.x3"])
+    #expect(AchievementCatalog.all.filter { $0.category == .special }.suffix(5).map(\.id)
+            == ["plan.week", "habit.goal.x2", "habit.goal.x3", "challenge.week", "challenge.month"])
 }
 
 @Test func categoriesKeepTheirOrderWithMilestonesAfterTheCourse() {
@@ -571,7 +610,8 @@ private let goldenIds: [String] = [
         ("milestone.first_tier", "arrow.up.forward.circle", .firstTier),
     ]
     let milestones = AchievementCatalog.all.filter { $0.category == .milestone }
-    #expect(milestones.map(\.id) == planned.map(\.id))
+    // Уровни (6e) стоят в конце категории после вех курса.
+    #expect(milestones.map(\.id) == planned.map(\.id) + ["level.10", "level.30", "level.45"])
     let icons = AchievementCatalog.all.map(\.icon)
     for item in planned {
         let achievement = try #require(AchievementCatalog.all.first { $0.id == item.id })

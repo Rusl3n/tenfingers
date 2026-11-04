@@ -36,8 +36,9 @@ private func oct(_ day: Int) -> String { day < 10 ? "2026-10-0\(day)" : "2026-10
 }
 
 @Test func missedDayWithoutFreezeResets() {
+    // 23-е (сегодня) ещё без занятий: пропущенный 21-й не спасён двойной целью 22-го (22-го набрана одна цель).
     let s = StreakCalculator.summarize(days: days([("2026-10-20", full()), ("2026-10-22", full())]),
-                                       today: "2026-10-22", goalSeconds: goal)
+                                       today: "2026-10-23", goalSeconds: goal)
     #expect(s.current == 1)
     #expect(s.statuses["2026-10-21"] == DayStatus.none)
     #expect(s.longest == 1)
@@ -93,8 +94,9 @@ private func oct(_ day: Int) -> String { day < 10 ? "2026-10-0\(day)" : "2026-10
 // MARK: - Пограничные случаи
 
 @Test func missedYesterdayWithoutFreezeAndNothingTodayResets() {
-    let list = (1...3).map { (oct($0), full()) }   // 4-го пропуск, 5-го (сегодня) ещё не занимались
-    let s = StreakCalculator.summarize(days: days(list), today: oct(5), goalSeconds: goal)
+    // 4-го и 5-го пропуск, 6-го (сегодня) ещё не занимались: спасать нечего — следующий день после пропуска пуст.
+    let list = (1...3).map { (oct($0), full()) }
+    let s = StreakCalculator.summarize(days: days(list), today: oct(6), goalSeconds: goal)
     #expect(s.current == 0)
     #expect(s.fullInCurrent == 0 && s.fullInRow == 0)
     #expect(s.statuses[oct(4)] == DayStatus.none)
@@ -146,7 +148,8 @@ private func oct(_ day: Int) -> String { day < 10 ? "2026-10-0\(day)" : "2026-10
 @Test func zeroExerciseDayInMiddleBreaksStreakWithoutFreeze() {
     let idle = DayActivity(activeSeconds: 900, completedExercises: 0)
     let list = [(oct(1), full()), (oct(2), idle), (oct(3), full())]
-    let s = StreakCalculator.summarize(days: days(list), today: oct(3), goalSeconds: goal)
+    // 4-е (сегодня) ещё без занятий: у 2-го следующий день набрал одну цель, а не две — разрыв.
+    let s = StreakCalculator.summarize(days: days(list), today: oct(4), goalSeconds: goal)
     #expect(s.statuses[oct(2)] == DayStatus.none)
     #expect(s.current == 1)
     #expect(s.fullInCurrent == 1)

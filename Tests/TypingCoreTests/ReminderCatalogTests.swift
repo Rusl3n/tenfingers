@@ -4,11 +4,11 @@ import Testing
 
 private func hasCyrillic(_ s: String) -> Bool { s.unicodeScalars.contains { (0x400...0x4FF).contains($0.value) } }
 
-private let contexts: [ReminderCatalog.Context] = [.atRisk(streak: 5), .fresh, .almost(minutes: 7), .later]
+private let contexts: [ReminderCatalog.Context] = [.atRisk(streak: 5), .fresh, .almost(minutes: 7), .later, .repair(streak: 34, minutes: 12)]
 
-@Test func catalogHasFortyTwoUniquePhrases() {
-    #expect(ReminderCatalog.phrases.count == 42)
-    #expect(Set(ReminderCatalog.phrases.map(\.key)).count == 42)
+@Test func catalogHasFortyEightUniquePhrases() {
+    #expect(ReminderCatalog.phrases.count == 48)
+    #expect(Set(ReminderCatalog.phrases.map(\.key)).count == 48)
     // Тон фразы — только обычный или шуточный.
     #expect(ReminderCatalog.phrases.allSatisfy { $0.tone != .mixed })
 }
@@ -68,10 +68,41 @@ private let contexts: [ReminderCatalog.Context] = [.atRisk(streak: 5), .fresh, .
     #expect(needs(.fresh) == [.none])
     #expect(needs(.almost(minutes: 4)) == [.none, .minutes])
     #expect(needs(.later) == [.none])
+    #expect(needs(.repair(streak: 3, minutes: 4)) == [.repair])
+}
+
+@Test func repairSetHasThreePhrasesPerToneAndIgnoresStage() {
+    let repair = ReminderCatalog.phrases.filter { $0.need == .repair }
+    #expect(repair.count == 6)
+    #expect(repair.filter { $0.tone == .normal }.count == 3 && repair.filter { $0.tone == .funny }.count == 3)
+    #expect(repair.allSatisfy { !$0.adult && ($0.key.contains("{streak}") || $0.key.contains("{minutes}")) })
+    let context = ReminderCatalog.Context.repair(streak: 34, minutes: 12)
+    for stage in ReminderStage.allCases {
+        #expect(ReminderCatalog.candidates(tone: .normal, stage: stage, adultHumor: true, context: context).count == 3)
+        #expect(ReminderCatalog.candidates(tone: .funny, stage: stage, adultHumor: true, context: context).count == 3)
+        #expect(ReminderCatalog.candidates(tone: .mixed, stage: stage, adultHumor: false, context: context).count == 6)
+    }
+    // Фразы починки не попадают в другие контексты.
+    for other in [ReminderCatalog.Context.atRisk(streak: 5), .fresh, .almost(minutes: 3), .later] {
+        for stage in ReminderStage.allCases {
+            #expect(ReminderCatalog.candidates(tone: .mixed, stage: stage, adultHumor: true, context: other)
+                .allSatisfy { $0.need != .repair })
+        }
+    }
+}
+
+@Test func repairPickFillsStreakAndMinutes() throws {
+    for slot in 0..<12 {
+        let line = try #require(ReminderCatalog.pick(context: .repair(streak: 34, minutes: 12), stage: .soft, tone: .mixed,
+                                                     adultHumor: true, dayKey: "2026-03-10", slot: slot))
+        #expect(line.streak == 34 && line.minutes == 12)
+        let text = ReminderCatalog.render(line, localization: "ru")
+        #expect(!text.contains("{"))
+    }
 }
 
 @Test func needMatchesPlaceholdersInKey() {
-    for phrase in ReminderCatalog.phrases {
+    for phrase in ReminderCatalog.phrases where phrase.need != .repair {
         #expect((phrase.need == .streak) == phrase.key.contains("{streak}"), "\(phrase.key)")
         #expect((phrase.need == .minutes) == phrase.key.contains("{minutes}"), "\(phrase.key)")
     }

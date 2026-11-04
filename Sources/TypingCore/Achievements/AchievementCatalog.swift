@@ -23,6 +23,8 @@ public enum AchievementCatalog {
                     condition: .fullStreakNoFreeze(days: 30)),
         Achievement(id: "streak.fire_month", category: .streak, icon: "flame.circle.fill", condition: .fullFireMonth),
         Achievement(id: "streak.insurance", category: .streak, icon: "umbrella.fill", condition: .freezeSavedStreak),
+        Achievement(id: "streak.repair", category: .streak, icon: "bandage.fill", repeatable: true,
+                    condition: .streakRepair),
     ]
 
     private static let speedSteps: [(cpm: Int, icon: String)] = [
@@ -108,6 +110,10 @@ public enum AchievementCatalog {
                     condition: .firstPlanDay),
         Achievement(id: "milestone.first_tier", category: .milestone, icon: "arrow.up.forward.circle",
                     condition: .firstTier),
+        // 6e, уровни опыта (§10.3): разовые; уровень 50 остаётся званием без ачивки.
+        Achievement(id: "level.10", category: .milestone, icon: "star.circle", condition: .level(10)),
+        Achievement(id: "level.30", category: .milestone, icon: "star.square", condition: .level(30)),
+        Achievement(id: "level.45", category: .milestone, icon: "crown", condition: .level(45)),
     ]
 
     private static let volume: [Achievement] = [
@@ -194,6 +200,12 @@ public enum AchievementCatalog {
                     condition: .goalMultiple(2)),
         Achievement(id: "habit.goal.x3", category: .special, icon: "3.square.fill", repeatable: true,
                     condition: .goalMultiple(3)),
+        // 6e, испытания (§10.2): ключ получения — неделя или месяц. Значки плана (`flag.checkered`,
+        // `calendar.badge.checkmark`) заняты ачивками «Первый этап» и «30 дней».
+        Achievement(id: "challenge.week", category: .special, icon: "checkmark.circle.fill", repeatable: true,
+                    condition: .challengeWeek),
+        Achievement(id: "challenge.month", category: .special, icon: "calendar.circle.fill", repeatable: true,
+                    condition: .challengeMonth),
     ]
 
     /// `letters` — слово или команда, из которых набрано условие; `display` — как показывать буквы на экране, если

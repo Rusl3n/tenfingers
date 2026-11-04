@@ -227,6 +227,8 @@
 "achievement.streak.fire_month.detail" = "Каждый день месяца — полный огонь. Календарь горит";
 "achievement.streak.insurance.title" = "Страховой случай";
 "achievement.streak.insurance.detail" = "Заморозка сработала. Серия спасена, страховка окупилась";
+"achievement.streak.repair.title" = "Пластырь на серию";
+"achievement.streak.repair.detail" = "Вчера был провал, сегодня двойная порция. Серия цела, никто ничего не видел";
 
 /* Ачивки: Скорость */
 "achievement.speed.ru.100.title" = "Разогнался (RU)";
@@ -351,6 +353,10 @@
 "achievement.habit.goal.x2.detail" = "Цель дня выполнена дважды. Пальцы просят добавки";
 "achievement.habit.goal.x3.title" = "Тройная норма";
 "achievement.habit.goal.x3.detail" = "Три цели за один день. Кофе остыл, а клавиши нет";
+"achievement.challenge.week.title" = "Неделя покорена";
+"achievement.challenge.week.detail" = "Три испытания за семь дней. Календарь аплодирует стоя";
+"achievement.challenge.month.title" = "Месяц под контролем";
+"achievement.challenge.month.detail" = "Месячное испытание позади. Остальные тридцать дней были разминкой";
 "achievement.milestone.ru.digits.title" = "Считаем по-русски";
 "achievement.milestone.ru.digits.detail" = "Все десять цифр под пальцами. Считать на пальцах больше не придётся";
 "achievement.milestone.en.digits.title" = "Считаем по-английски";
@@ -371,6 +377,12 @@
 "achievement.milestone.first_plan.detail" = "Все четыре пункта плана выполнены. Планировщик гордится";
 "achievement.milestone.first_tier.title" = "Первая ступень";
 "achievement.milestone.first_tier.detail" = "Планка скорости поднялась, и вы поднялись вместе с ней";
+"achievement.level.10.title" = "Десятый уровень";
+"achievement.level.10.detail" = "Новичок остался позади, теперь вы ученик. Опыт копится сам";
+"achievement.level.30.title" = "Мастер клавиш";
+"achievement.level.30.detail" = "Тридцатый уровень. Звание «Мастер» звучит вполне заслуженно";
+"achievement.level.45.title" = "Почти легенда";
+"achievement.level.45.detail" = "Сорок пятый уровень. До «Легенды» остались считаные шаги";
 
 /* Ачивки: Теперь вы можете… */
 "achievement.letters.ru.hello.title" = "Первое слово";
@@ -546,6 +558,10 @@
 "achievement.condition.ownText" = "Завершите упражнение со своим текстом";
 "achievement.condition.fireMonth" = "Все дни календарного месяца — полный огонь, без заморозок";
 "achievement.condition.freezeSaved" = "Заморозка спасла серию: после пропуска вы вернулись к занятиям";
+"achievement.condition.streakRepair" = "Пропущенный день спасён: на следующий день набрана двойная цель";
+"achievement.condition.challengeWeek" = "Выполните все три испытания недели";
+"achievement.condition.challengeMonth" = "Выполните испытание месяца";
+"achievement.condition.level" = "Уровень опыта: %lld";
 "achievement.condition.exactSpeed" = "Итоговая скорость упражнения — ровно %lld зн/мин";
 "achievement.condition.exactSeconds" = "Чистое время упражнения — ровно %lld с";
 "achievement.condition.yoPresses" = "Буква «Ё» без ошибки, раз: %lld";
@@ -644,3 +660,9 @@
 "Ещё {minutes} мин. Не останавливайтесь на самом интересном" = "Ещё {minutes} мин. Не останавливайтесь на самом интересном";
 "Огонь разгорается. Ещё {minutes} мин — и будет жарко" = "Огонь разгорается. Ещё {minutes} мин — и будет жарко";
 "Пальцы без тренировки — как вечеринка без музыки. Включайте" = "Пальцы без тренировки — как вечеринка без музыки. Включайте";
+"Серия {streak} дн. на волоске: двойная цель сегодня её спасёт" = "Серия {streak} дн. на волоске: двойная цель сегодня её спасёт";
+"Ещё {minutes} мин — и серия в {streak} дн. будет спасена" = "Ещё {minutes} мин — и серия в {streak} дн. будет спасена";
+"Вчерашний пропуск ещё можно починить: до двойной цели {minutes} мин" = "Вчерашний пропуск ещё можно починить: до двойной цели {minutes} мин";
+"Серия {streak} дн. лежит в гипсе. Двойная цель сегодня его снимет" = "Серия {streak} дн. лежит в гипсе. Двойная цель сегодня его снимет";
+"Подкиньте ещё {minutes} мин — и серия вернётся из больницы" = "Подкиньте ещё {minutes} мин — и серия вернётся из больницы";
+"Пальцы, на починку серии в {streak} дн.! Нужна двойная цель" = "Пальцы, на починку серии в {streak} дн.! Нужна двойная цель";
