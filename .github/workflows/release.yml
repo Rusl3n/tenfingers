@@ -1,0 +1,130 @@
+name: release
+
+# Два режима, один переключатель MODE (см. env job ниже):
+#   push тега v*                       — release: проверки тега, сборка, упаковка, черновик релиза на GitHub;
+#   pull_request к скриптам релиза и
+#   workflow_dispatch                  — dry-run: всё то же без проверок тега и docs/releases и без `gh release`;
+#                                        готовые файлы выкладываются как artifacts запуска.
+# Релиз остаётся черновиком: проверяет и публикует его владелец.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'scripts/make-bundle.sh'
+      - 'scripts/lib-generation.sh'
+      - 'scripts/Info.plist'
+      - 'scripts/package-release.sh'
+      - 'scripts/update-relaunch.sh'
+      - 'scripts/*.entitlements'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 45
+    # Запись нужна только этому job: он создаёт черновик релиза и грузит в него файлы
+    permissions:
+      contents: write
+    env:
+      MODE: ${{ github.event_name == 'push' && 'release' || 'dry-run' }}
+      GH_TOKEN: ${{ github.token }}
+      # gh запускается из $RUNNER_TEMP/release, вне репозитория, поэтому репозиторий задаём явно
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # Действия закреплены по SHA (в комментарии — версия), как в tests.yml. Полная история нужна для номера сборки
+      # (git rev-list --count HEAD): локально и в CI он считается одинаково.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: '26.6'
+
+      - name: Версия
+        run: |
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          [ -n "$VERSION" ] || { echo "::error::Файл VERSION пуст"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Режим: $MODE, версия: $VERSION"
+
+      # Только release: любая неувязка останавливает job до сборки
+      - name: Проверка тега, VERSION и заметок
+        if: env.MODE == 'release'
+        run: |
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error::Тег $GITHUB_REF_NAME не совпадает с файлом VERSION: ожидался тег v$VERSION"
+            exit 1
+          fi
+          case "$VERSION" in
+            *-*)
+              echo "::error::VERSION содержит «-» ($VERSION): это не релизная версия, уберите суффикс -dev"
+              exit 1
+              ;;
+          esac
+          if [ ! -f "docs/releases/v$VERSION.md" ]; then
+            echo "::error::Нет файла docs/releases/v$VERSION.md с текстом релиза"
+            exit 1
+          fi
+
+      - name: Версия Swift
+        run: swift --version
+      # Те же флаги, что в tests.yml: любое предупреждение компилятора — ошибка.
+      - name: Сборка
+        run: swift build --build-tests -Xswiftc -warnings-as-errors
+      - name: Тесты
+        run: swift test -Xswiftc -warnings-as-errors
+
+      # Последняя строка stdout make-bundle.sh — путь к .app; вывод swift build идёт в stderr
+      - name: Бандл
+        run: |
+          OUT=$(scripts/make-bundle.sh --output "$RUNNER_TEMP/bundle")
+          APP=$(printf '%s\n' "$OUT" | tail -n 1)
+          [ -d "$APP" ] || { echo "::error::make-bundle.sh не вернул путь к .app: $APP"; exit 1; }
+          echo "APP=$APP" >> "$GITHUB_ENV"
+      # Замена локальной проверки: поколение схемы в собранном бандле равно SchemaGeneration.current из исходников
+      - name: Проверка бандла
+        run: |
+          source scripts/lib-generation.sh
+          EXPECTED=$(schema_generation)
+          ACTUAL=$(/usr/libexec/PlistBuddy -c "Print :TFSchemaGeneration" "$APP/Contents/Info.plist")
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::TFSchemaGeneration в бандле ($ACTUAL) не равен SchemaGeneration.current ($EXPECTED)"
+            exit 1
+          fi
+          echo "TFSchemaGeneration = $ACTUAL"
+
+      - name: Упаковка
+        run: scripts/package-release.sh "$APP" "$RUNNER_TEMP/release"
+
+      # Черновик; если релиз с этим тегом уже есть (в том числе черновик), файлы перезаписываются, текст не трогается
+      - name: Черновик релиза
+        if: env.MODE == 'release'
+        run: |
+          TAG="v$VERSION"
+          cd "$RUNNER_TEMP/release"
+          FILES=("TenFingers-$VERSION.zip" "TenFingers-$VERSION.dmg" release.json SHA256SUMS)
+          EXISTING=$(gh release list --limit 200 --json tagName --jq "map(select(.tagName == \"$TAG\")) | length")
+          if [ "$EXISTING" != "0" ]; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            gh release create "$TAG" "${FILES[@]}" --draft --verify-tag --title "$VERSION" \
+              --notes-file "$GITHUB_WORKSPACE/docs/releases/$TAG.md"
+          fi
+
+      - name: Файлы dry run
+        if: env.MODE == 'dry-run'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-dry-run
+          path: ${{ runner.temp }}/release
+          if-no-files-found: error
+          retention-days: 7

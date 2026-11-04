@@ -5,7 +5,7 @@
 <p align="center">Тренажёр слепой десятипальцевой печати для macOS — русская и английская раскладки.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F-2.3.0-blue" alt="Версия 2.3.0">
+  <img src="https://img.shields.io/badge/%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F-2.3.1-blue" alt="Версия 2.3.1">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -63,7 +63,19 @@
 
 ![Тёмная тема «Ночь», английская раскладка](docs/images/keyboard-en-dark.png)
 
-## Установка из исходников
+## Установка
+
+1. Скачайте файл `.dmg` со [страницы последнего релиза](https://github.com/Rusl3n/tenfingers/releases/latest), откройте его и перетащите «Десять пальцев» (`TenFingers`) в «Программы». Требуется macOS 15 или новее.
+2. Первый запуск. Приложение не нотаризовано, поэтому macOS остановит его. Откройте «Системные настройки → Конфиденциальность и безопасность» и нажмите «Всё равно открыть». Другой путь — команда в Терминале:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/TenFingers.app
+   ```
+
+3. Обновления: пока новые версии ставятся так же, как первая. Со следующих версий приложение будет само предлагать обновление.
+4. Запасной путь — [сборка из исходников](#сборка-из-исходников).
+
+## Сборка из исходников
 
 Требования: macOS 15 и новее, Xcode 26 и новее.
 

@@ -11,7 +11,7 @@
     <key>CFBundleExecutable</key><string>TenFingers</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <!-- Версия, номер сборки и TFGitCommit подставляет scripts/build-app.sh в копию внутри .app; здесь заглушки. -->
+    <!-- Версию, номер сборки, TFGitCommit и TFSchemaGeneration (поколение схемы базы) подставляет scripts/make-bundle.sh в копию внутри .app; здесь заглушки. -->
     <key>CFBundleShortVersionString</key><string>0.0.0</string>
     <key>CFBundleVersion</key><string>0</string>
     <key>LSMinimumSystemVersion</key><string>15.0</string>

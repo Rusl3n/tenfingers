@@ -5,7 +5,7 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.3.0-blue" alt="Version 2.3.0">
+  <img src="https://img.shields.io/badge/version-2.3.1-blue" alt="Version 2.3.1">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -63,7 +63,19 @@
 
 ![Dark "Night" theme, English layout](docs/images/keyboard-en-dark.png)
 
-## Install from source
+## Installation
+
+1. Download the `.dmg` file from the [latest release page](https://github.com/Rusl3n/tenfingers/releases/latest), open it and drag "TenFingers" to Applications. Requires macOS 15 or later.
+2. First launch. The app is not notarized, so macOS will stop it. Open System Settings → Privacy & Security and click "Open Anyway". Another way is this command in Terminal:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/TenFingers.app
+   ```
+
+3. Updates: for now, new versions are installed the same way as the first one. In upcoming versions the app will offer updates by itself.
+4. Fallback — [build from source](#build-from-source).
+
+## Build from source
 
 Requirements: macOS 15 or later, Xcode 26 or later.
 

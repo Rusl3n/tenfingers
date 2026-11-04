@@ -1,10 +1,13 @@
 #!/bin/bash
-# Собирает TenFingers.app (release), подписывает ad-hoc и устанавливает в /Applications.
+# Собирает TenFingers.app (release) через scripts/make-bundle.sh (сборка, версия, подпись ad-hoc) и устанавливает в /Applications.
 # Имя в Finder и Dock локализовано (Localization/*/InfoPlist.strings): «Десять пальцев» / «TenFingers».
 # Старый бандл «Десять пальцев.app» при установке удаляется (если он запущен, сначала закрывается).
 # Иконка: scripts/AppIcon.icns (перерисовать: swift scripts/make-icon.swift build/icon).
 set -euo pipefail
-cd "$(dirname "$0")/.."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/lib-generation.sh
+source "$SCRIPT_DIR/lib-generation.sh"
+cd "$SCRIPT_DIR/.."
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 
 STORE_DIR="$HOME/Library/Application Support/TenFingers"
@@ -13,12 +16,7 @@ STORE_DIR="$HOME/Library/Application Support/TenFingers"
 # эту сборку не ставим — она базу не откроет. Проверка идёт до сборки, резервной копии, закрытия
 # приложения и удаления бандлов, поэтому при отказе ничего не меняется. Маркера нет или он не читается —
 # ставим как раньше: приложение само разберётся при открытии базы.
-BUILD_GENERATION=$(sed -n 's/^[[:space:]]*static let current = \([0-9][0-9]*\).*$/\1/p' \
-    Sources/TenFingers/Persistence/SchemaGeneration.swift)
-[ -n "$BUILD_GENERATION" ] || {
-    echo "Не удалось прочитать SchemaGeneration.current из Sources/TenFingers/Persistence/SchemaGeneration.swift" >&2
-    exit 1
-}
+BUILD_GENERATION=$(schema_generation) || exit 1
 MARKER="$STORE_DIR/TenFingers.store.generation"
 if [ -f "$MARKER" ] && [ -r "$MARKER" ]; then
     STORE_GENERATION=$(tr -d '[:space:]' < "$MARKER" || true)
@@ -34,42 +32,14 @@ fi
 
 NAME="TenFingers.app"
 OLD_NAME="Десять пальцев.app"
-swift build -c release --product TenFingers
-BIN=$(swift build -c release --show-bin-path)
-APP="build/$NAME"
-
+# Сборка, версия и подпись — в make-bundle.sh (общий с CI). Последняя строка его stdout — путь к .app,
+# остальное (строка «Версия: ...») показываем как раньше.
+# Старые бандлы в build/ (в том числе «Десять пальцев.app») убираем здесь: make-bundle.sh удаляет только свой.
 rm -rf build/*.app
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN/TenFingers" "$APP/Contents/MacOS/"
-cp -R "$BIN/TenFingers_TypingCore.bundle" "$APP/Contents/Resources/"
-cp scripts/AppIcon.icns "$APP/Contents/Resources/"
-# Переводы приложения (Localizable.strings, InfoPlist.strings): ресурсы исполняемого таргета не попадают в Bundle.main
-cp -R Localization/*.lproj "$APP/Contents/Resources/"
-cp scripts/Info.plist "$APP/Contents/Info.plist"
-
-# Версия подставляется в копию Info.plist внутри .app (исходный scripts/Info.plist не меняется) и обязательно до codesign:
-#   CFBundleShortVersionString — файл VERSION (семантическая версия, например 0.3.0-dev);
-#   CFBundleVersion            — число коммитов (git rev-list --count HEAD);
-#   TFGitCommit                — короткий хэш коммита, с суффиксом -dirty при незакоммиченных изменениях.
-# Вне git-репозитория (например, из архива исходников) — сборка 0 и коммит unknown, без проверки изменений.
-VERSION=$(tr -d '[:space:]' < VERSION)
-[ -n "$VERSION" ] || { echo "Файл VERSION пуст" >&2; exit 1; }
-if command -v git >/dev/null 2>&1 && git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
-    BUILD=$(git rev-list --count HEAD)
-    COMMIT=$(git rev-parse --short HEAD)
-    if [ -n "$(git status --porcelain)" ]; then COMMIT="$COMMIT-dirty"; fi
-else
-    BUILD=0
-    COMMIT=unknown
-    echo "Не git-репозиторий: номер сборки 0, коммит unknown" >&2
-fi
-PLIST="$APP/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :TFGitCommit string $COMMIT" "$PLIST"
-echo "Версия: $VERSION (сборка $BUILD, $COMMIT)"
-
-codesign --force --deep --sign - "$APP"
+BUNDLE_OUT=$("$SCRIPT_DIR/make-bundle.sh")
+printf '%s\n' "$BUNDLE_OUT" | sed '$d'
+APP=$(printf '%s\n' "$BUNDLE_OUT" | tail -n1)
+[ -d "$APP" ] || { echo "make-bundle.sh не вернул путь к бандлу: $APP" >&2; exit 1; }
 
 # Резервная копия прогресса перед установкой новой сборки.
 # База копируется через `sqlite3 .backup` (согласованная копия, даже если приложение запущено);
