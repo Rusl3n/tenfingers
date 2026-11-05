@@ -63,6 +63,8 @@ struct ResultRecorder {
         let day = LogicalDay.key(for: result.endedAt, dayStartHour: dayStartHour())
         let pinky = KeyStats.pinkyCounts(from: result)
         let fingers = KeyStats.fingerCounts(from: result)
+        let segments = result.mode == .course
+            ? try? JSONEncoder().encode(SpeedSegments.split(text: result.text, timings: result.timings)) : nil
         context.insert(SessionRecord(
             mode: result.mode.rawValue, language: result.language.rawValue, lessonId: result.lessonId,
             startedAt: result.startedAt, endedAt: result.endedAt, logicalDay: day,
@@ -73,7 +75,8 @@ struct ResultRecorder {
             pinkyPresses: pinky.presses, pinkyErrors: pinky.errors, source: source,
             fingerPresses: FingerCounts.data(fingers.presses), fingerErrors: FingerCounts.data(fingers.errors),
             yoPresses: KeyStats.yoCorrect(from: result), stepIndex: result.stepIndex, planSlot: planSlot?.rawValue,
-            textTraits: result.textTraits.union(TextTraits.connected(source: source)).rawValue
+            textTraits: result.textTraits.union(TextTraits.connected(source: source)).rawValue,
+            speedSegments: segments
         ))
 
         try updateDay(day, activeSeconds: result.activeSeconds, completed: result.completed,

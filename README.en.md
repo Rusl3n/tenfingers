@@ -5,7 +5,7 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.6.0-blue" alt="Version 2.6.0">
+  <img src="https://img.shields.io/badge/version-2.7.0-blue" alt="Version 2.7.0">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -48,6 +48,7 @@
 - Russian and English interface; choose the language in Settings → General or follow the system.
 - Updates from within the app: a check for a new version once a day (it can be turned off), a banner on the home screen and a one-click install with a backup of your progress (see "Updates").
 - "Rhythm": a rhythm game with falling notes. Letters travel down eight finger lanes and you press them in time with a synthesized beat; four note modes (unlocked letters, locked letters, trouble letters and words), levels from "Easy" to "Expert", "My pace" based on your typing speed and an "Endless" level whose tempo keeps rising. After a run there is a breakdown (strong and weak letters, mix-ups, fingers) and "Train weak letters", records for every combination and a "Sound offset" for headphones with a delay. Game minutes count toward the daily goal and the flame, while the game does not change your typing speed.
+- Course breakdown: after every step a small speed chart by text segments (slow segments are highlighted, hover shows their words) and two or three lines on what went well and what got in the way; on the lesson result a full breakdown: speed per step, the best step, letters and a finger worth working on, and a "Where next" button. Training, practice and "Rhythm" have no breakdown. A strict step: at most 4 errors per 100 characters (never fewer than 3 allowed), an "errors N of M" counter while you type, and a step with too many errors has to be repeated. Lesson checks and the stage check have no limit. The certificate is visible ahead of time: a "Certificate" row with the condition and your progress at the top of "Course" and in "Analytics → Course progress", with a sample marked "Sample" on click.
 - A desktop widget, small and medium: the streak, the daily goal and the latest achievements (see "Widget").
 - All data stays local: no accounts and no telemetry. The only network request is the update check; turn it off and the app never touches the network.
 

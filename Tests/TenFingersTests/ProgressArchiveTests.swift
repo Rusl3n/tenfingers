@@ -122,7 +122,7 @@ private func archiveJSON(_ fields: String) -> Data {
     let data = try ProgressArchive.export(context: source, defaults: sourceDefaults, now: base)
     let archive = try ProgressArchive.decode(data)
     #expect(archive.format == "tenfingers-progress")
-    #expect(archive.version == 3)
+    #expect(archive.version == 4)
     #expect(archive.schemaGeneration == SchemaGeneration.current)
 
     let targetContainer = try ModelStore.makeContainer(inMemory: true)
@@ -204,6 +204,7 @@ private func archiveJSON(_ fields: String) -> Data {
         session.stepIndex = session.stepIndex ?? 0
         session.planSlot = session.planSlot ?? "lesson"
         session.textTraits = session.textTraits ?? 9
+        session.speedSegments = session.speedSegments ?? Data(#"[{"start":0,"end":5,"cpm":100}]"#.utf8)
     }
     for stat in try context.fetch(FetchDescriptor<KeyStat>()) { stat.ewmaMs = stat.ewmaMs ?? 1 }
     for lesson in try context.fetch(FetchDescriptor<LessonProgress>()) { lesson.passedAt = lesson.passedAt ?? base }
@@ -234,12 +235,12 @@ private func archiveJSON(_ fields: String) -> Data {
 // MARK: - Формат и версии
 
 @Test func newerFormatVersionIsUnsupported() throws {
-    #expect(ProgressArchive.version == 3)
+    #expect(ProgressArchive.version == 4)
     let next = ProgressArchive.version + 1
     let data = archiveJSON(#""format": "tenfingers-progress", "version": \#(next), "schemaGeneration": 2"#)
     #expect(throws: ArchiveError.unsupported(next)) { _ = try ProgressArchive.decode(data) }
     let message = try #require(ArchiveError.unsupported(next).errorDescription)
-    #expect(message.contains("до 3"), "\(message)")
+    #expect(message.contains("до 4"), "\(message)")
 }
 
 @Test func archiveFromNewerSchemaGenerationIsRefused() throws {
@@ -1316,7 +1317,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
 
     let first = try ProgressArchive.export(context: source, defaults: defaults, now: base)
     let archive = try ProgressArchive.decode(first)
-    #expect(archive.version == 3 && archive.rhythmResults.count == 1)
+    #expect(archive.version == 4 && archive.rhythmResults.count == 1)
     #expect(ArchiveError.sectionTitle(model: "RhythmResult") == "Результаты игры «Ритм»")
 
     let targetContainer = try ModelStore.makeContainer(inMemory: true)
@@ -1366,4 +1367,50 @@ private func fillPreferences(_ defaults: UserDefaults) {
     var archive = try ProgressArchive.decode(ProgressArchive.export(context: context, defaults: defaults, now: base))
     archive.rhythmResults[0].language = ""
     #expect(throws: ArchiveError.invalidRecord("RhythmResult", 0)) { try ProgressArchive.validate(archive) }
+}
+
+// MARK: - Версия 4: отрезки скорости (поколение 8)
+
+/// Отрезки сессии проходят экспорт -> загрузку байт в байт; сессия без отрезков остаётся без них.
+@MainActor @Test func speedSegmentsRoundTripThroughArchiveV4() throws {
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    let segments = Data(#"[{"start":0,"end":30,"cpm":150},{"start":30,"end":60}]"#.utf8)
+    for (index, data) in [Optional(segments), nil].enumerated() {
+        let at = base.addingTimeInterval(Double(index) * 100)
+        source.insert(SessionRecord(
+            mode: "course", language: "ru", lessonId: "ru.1.1", startedAt: at, endedAt: at, logicalDay: "2026-09-21",
+            activeSeconds: 10, chars: 60, errorCount: 0, cpm: 100, accuracy: 1, completed: true, hintLevel: "full",
+            maxErrorStreak: 0, wrongKeystrokes: 0, stepIndex: index, speedSegments: data))
+    }
+    try source.save()
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    let archive = try ProgressArchive.decode(try ProgressArchive.export(context: source, defaults: defaults, now: base))
+    #expect(archive.version == 4)
+
+    let targetContainer = try ModelStore.makeContainer(inMemory: true)
+    try ProgressArchive.replaceAll(with: archive, context: targetContainer.mainContext)
+    let restored = try targetContainer.mainContext.fetch(FetchDescriptor<SessionRecord>()).sorted { $0.stepIndex! < $1.stepIndex! }
+    #expect(restored[0].decodedSpeedSegments == [SpeedSegment(start: 0, end: 30, cpm: 150),
+                                                 SpeedSegment(start: 30, end: 60, cpm: nil)])
+    #expect(restored[1].speedSegments == nil)
+}
+
+/// Архив версии 3 читается: у сессий отрезков нет. Версия 5 не читается.
+@MainActor @Test func archiveV3HasNoSpeedSegmentsAndV5IsUnsupported() throws {
+    let v3 = archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 3, "schemaGeneration": 7, "settings": {},
+        "sessions": [{"mode": "course", "language": "ru", "startedAt": 0, "endedAt": 0, "logicalDay": "2026-09-21",
+                      "activeSeconds": 5, "chars": 10, "errorCount": 0, "cpm": 100, "accuracy": 1, "completed": true,
+                      "hintLevel": "full"}]
+        """#)
+    let archive = try ProgressArchive.decode(v3)
+    #expect(archive.sessions.count == 1 && archive.sessions[0].speedSegments == nil)
+    let container = try ModelStore.makeContainer(inMemory: true)
+    try ProgressArchive.replaceAll(with: archive, context: container.mainContext)
+    #expect(try container.mainContext.fetch(FetchDescriptor<SessionRecord>()).allSatisfy { $0.speedSegments == nil })
+    #expect(throws: ArchiveError.unsupported(5)) {
+        _ = try ProgressArchive.decode(archiveJSON(#""format": "tenfingers-progress", "version": 5, "schemaGeneration": 8"#))
+    }
 }

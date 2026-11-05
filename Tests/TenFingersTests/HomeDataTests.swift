@@ -279,3 +279,31 @@ private func rhythmSample(day: String, seconds: Double = 600) -> SessionSummary 
     #expect(CourseFocus.lessonId(requested: nil, course: course, passed: Set(course.lessons.map(\.id)),
                                  checkStars: ["ru2.s1.check": 2, "ru2.s2.check": 3]) == nil)
 }
+
+// MARK: - Приветствие (фаза 8, §5a)
+
+@Test func greetingTextWithAndWithoutName() throws {
+    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Localization/en.lproj")
+    let en = try #require(Bundle(url: url))
+    let ru = try #require(Bundle(url: url.deletingLastPathComponent().appendingPathComponent("ru.lproj")))
+    let enLocale = Locale(identifier: "en"), ruLocale = Locale(identifier: "ru")
+    #expect(GreetingLine.text(part: .morning, nickname: "Ann", bundle: en, locale: enLocale) == "Good morning, Ann")
+    #expect(GreetingLine.text(part: .day, nickname: "Ann", bundle: en, locale: enLocale) == "Good afternoon, Ann")
+    #expect(GreetingLine.text(part: .evening, nickname: "Ann", bundle: en, locale: enLocale) == "Good evening, Ann")
+    #expect(GreetingLine.text(part: .night, nickname: "Ann", bundle: en, locale: enLocale) == "Good night, Ann")
+    #expect(GreetingLine.text(part: .morning, nickname: "Аня", bundle: ru, locale: ruLocale) == "Доброе утро, Аня")
+    #expect(GreetingLine.text(part: .night, nickname: "Аня", bundle: ru, locale: ruLocale) == "Доброй ночи, Аня")
+    // Пустой никнейм (и из одних пробелов): без имени и без запятой.
+    #expect(GreetingLine.text(part: .morning, nickname: "", bundle: en, locale: enLocale) == "Good morning")
+    #expect(GreetingLine.text(part: .day, nickname: "  \n", bundle: ru, locale: ruLocale) == "Добрый день")
+    #expect(GreetingLine.text(part: .evening, nickname: "", bundle: ru, locale: ruLocale) == "Добрый вечер")
+}
+
+@Test func greetingFollowsTheMacClockHour() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    let noon = Date(timeIntervalSince1970: 1_773_144_000)      // 2026-03-10 12:00 UTC
+    #expect(GreetingLine.part(at: noon, calendar: calendar) == .day)
+    #expect(GreetingLine.part(at: noon.addingTimeInterval(11 * 3600), calendar: calendar) == .night)
+}

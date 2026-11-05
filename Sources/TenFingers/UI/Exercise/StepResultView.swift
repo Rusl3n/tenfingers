@@ -26,6 +26,8 @@ struct StepResultView: View {
     var certificate: ShareEvent? = nil
     /// Итог повтора проверки «Ускорения» против ориентира до попытки: строка под метриками.
     var speedup: SpeedupReference.Outcome?
+    /// Разбор шага (§2.2): мини-график и строки; `nil` — разбора нет.
+    var review: StepReviewScreen? = nil
     /// Проверка этапа засчитана, но порог не взят (`GateHint.text`): строка под звёздами, как на итоге урока.
     var gateText: String? = nil
     /// «Потренировать слабые буквы» — «Повтор» этапа (`GateHint.reviewLesson`); `nil` — кнопки нет.
@@ -71,6 +73,10 @@ struct StepResultView: View {
                 metric("Скорость", unit.format(summary.cpm))
             }
             if let speedup { SpeedupOutcomeLine(outcome: speedup, unit: unit) }
+            if let review {
+                SpeedSegmentsChart(screen: review, unit: unit)
+                StepReviewLines(screen: review, hidesLetters: !summary.topErrors.isEmpty)
+            }
             if stars != nil {
                 NextStarHintView(cpm: summary.cpm, accuracy: summary.accuracy, errors: summary.errors,
                                  chars: summary.chars, targetCpm: targetCpm, steps: steps, unit: unit)

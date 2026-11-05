@@ -42,8 +42,17 @@ struct LessonResume {
         defaults.removeObject(forKey: Self.key(lessonId: lessonId))
     }
 
-    /// Шаг с этим номером записан в базу.
-    func stepFinished(lessonId: String, index: Int, totalSteps: Int, now: Date = .now) {
+    /// Шаг с этим номером записан в базу. Шаг с перебором ошибок (`passed == false`) продолжение не двигает
+    /// (урок продолжится с него), но срок записи продлевает.
+    func stepFinished(lessonId: String, index: Int, totalSteps: Int, passed: Bool = true, now: Date = .now) {
+        guard passed else {
+            // Индекс не двигаем, но срок продолжения продлеваем, как при обычном шаге.
+            if let saved = load(lessonId: lessonId), let data = try? JSONEncoder().encode(
+                LessonResumeState(completedSteps: saved.completedSteps, totalSteps: saved.totalSteps, updatedAt: now)) {
+                defaults.set(data, forKey: Self.key(lessonId: lessonId))
+            }
+            return
+        }
         guard let state = Self.state(afterStep: index, totalSteps: totalSteps, now: now),
               let data = try? JSONEncoder().encode(state) else {
             clear(lessonId: lessonId)

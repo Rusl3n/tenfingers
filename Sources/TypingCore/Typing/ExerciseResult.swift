@@ -34,6 +34,8 @@ public struct ExerciseResult: Sendable {
     /// Свойства целевого текста упражнения (весь текст, даже если упражнение брошено) и связность от планировщика
     /// (`ExerciseSpec.connected`); связность по источнику добавляет запись.
     public let textTraits: TextTraits
+    /// Целевой текст упражнения целиком: по нему и `timings` строятся отрезки скорости (`SpeedSegments`).
+    public let text: String
 
     public init(engine: TypingEngine, mode: ExerciseMode, language: Language, lessonId: String?,
                 startedAt: Date, endedAt: Date, hintLevel: HintLevel, exerciseKind: ExerciseKind? = nil, stepIndex: Int? = nil,
@@ -56,6 +58,7 @@ public struct ExerciseResult: Sendable {
         timings = engine.timings
         errorsByCharacter = engine.errorsByCharacter
         self.stepIndex = stepIndex
+        text = String(engine.target)
         textTraits = TextTraits.of(engine.target).union(connected ? .connected : [])
     }
 }

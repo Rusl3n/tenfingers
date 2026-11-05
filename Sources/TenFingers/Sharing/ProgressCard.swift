@@ -130,10 +130,12 @@ struct ProgressCardData: Equatable {
     let year: ProgressPeriodStats
     /// За всё время («Без календаря»).
     let allTime: ProgressPeriodStats
+    /// Уровень из `Experience` (те же данные, что на «Главной»); `nil` — прочитать не удалось: строки уровня нет.
+    var level: Int? = nil
 
     /// Месяц — с 1-го числа по сегодня, год — от первой клетки сетки 53×7 по сегодня, всё время — вся история.
     static func make(days: [String: DayActivity], sessions: [SessionSummary], today: String, goalSeconds: Double,
-                     firstWeekday: Int) -> ProgressCardData {
+                     firstWeekday: Int, level: Int? = nil) -> ProgressCardData {
         let summary = StreakCalculator.summarize(days: days, today: today, goalSeconds: goalSeconds)
         let yearGrid = ActivityCalendar.make(today: today, statuses: summary.statuses, firstWeekday: firstWeekday)
         let monthStart = String(today.prefix(8)) + "01"
@@ -154,7 +156,7 @@ struct ProgressCardData: Equatable {
             goalCurrent: summary.goalCurrent, goalTotal: summary.goalTotal,
             monthGrid: MonthGrid.make(today: today, statuses: summary.statuses, firstWeekday: firstWeekday),
             yearGrid: yearGrid, month: stats(from: monthStart), year: stats(from: yearStart),
-            allTime: stats(from: ""))
+            allTime: stats(from: ""), level: level)
     }
 
     func stats(_ period: ProgressPeriod) -> ProgressPeriodStats {
@@ -170,15 +172,19 @@ struct ProgressCardData: Equatable {
 @MainActor
 enum ProgressCardLoader {
     /// `firstWeekday` — явное значение (1 — воскресенье, 2 — понедельник); без него — настройка из `defaults`.
+    /// `service` — источник уровня (приложение передаёт `.live`, тесты — свой, без стандартного домена).
     static func load(context: ModelContext, now: Date = .now, goalSeconds: Double, dayStartHour: Int,
-                     firstWeekday: Int? = nil, defaults: UserDefaults = .standard) throws -> ProgressCardData {
+                     firstWeekday: Int? = nil, defaults: UserDefaults = .standard,
+                     service: AchievementService) throws -> ProgressCardData {
         let firstWeekday = firstWeekday ?? StoredSettings.firstWeekday(defaults)
         let snapshot = ProgressSnapshot(context: context)
         let today = LogicalDay.key(for: now, dayStartHour: dayStartHour)
         let days = try snapshot.dayActivities()
         let sessions = try snapshot.sessionSummaries()
+        // Уровень — тот же снимок года, что у «Главной»; его ошибка не прячет карточку.
+        let level = try? YearLoader(context: context, service: service).state().level
         return ProgressCardData.make(days: days, sessions: sessions, today: today, goalSeconds: goalSeconds,
-                                     firstWeekday: firstWeekday)
+                                     firstWeekday: firstWeekday, level: level)
     }
 }
 
@@ -280,7 +286,7 @@ extension ShareCard {
     static func progress(context: ModelContext, goalSeconds: Double, dayStartHour: Int, now: Date = .now) throws
         -> ShareCard {
         let data = try ProgressCardLoader.load(context: context, now: now, goalSeconds: goalSeconds,
-                                               dayStartHour: dayStartHour)
+                                               dayStartHour: dayStartHour, service: .live(context: context))
         return ShareCard(.progress(data), now: now)
     }
 

@@ -42,6 +42,13 @@ struct CourseMapView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        // «Сертификат» заранее (фаза 8, §4): пока не получен — условие и образец.
+                        if let certificate = CourseProgressRow.certificateProgress(
+                            course: course, passed: passed, sessions: summaries) {
+                            CertificatePreviewRow(progress: certificate, language: language, unit: unit)
+                                .padding(.horizontal, 10)
+                                .padding(.top, 14)
+                        }
                         ForEach(Array(course.stages.enumerated()), id: \.element.id) { stageIndex, stage in
                             Section {
                                 ForEach(Array(stage.lessons.enumerated()), id: \.element.id) { lessonIndex, lesson in
@@ -69,7 +76,7 @@ struct CourseMapView: View {
                                                     isUnlocked: isUnlocked, unit: unit,
                                                     stepPlan: stepPlan(course, lesson, isExpanded: expanded.contains(lesson.id)),
                                                     isExtern: isExtern, refresh: refresh,
-                                                    isExpanded: expandedBinding(lesson.id), start: start)
+                                                    isExpanded: expandedBinding(lesson.id), start: start, course: course)
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 6)
                                 }
@@ -164,6 +171,9 @@ struct CourseLessonRow: View {
 
     @State private var isHovered = false
     @State private var showsStarsHelp = false
+    @State private var stats: LessonStatsRequest?
+    /// Курс урока: для окна «Статистика урока» (цель и названия шагов); без него кнопки нет.
+    var course: Course? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -249,9 +259,16 @@ struct CourseLessonRow: View {
                 .padding(.leading, 32)
                 .padding(.bottom, 4)
             }
+            if isExpanded, let course {
+                LessonStatsButton {
+                    stats = LessonStatsRequest.make(course: course, lessonId: lesson.id, language: language)
+                }
+                .padding(.leading, 32)
+            }
         }
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
+        .sheet(item: $stats) { LessonStatsView(request: $0) }
     }
 
     /// Шаг: колонки «ошибки», «скорость» те же, что у строки урока (ширина по тем же шаблонам, правые края

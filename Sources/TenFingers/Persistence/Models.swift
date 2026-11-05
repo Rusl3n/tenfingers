@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TypingCore
 
 @Model final class SessionRecord {
     var id: UUID
@@ -39,13 +40,16 @@ import SwiftData
     /// Свойства набранного текста (`TextTraits`, битовая маска): 1 — заглавные, 2 — пунктуация, 4 — цифры,
     /// 8 — связный текст. `nil` у записей до поколения 6.
     var textTraits: Int? = nil
+    /// Скорость по отрезкам целевого текста (`[SpeedSegment]`, JSON); только у записей курса. `nil` у записей
+    /// до поколения 8 и у режимов вне курса (подфаза 8a, §2.1).
+    var speedSegments: Data? = nil
 
     init(mode: String, language: String, lessonId: String?, startedAt: Date, endedAt: Date,
          logicalDay: String, activeSeconds: Double, chars: Int, errorCount: Int, cpm: Double,
          accuracy: Double, completed: Bool, hintLevel: String, maxErrorStreak: Int, wrongKeystrokes: Int,
          exerciseKind: String? = nil, pinkyPresses: Int = 0, pinkyErrors: Int = 0, source: String? = nil,
          fingerPresses: Data? = nil, fingerErrors: Data? = nil, yoPresses: Int? = nil, stepIndex: Int? = nil,
-         planSlot: String? = nil, textTraits: Int? = nil) {
+         planSlot: String? = nil, textTraits: Int? = nil, speedSegments: Data? = nil) {
         id = UUID()
         self.mode = mode
         self.language = language
@@ -72,6 +76,12 @@ import SwiftData
         self.stepIndex = stepIndex
         self.planSlot = planSlot
         self.textTraits = textTraits
+        self.speedSegments = speedSegments
+    }
+
+    /// Отрезки скорости; `nil` — их нет или они не читаются.
+    var decodedSpeedSegments: [SpeedSegment]? {
+        speedSegments.flatMap { try? JSONDecoder().decode([SpeedSegment].self, from: $0) }
     }
 }
 

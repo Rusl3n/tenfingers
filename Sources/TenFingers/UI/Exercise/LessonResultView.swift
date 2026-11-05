@@ -18,14 +18,22 @@ struct LessonResultView: View {
     var certificate: ShareEvent? = nil
     /// Итог урока «Ускорение» против ориентира до попытки: строка под метриками.
     var speedup: SpeedupReference.Outcome? = nil
+    /// Разбор урока (§2.3): раскрываемый блок под ошибками; `nil` — блока нет.
+    var review: LessonReviewModel? = nil
+    /// Кнопка «Куда дальше» в разборе; `nil` — кнопки нет.
+    var adviceTitle: String? = nil
+    var onAdvice: (() -> Void)? = nil
     /// Проверка этапа засчитана, но порог не взят (`GateHint.text`): строка под звёздами.
     var gateText: String? = nil
     /// «Потренировать слабые буквы» — «Повтор» этого этапа (`GateHint.reviewLesson`); `nil` — кнопки нет.
     var onPracticeWeak: (() -> Void)? = nil
+    /// «Статистика урока» рядом с «Разбором»; `nil` — кнопки нет.
+    var statsRequest: LessonStatsRequest? = nil
     let onRetry: () -> Void
     let onNext: () -> Void
     let onExit: () -> Void
 
+    @State private var stats: LessonStatsRequest?
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
 
     private var unit: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
@@ -37,6 +45,17 @@ struct LessonResultView: View {
     }
 
     var body: some View {
+        // Помещается — по центру, как раньше; не помещается (раскрыт «Разбор», ачивки) — прокрутка.
+        // Один экземпляр содержимого: раскрытие «Разбора» не сбрасывается при смене высоты.
+        GeometryReader { proxy in
+            ScrollView {
+                content.frame(maxWidth: .infinity, minHeight: proxy.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 20) {
             Text(stars > 0 ? String(localized: "Урок пройден") : failedTitle)
                 .font(.largeTitle.bold())
@@ -77,6 +96,8 @@ struct LessonResultView: View {
                     }
                 }
             }
+            if let review { LessonReviewSection(model: review, unit: unit, adviceTitle: adviceTitle, onAdvice: onAdvice) }
+            if let statsRequest { LessonStatsButton { stats = statsRequest } }
             if gateText != nil, let onPracticeWeak {
                 Button("Потренировать слабые буквы", action: onPracticeWeak)
                     .buttonStyle(.borderedProminent)
@@ -93,6 +114,7 @@ struct LessonResultView: View {
             }
         }
         .padding(28)
+        .sheet(item: $stats) { LessonStatsView(request: $0) }
     }
 
     /// «Рекорд побит: +6%» или «До рекорда не хватило 4 зн/мин»; нехватка в выбранной единице округляется вверх.

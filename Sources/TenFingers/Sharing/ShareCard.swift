@@ -330,6 +330,8 @@ struct ShareCardText: Equatable {
     /// Календарь, показатели и переключатели содержимого карточки «Мой прогресс»; у прочих событий `nil`.
     let progress: ProgressCardText?
     let signature: String?
+    /// «Уровень N» под подписью — только у «Мой прогресс» (всегда, без переключателя).
+    let levelLine: String?
     let date: String
     /// Показывать дату: только у карточки ачивки её можно выключить (`AchievementCardContent.showsDate`).
     let showsDate: Bool
@@ -391,6 +393,11 @@ struct ShareCardText: Equatable {
         }
         self.progress = progress
         signature = profile.text(for: options.signature)
+        if case .progress(let data) = card.event, let level = data.level {
+            levelLine = String(localized: "Уровень \(level)", bundle: bundle, locale: locale)
+        } else {
+            levelLine = nil
+        }
         date = card.date.formatted(Date.FormatStyle(date: .long, time: .omitted).locale(locale))
         if case .achievement = card.event { showsDate = options.achievementContent.showsDate } else { showsDate = true }
         appName = String(localized: "Десять пальцев", bundle: bundle, locale: locale)

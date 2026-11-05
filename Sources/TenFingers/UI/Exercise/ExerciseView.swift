@@ -12,6 +12,8 @@ struct ExerciseView: View {
     var goalText: String? = nil
     /// Урок продолжен с этого шага (с единицы): над текстом плашка с кнопкой «Начать урок заново».
     var resumedStep: Int?
+    /// Допуск ошибок шага (§3): рядом с индикатором скорости «Ошибки: N из M», красным при переборе; `nil` — допуска нет.
+    var errorLimit: Int? = nil
     /// Строка над текстом упражнения («Обгоните себя: 142 зн/мин → цель 149 зн/мин» у шагов «Ускорения»).
     var banner: String? = nil
     var onRestart: (() -> Void)?
@@ -126,7 +128,13 @@ struct ExerciseView: View {
             }
             HStack(spacing: 18) {
                 HStack(spacing: 6) {
-                    Text("Ошибки: \(session.engine.errorPositions.count)").monospacedDigit()
+                    let errors = session.engine.errorPositions.count
+                    if let errorLimit {
+                        Text(ErrorCounter.text(errors: errors, limit: errorLimit)).monospacedDigit()
+                            .foregroundStyle(ErrorCounter.isOver(errors: errors, limit: errorLimit) ? Color.red : .secondary)
+                    } else {
+                        Text("Ошибки: \(errors)").monospacedDigit()
+                    }
                     if Self.showsAccuracyPercent(mode: session.mode) {
                         Text(Formatting.percent(session.engine.accuracy)).font(.caption).monospacedDigit()
                     }

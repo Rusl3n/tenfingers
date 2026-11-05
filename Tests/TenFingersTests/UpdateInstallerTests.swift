@@ -269,14 +269,14 @@ func badDownloadIsRefusedAndCleaned(case kind: String) async throws {
 }
 
 @MainActor @Test func newerStoreGenerationIsRefused() throws {
-    let env = try Env(storeGeneration: 9)
+    let env = try Env(storeGeneration: SchemaGeneration.current + 2)
     defer { env.cleanUp() }
     let (manifest, _) = try env.release()   // текущее поколение (в тесте описание «текущее + 1» ниже)
-    #expect(throws: UpdateError.olderGeneration(stored: 9, update: SchemaGeneration.current)) {
+    #expect(throws: UpdateError.olderGeneration(stored: SchemaGeneration.current + 2, update: SchemaGeneration.current)) {
         try env.installer().preflight(manifest: manifest)
     }
     let seven = try env.release(generation: SchemaGeneration.current + 1)
-    #expect(throws: UpdateError.olderGeneration(stored: 9, update: SchemaGeneration.current + 1)) {
+    #expect(throws: UpdateError.olderGeneration(stored: SchemaGeneration.current + 2, update: SchemaGeneration.current + 1)) {
         try env.installer().preflight(manifest: seven.manifest)
     }
 }

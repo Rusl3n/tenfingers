@@ -20,6 +20,7 @@ struct HomeView: View {
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var targetCpm = SettingsDefault.adaptiveTargetCpm
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
+    @AppStorage(SettingsKey.profileNickname) private var nickname = ""
     @Query private var progress: [LessonProgress]
     @Query(sort: \AchievementRecord.unlockedAt, order: .reverse) private var achievementRecords: [AchievementRecord]
     @State private var data: HomeData?
@@ -33,13 +34,16 @@ struct HomeView: View {
     @State private var plan: DayPlan?
     /// Снимок года (уровень, испытания); `nil` — прочитать не удалось: главная без уровня и «Испытаний».
     @State private var year: YearState?
+    /// Часы Mac для приветствия: обновляются тем же минутным таймером, что и данные (`reload`).
+    @State private var now = Date()
 
     private var language: Language { Language(rawValue: activeLanguage) ?? .ru }
 
     var body: some View {
         Group {
             if let data {
-                HomeContent(data: data, continueInfo: continueInfo, unit: SpeedUnit(rawValue: speedUnit) ?? .cpm,
+                HomeContent(data: data, greeting: GreetingLine.text(part: GreetingLine.part(at: now), nickname: nickname),
+                            continueInfo: continueInfo, unit: SpeedUnit(rawValue: speedUnit) ?? .cpm,
                             level: year.map { LevelLine.make($0) },
                             challenges: year.flatMap {
                                 ChallengesCardModel.make(week: $0.week, month: $0.month, today: $0.today,
@@ -118,6 +122,7 @@ struct HomeView: View {
     /// Дни читаются один раз (из них и серия, и время), сессии — только за неделю, дата первого занятия —
     /// отдельным запросом на одну запись.
     private func reload() {
+        now = .now
         let snapshot = ProgressSnapshot(context: modelContext)
         let today = LogicalDay.key(for: .now, dayStartHour: dayStartHour)
         do {
@@ -166,6 +171,8 @@ struct HomeView: View {
 /// Выбор вкладки помнится (`SettingsKey.homeTab`), по умолчанию — план.
 struct HomeContent: View {
     let data: HomeData
+    /// Приветствие первой строкой; `nil` — без него (проверки раскладки).
+    var greeting: String?
     let continueInfo: ContinueInfo?
     let unit: SpeedUnit
     var level: LevelLine?
@@ -223,7 +230,8 @@ struct HomeContent: View {
     /// Содержимое без прокрутки (его же рисует проверка через `ImageRenderer`: прокрутку тот не отрисовывает).
     var column: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Плашка обновления — в самом верху, выше огня и «Искры» (просьба пользователя: в середине её приходилось искать).
+            if let greeting { Text(verbatim: greeting).font(.title.bold()) }
+            // Плашка обновления — сразу под приветствием, выше огня и «Искры» (просьба пользователя: в середине её приходилось искать).
             if let updateChecker, updateChecker.showsBanner { UpdateBanner(checker: updateChecker) }
             StreakHeader(streak: data.streak, todaySeconds: data.todaySeconds, goalMinutes: data.goalMinutes,
                          level: level, shareProgress: shareProgress)

@@ -101,13 +101,15 @@ private let saturday = "2026-10-24"
     let now = Date(timeIntervalSince1970: 1_792_843_200)   // 24 октября 2026 г., 12:00 UTC
     defaults.set("monday", forKey: SettingsKey.firstWeekday)
     let monday = try ProgressCardLoader.load(context: context, now: now, goalSeconds: 600, dayStartHour: 4,
-                                             defaults: defaults)
+                                             defaults: defaults,
+                                             service: testAchievementService(context, now: now))
     #expect(monday.monthGrid.firstWeekday == 2 && monday.yearGrid.firstWeekday == 2)
     // Октябрь 2026 начинается в четверг: при понедельнике — три пустые клетки, при воскресенье — четыре.
     #expect(monday.monthGrid.weeks[0].prefix(4).map { $0 == nil } == [true, true, true, false])
     defaults.set("sunday", forKey: SettingsKey.firstWeekday)
     let sunday = try ProgressCardLoader.load(context: context, now: now, goalSeconds: 600, dayStartHour: 4,
-                                             defaults: defaults)
+                                             defaults: defaults,
+                                             service: testAchievementService(context, now: now))
     #expect(sunday.monthGrid.firstWeekday == 1 && sunday.yearGrid.firstWeekday == 1)
     #expect(sunday.monthGrid.weeks[0].prefix(5).map { $0 == nil } == [true, true, true, true, false])
 }

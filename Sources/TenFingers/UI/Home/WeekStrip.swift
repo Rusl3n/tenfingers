@@ -9,13 +9,13 @@ struct WeekStrip: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(days) { day in
-                VStack(spacing: 6) {
+                VStack(spacing: 2) {
                     Text(day.label).font(.caption).foregroundStyle(.secondary).opacity(day.isFuture ? 0.5 : 1)
                     // Будущий день — пунктирный кружок, чтобы его нельзя было спутать с пропущенным.
                     Image(systemName: day.isFuture ? WeekStrip.futureIcon : DayStatusStyle.icon(day.status))
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundStyle(day.isFuture ? Color.secondary.opacity(0.5) : DayStatusStyle.color(day.status))
-                        .frame(width: 40, height: 40)
+                        .frame(width: 28, height: 28)
                         .overlay {
                             if day.isToday {
                                 Circle().strokeBorder(Color.secondary.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
@@ -30,7 +30,7 @@ struct WeekStrip: View {
                 .accessibilityValue(day.isToday ? Text("сегодня") : Text(verbatim: ""))
             }
         }
-        .padding(.vertical, 14).padding(.horizontal, 8)
+        .padding(.vertical, 8).padding(.horizontal, 8)
         .background(palette.card, in: RoundedRectangle(cornerRadius: 12))
         .help(HelpText.weekStrip)
     }

@@ -9,8 +9,8 @@ enum SchemaGeneration {
     /// 2 — схема начала фазы 3, 3 — фаза 4: новая модель `AchievementRecord`, 4 — фаза 5: поля `fingerPresses`,
     /// `fingerErrors`, `yoPresses` в `SessionRecord`, 5 — фаза 5: цель дня `DayRecord.goalSeconds`, 6 — фаза 6a: модель
     /// `AchievementGrant`, поля `stepIndex`, `planSlot`, `textTraits` в `SessionRecord`, 7 — игра «Ритм»: модель
-    /// `RhythmResult` (текущая `SchemaV1`).
-    static let current = 7
+    /// `RhythmResult`, 8 — подфаза 8a: необязательное поле `SessionRecord.speedSegments` (текущая `SchemaV1`).
+    static let current = 8
 
     /// Файл-маркер лежит в той же папке, что и база, и попадает в резервные копии вместе с ней.
     static func markerURL(forStore storeURL: URL) -> URL {

@@ -288,3 +288,35 @@ private func textResult(_ text: String, typed: Int? = nil, mode: ExerciseMode = 
     #expect(summaries.first { $0.mode == .practice }?.planSlot == .training)
     #expect(summaries.first { $0.mode == .course }?.planSlot == nil)
 }
+
+private func longResult(mode: ExerciseMode, completed: Bool = true) -> ExerciseResult {
+    let text = String(repeating: "слово ", count: 10)   // 60 знаков
+    var engine = TypingEngine(text: text)
+    var clock = 0.0
+    for character in text {
+        clock += 0.2
+        _ = engine.handle(Keystroke(character: character, keyCode: 3, timestamp: clock))
+    }
+    let at = Date(timeIntervalSince1970: 1_800_000_000)
+    return ExerciseResult(engine: engine, mode: mode, language: .ru, lessonId: mode == .course ? "ru.1.1" : nil,
+                          startedAt: at, endedAt: at, hintLevel: .full)
+}
+
+/// Отрезки скорости пишутся только для курса; у тренировок и практики поле пустое.
+@MainActor @Test func speedSegmentsAreRecordedForCourseOnly() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit {
+        try recorder.record(longResult(mode: .course))
+        try recorder.record(longResult(mode: .adaptive))
+        try recorder.record(longResult(mode: .practice))
+        try recorder.record(longResult(mode: .weak))
+    }
+    let sessions = try container.mainContext.fetch(FetchDescriptor<SessionRecord>())
+    let course = try #require(sessions.first { $0.mode == "course" })
+    let segments = try #require(course.decodedSpeedSegments)
+    #expect(segments == SpeedSegments.split(text: String(repeating: "слово ", count: 10),
+                                            timings: longResult(mode: .course).timings))
+    #expect(segments.count >= 2 && segments.first?.start == 0 && segments.last?.end == 60)
+    #expect(sessions.filter { $0.mode != "course" }.allSatisfy { $0.speedSegments == nil })
+}

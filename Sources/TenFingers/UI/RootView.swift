@@ -381,7 +381,7 @@ struct RootView: View {
         switch run {
         case .lesson(let lesson):
             LessonRunnerView(run: lesson, onExit: end, onToCourse: { toCourse(lesson.lessonId) },
-                             onStart: { start(.lesson($0)) })
+                             onStart: { start(.lesson($0)) }, onGo: { start($0) })
         case .adaptive(let training):
             AdaptiveRunnerView(language: training.language, planSlot: training.planSlot, portions: training.portions,
                                onExit: end)

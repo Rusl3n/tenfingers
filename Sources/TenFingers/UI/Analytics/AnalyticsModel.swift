@@ -344,6 +344,8 @@ struct CourseProgressRow: Identifiable, Equatable {
     /// Средняя скорость проверок этапов, если курс издания 2 пройден и она не ниже 120 зн/мин (`Certificate`): у строки
     /// появляется кнопка «Сертификат». У архива — всегда `nil`.
     var certificateAverage: Double? = nil
+    /// Состояние пути к «Сертификату» у курса издания 2, пока он не получен (фаза 8, §4); иначе `nil`.
+    var certificateProgress: CertificateProgress? = nil
 
     var id: String { "\(language.rawValue)\(isArchive ? ".v1" : "")" }
     /// «Русский» или «Курс 1.x (архив) · Русский».
@@ -352,6 +354,13 @@ struct CourseProgressRow: Identifiable, Equatable {
     }
     var maxStars: Int { total * LessonScoring.maxStars }
     var fraction: Double { total > 0 ? Double(passed) / Double(total) : 0 }
+
+    /// Путь к «Сертификату»: только у курса издания 2 и пока сертификат не получен.
+    static func certificateProgress(course: Course, passed: Set<String>, sessions: [SessionSummary]) -> CertificateProgress? {
+        guard course.edition >= 2 else { return nil }
+        let progress = Certificate.progress(course: course, passed: passed, sessions: sessions)
+        return progress.earned ? nil : progress
+    }
 
     /// Звёзды — по тому же правилу, что на карте курса: `LessonScoring.effectiveStars` с целью урока
     /// `Course.targetCpm(for:)` (история шагов урока, иначе база, у пройденного урока не меньше одной).
@@ -378,6 +387,7 @@ struct CourseProgressRow: Identifiable, Equatable {
         return CourseProgressRow(
             language: course.language, passed: passed, total: course.lessons.count, stars: stars,
             isArchive: course.edition == 1,
-            certificateAverage: Certificate.eligibleAverage(course: course, passed: passedIds, sessions: sessions))
+            certificateAverage: Certificate.eligibleAverage(course: course, passed: passedIds, sessions: sessions),
+            certificateProgress: certificateProgress(course: course, passed: passedIds, sessions: sessions))
     }
 }

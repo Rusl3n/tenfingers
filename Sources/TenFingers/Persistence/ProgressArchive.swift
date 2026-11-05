@@ -86,14 +86,14 @@ enum ArchiveError: Error, Equatable, LocalizedError {
 /// Формат версии 1: `format`, `version`, `exportedAt`, `appVersion`, `schemaGeneration`, `profile`, `settings`,
 /// `lessonResume` и разделы моделей. Формат версии 2 (с поколения схемы 6): у сессий поля `stepIndex`, `planSlot`,
 /// `textTraits`, раздел `achievementGrants`; файлы версии 1 читаются. Формат версии 3 (с поколения схемы 7): раздел
-/// `rhythmResults`; файлы версий 1 и 2 читаются, раздела в них нет — пустой список. Даты — числа: секунды от 1 января 2001 года UTC (как `Date` в Foundation),
+/// `rhythmResults`; файлы версий 1 и 2 читаются, раздела в них нет — пустой список. Формат версии 4 (с поколения схемы 8): у сессий поле `speedSegments` (отрезки скорости шага); файлы версий 1–3 читаются, поля в них нет. Даты — числа: секунды от 1 января 2001 года UTC (как `Date` в Foundation),
 /// без потери точности; при чтении принимаются и строки ISO 8601 (так писали первые сборки). Ключи упорядочены,
 /// записи разделов отсортированы: один и тот же прогресс всегда даёт один и тот же файл.
 /// Чтение терпимо к старым файлам: отсутствующие разделы и поля, у которых в модели есть значение
 /// по умолчанию, получают это значение. Файл более нового формата или поколения схемы не читается.
 enum ProgressArchive {
     static let format = "tenfingers-progress"
-    static let version = 3
+    static let version = 4
     static let fileExtension = "tenfingers"
 
     /// Тип файла: объявлен в `Info.plist` (`local.tenfingers.progress`, подтип `public.json`).
@@ -606,6 +606,8 @@ extension ProgressArchive {
         var stepIndex: Int?
         var planSlot: String?
         var textTraits: Int?
+        /// Поколение 8: отрезки скорости шага; у прежних записей, файлов и режимов вне курса — нет.
+        var speedSegments: [SpeedSegment]?
 
         init(_ m: SessionRecord) {
             id = m.id; mode = m.mode; language = m.language; lessonId = m.lessonId
@@ -616,6 +618,7 @@ extension ProgressArchive {
             pinkyPresses = m.pinkyPresses; pinkyErrors = m.pinkyErrors; source = m.source
             fingerPresses = FingerCounts.raw(m.fingerPresses); fingerErrors = FingerCounts.raw(m.fingerErrors)
             yoPresses = m.yoPresses; stepIndex = m.stepIndex; planSlot = m.planSlot; textTraits = m.textTraits
+            speedSegments = m.decodedSpeedSegments
         }
 
         init(from decoder: any Decoder) throws {
@@ -646,6 +649,7 @@ extension ProgressArchive {
             stepIndex = try c.decodeIfPresent(Int.self, forKey: .stepIndex)
             planSlot = try c.decodeIfPresent(String.self, forKey: .planSlot)
             textTraits = try c.decodeIfPresent(Int.self, forKey: .textTraits)
+            speedSegments = try c.decodeIfPresent([SpeedSegment].self, forKey: .speedSegments)
         }
 
         static let modelName = "SessionRecord"
@@ -661,7 +665,8 @@ extension ProgressArchive {
                 pinkyErrors: pinkyErrors, source: source,
                 fingerPresses: fingerPresses.map { FingerCounts.data(raw: $0) },
                 fingerErrors: fingerErrors.map { FingerCounts.data(raw: $0) }, yoPresses: yoPresses,
-                stepIndex: stepIndex, planSlot: planSlot, textTraits: textTraits)
+                stepIndex: stepIndex, planSlot: planSlot, textTraits: textTraits,
+                speedSegments: speedSegments.flatMap { try? JSONEncoder().encode($0) })
             m.id = id
             return m
         }

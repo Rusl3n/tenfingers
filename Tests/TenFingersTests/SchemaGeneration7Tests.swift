@@ -246,9 +246,9 @@ enum LegacySchemaGeneration6 {
 }
 
 /// Поколение 7: база поколения 6 (маркер «6») открывается, данные на месте, новая модель `RhythmResult` пишется и
-/// читается после повторного открытия; маркер становится 7.
+/// читается после повторного открытия; маркер становится текущим (после 8a — 8).
 @MainActor @Test func generationSixStoreOpensAndBecomesGenerationSeven() async throws {
-    #expect(SchemaGeneration.current == 7)
+    #expect(SchemaGeneration.current >= 7)
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TenFingersGen6-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -292,7 +292,7 @@ enum LegacySchemaGeneration6 {
 
     do {
         let container = try ModelStore.makeContainer(at: url)
-        #expect(try SchemaGeneration.read(at: url) == 7)
+        #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
         let context = container.mainContext
         let session = try #require(try context.fetch(FetchDescriptor<SessionRecord>()).first)
         #expect(session.chars == 90 && session.exerciseKind == "check" && session.yoPresses == 0)
@@ -318,7 +318,7 @@ enum LegacySchemaGeneration6 {
     let rhythm = try #require(try reopened.mainContext.fetch(FetchDescriptor<RhythmResult>()).first)
     #expect(rhythm.score == 1234 && rhythm.grade == "B" && rhythm.bpm == 80 && rhythm.cleared)
     #expect(try reopened.mainContext.fetchCount(FetchDescriptor<SessionRecord>()) == 1)
-    #expect(try SchemaGeneration.read(at: url) == 7)
+    #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
 }
 
 /// Сборка поколения 6 базу поколения 7 не откроет: и по маркеру, и по незнакомой сущности.

@@ -6,6 +6,7 @@ struct CourseProgressView: View {
     let rows: [CourseProgressRow]
     /// «Сертификат» у строки курса издания 2 (`CourseProgressRow.certificateAverage`); `nil` — кнопок нет.
     var shareCertificate: ((CourseProgressRow) -> Void)?
+    @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
 
     var body: some View {
         AnalyticsCard("Прогресс курсов") {
@@ -25,6 +26,14 @@ struct CourseProgressView: View {
                             ShareLinkButton(title: "Сертификат") { shareCertificate(row) }
                         }
                     }
+                }
+            }
+            // Сертификат ещё не получен: условие и образец (фаза 8, §4).
+            ForEach(rows.filter { $0.certificateProgress != nil }) { row in
+                if let progress = row.certificateProgress {
+                    Divider().padding(.vertical, 6)
+                    CertificatePreviewRow(progress: progress, language: row.language,
+                                          unit: SpeedUnit(rawValue: speedUnit) ?? .cpm)
                 }
             }
         }

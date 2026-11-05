@@ -4,6 +4,12 @@ import Testing
 import TypingCore
 @testable import TenFingers
 
+/// Сервис с фиктивной целью и своим кэшем — без стандартного домена UserDefaults.
+@MainActor func testAchievementService(_ context: ModelContext, now: Date) -> AchievementService {
+    AchievementService(recorder: ResultRecorder(context: context, dayStartHour: 4), goalSeconds: { 600 },
+                       now: { now }, cache: AchievementFactsCache())
+}
+
 private let monday = 2   // `Calendar.firstWeekday`: 1 — воскресенье, 2 — понедельник
 
 private func day(_ seconds: Double, exercises: Int = 3) -> DayActivity {
@@ -232,7 +238,8 @@ private func lessonStep(_ day: String, kind: ExerciseKind, chars: Int = 90, seco
     context.insert(record)
     try context.save()
     let data = try ProgressCardLoader.load(context: context, now: now, goalSeconds: 600, dayStartHour: 4,
-                                           firstWeekday: monday)
+                                           firstWeekday: monday,
+                                           service: testAchievementService(context, now: now))
     #expect(data.today == today)
     #expect(data.streak == 1 && data.fullDays == 1)
     #expect(data.month.seconds == 700)
@@ -276,7 +283,8 @@ private func lessonStep(_ day: String, kind: ExerciseKind, chars: Int = 90, seco
                                  wrongKeystrokes: 0))
     try context.save()
     let data = try ProgressCardLoader.load(context: context, now: now, goalSeconds: 600, dayStartHour: 4,
-                                           firstWeekday: monday)
+                                           firstWeekday: monday,
+                                           service: testAchievementService(context, now: now))
     #expect(data.year.seconds == 0 && data.year.bestSpeed == nil)
     #expect(data.allTime.seconds == 900)
     #expect(data.allTime.bestSpeed?.value == 300)
@@ -330,7 +338,8 @@ private func lessonStep(_ day: String, kind: ExerciseKind, chars: Int = 90, seco
                                  wrongKeystrokes: 0))
     try context.save()
     let data = try ProgressCardLoader.load(context: context, now: now, goalSeconds: 600, dayStartHour: 4,
-                                           firstWeekday: monday)
+                                           firstWeekday: monday,
+                                           service: testAchievementService(context, now: now))
     #expect(data.today == "2026-10-23")
     #expect(data.monthGrid.weeks.flatMap { $0 }.compactMap { $0 }.first { $0.key == "2026-10-23" }?.isFuture == false)
     #expect(data.monthGrid.weeks.flatMap { $0 }.compactMap { $0 }.first { $0.key == "2026-10-24" }?.isFuture == true)
@@ -447,4 +456,50 @@ private func lessonStep(_ day: String, kind: ExerciseKind, chars: Int = 90, seco
     let filled = try AnalyticsLoader(context: context).summary(language: .ru, courses: [:], today: "2026-10-24",
                                                                goalSeconds: 600, firstWeekday: monday)
     #expect(AnalyticsContent.canShareProgress(filled))
+}
+
+// MARK: - Уровень на карточке (фаза 8, §5)
+
+@MainActor @Test func progressCardCarriesTheLevelFromTheGivenSource() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let now = Date(timeIntervalSince1970: 1_792_843_200)
+    let ended = now.addingTimeInterval(-3600)
+    for _ in 0..<12 {
+        context.insert(SessionRecord(mode: "course", language: "ru", lessonId: nil, startedAt: ended.addingTimeInterval(-600),
+                                     endedAt: ended, logicalDay: "2026-10-24", activeSeconds: 600, chars: 300,
+                                     errorCount: 0, cpm: 150, accuracy: 1, completed: true, hintLevel: "off",
+                                     maxErrorStreak: 0, wrongKeystrokes: 0))
+    }
+    try context.save()
+    let service = testAchievementService(context, now: now)
+    let expected = LevelCurve.progress(forExperience: Experience.ledger(try service.facts()).total).level
+    let data = try ProgressCardLoader.load(context: context, now: now, goalSeconds: 600, dayStartHour: 4,
+                                           service: service)
+    #expect(expected > 1)
+    #expect(data.level == expected)
+    #expect(data.level == (try YearLoader(context: context, service: service).state().level))
+}
+
+@Test func progressCardTextHasLevelLineUnderTheSignature() throws {
+    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Localization/en.lproj")
+    let en = try #require(Bundle(url: url))
+    let base = ProgressCardData.make(days: [:], sessions: [], today: "2026-10-24", goalSeconds: 600,
+                                     firstWeekday: monday, level: 7)
+    let options = ShareOptions(signature: .none, theme: .light, background: .colored, format: .wide)
+    let text = ShareCardText(card: ShareCard(.progress(base)), options: options,
+                             profile: ShareProfile(nickname: "Ann", fullName: ""), unit: .cpm, bundle: en,
+                             locale: Locale(identifier: "en"))
+    #expect(text.levelLine == "Level 7")
+    let none = ProgressCardData.make(days: [:], sessions: [], today: "2026-10-24", goalSeconds: 600, firstWeekday: monday)
+    let plain = ShareCardText(card: ShareCard(.progress(none)), options: options,
+                              profile: ShareProfile(nickname: "Ann", fullName: ""), unit: .cpm, bundle: en,
+                              locale: Locale(identifier: "en"))
+    #expect(plain.levelLine == nil)
+    // У других карточек строки уровня нет.
+    let streak = ShareCardText(card: ShareCard(.streak(days: 3, full: 2)), options: options,
+                               profile: ShareProfile(nickname: "Ann", fullName: ""), unit: .cpm, bundle: en,
+                               locale: Locale(identifier: "en"))
+    #expect(streak.levelLine == nil)
 }

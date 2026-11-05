@@ -13,10 +13,12 @@ struct LessonRunnerView: View {
     /// «К курсу» на итоге урока или шага: раздел «Курс» с этим уроком.
     let onToCourse: () -> Void
     let onStart: (LessonRun) -> Void
+    /// Запуск по рекомендации «Куда дальше» на итоге урока («Пальцы», «Слабые места», следующий урок).
+    let onGo: (RunKind) -> Void
 
     private enum Phase: Equatable {
-        case loading, intro, exercise(Int), interim(Int, ExerciseSummary)
-        case result(ExerciseSummary, stars: Int, steps: [StepStat], speedup: SpeedupReference.Outcome?)
+        case loading, intro, exercise(Int), interim(Int, ExerciseSummary, StepReviewScreen)
+        case result(ExerciseSummary, stars: Int, steps: [StepStat], speedup: SpeedupReference.Outcome?, review: LessonReviewModel)
         case stepResult(StepOutcome)
     }
 
@@ -43,6 +45,8 @@ struct LessonRunnerView: View {
         /// Порог проверки этапа не взят (`GateHint.text`) и «Повтор» этапа для кнопки «Потренировать слабые буквы».
         let gateText: String?
         let reviewLessonId: String?
+        /// Разбор шага (§2.2).
+        let review: StepReviewScreen
     }
 
     /// Прогресс курса для гейта на итоге урока.
@@ -77,6 +81,13 @@ struct LessonRunnerView: View {
     @State private var speedupReference: Double?
     /// Гейт этапов на итоге урока: «Следующий урок», порог проверки и карточка этапа (`GateHint`).
     @State private var gate = GateProgress()
+    /// Шаги этого прохода с перебором ошибок: к проверке урока не пускают, пока они есть.
+    @State private var pass = LessonPass()
+    /// Начало текущего прохода и шаг, с которого он продолжен: по ним разбор урока отбирает записи (§2.3).
+    @State private var passStart = Date.now
+    @State private var passResumeStart = 0
+    /// Ошибки по буквам шагов прохода (в базе их нет): для «Подтянуть» на итоге урока.
+    @State private var passLetters: [Int: [Character: Int]] = [:]
 
     private var course: Course? { library.courses[run.language] }
     private var context: LessonContext? { course?.context(for: run.lessonId) }
@@ -114,30 +125,47 @@ struct LessonRunnerView: View {
                              step: singleStep == nil ? index + 1 : 0, totalSteps: singleStep == nil ? exercises.count : 0,
                              targetCpm: speedTarget,
                              resumedStep: resumedStep == index ? index + 1 : nil,
+                             errorLimit: stepLimit(index),
                              banner: speedupReference.map { LessonRunPlan.speedupBanner(reference: $0, unit: unit) },
                              onRestart: restart, onExit: exit)
                     .id(index)
             }
-        case .interim(let index, let summary):
+        case .interim(let index, let summary, let review):
+            let interim = StepInterim(errors: summary.errors, limit: stepLimit(index))
             VStack(spacing: 16) {
                 Text("Готово: шаг \(index + 1) из \(exercises.count)").font(.largeTitle.bold())
                 let speed = unit.format(summary.cpm)
                 Text("\(speed) · ошибок: \(summary.errors)")
                     .font(.title2).monospacedDigit()
                 StepDotsView(current: index + 1, total: exercises.count)
-                Text("Дальше: \(exercises[index + 1].localizedTitle)").foregroundStyle(.secondary)
+                SpeedSegmentsChart(screen: review, unit: unit)
+                StepReviewLines(screen: review)
+                if let line = interim.toleranceLine {
+                    Text(line).font(.title3).foregroundStyle(.red)
+                } else {
+                    Text("Дальше: \(exercises[index + 1].localizedTitle)").foregroundStyle(.secondary)
+                }
                 NewAchievementCards(achievements: coordinator?.newAchievements ?? [], fullFlame: coordinator?.newFullFlame)
-                Button("Дальше") { begin(index + 1) }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
+                if interim.showsRetry {
+                    Button("Повторить шаг") { resumedStep = nil; begin(index) }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                }
+                if interim.showsNext {
+                    Button("Дальше") { resumedStep = nil; begin(index + 1) }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                }
             }
-        case .result(let summary, let stars, let steps, let speedup):
+        case .result(let summary, let stars, let steps, let speedup, let lessonReview):
             let next = nextRun(stars: stars)
             let review = course.flatMap { GateHint.reviewLesson(course: $0, checkLessonId: run.lessonId) }
             let completion = course.flatMap {
                 ShareEvent.completion(course: $0, lessonId: run.lessonId, stars: stars,
                                       passed: gate.passed, checkStars: gate.checkStars)
             }
+            let advice = ReviewDestination.run(for: lessonReview.review.advice, language: run.language,
+                                               next: run.planSlot == nil && stars > 0 ? next : nil)
             LessonResultView(summary: summary, stars: stars, steps: steps, targetCpm: context?.targetCpm ?? 0,
                              // Урок из плана: «Следующего урока» нет, дальше ведёт план (решение 16).
                              hasNext: next != nil && run.planSlot == nil, newAchievements: coordinator?.runAchievements ?? [],
@@ -146,12 +174,18 @@ struct LessonRunnerView: View {
                              certificate: ShareEvent.certificateOffer(after: completion, language: run.language,
                                                                       average: gate.certificateAverage),
                              speedup: speedup,
+                             review: lessonReview,
+                             adviceTitle: advice == nil ? nil : ReviewDestination.title(for: lessonReview.review.advice),
+                             onAdvice: advice.map { kind in { onGo(kind) } },
                              gateText: course.flatMap {
                                  GateHint.text(course: $0, lessonId: run.lessonId, attemptStars: gate.attemptStars,
                                                storedCheckStars: gate.checkStars, unit: unit)
                              },
                              onPracticeWeak: review.map { review in
                                  { onStart(LessonRun(language: run.language, lessonId: review.id)) }
+                             },
+                             statsRequest: course.flatMap {
+                                 LessonStatsRequest.make(course: $0, lessonId: run.lessonId, language: run.language)
                              },
                              onRetry: prepare,
                              onNext: { if let next { onStart(next) } }, onExit: onToCourse)
@@ -163,12 +197,22 @@ struct LessonRunnerView: View {
                            newAchievements: coordinator?.newAchievements ?? [], fullFlame: coordinator?.newFullFlame,
                            completion: outcome.completion, certificate: outcome.certificate,
                            speedup: outcome.speedup,
+                           review: outcome.review,
                            gateText: outcome.gateText,
                            onPracticeWeak: outcome.reviewLessonId.map { reviewId in
                                { onStart(LessonRun(language: run.language, lessonId: reviewId)) }
                            },
                            onRetry: prepare, onExit: onToCourse)
         }
+    }
+
+    /// Допуск ошибок шага `index`; `nil` — допуск не действует (проверки, урок-проверка этапа, повтор одного шага,
+    /// последний шаг урока: он записывает урок).
+    private func stepLimit(_ index: Int) -> Int? {
+        guard singleStep == nil, let context, exercises.indices.contains(index), index < exercises.count - 1,
+              StepTolerance.applies(kind: exercises[index].kind, lessonKind: context.lesson.resolvedKind)
+        else { return nil }
+        return StepTolerance.limit(length: exercises[index].text.count)
     }
 
     /// Цель индикатора скорости: у «Ускорения» с ориентиром — цель обгона, иначе цель урока.
@@ -237,6 +281,10 @@ struct LessonRunnerView: View {
         // Ориентир «Ускорения» — по истории до этой попытки (решение 16), один раз на проход урока.
         speedupReference = context.lesson.resolvedKind == .speedup ? course.flatMap(loadSpeedupReference(in:)) : nil
         resumedStep = nil
+        pass = LessonPass()
+        passStart = .now
+        passResumeStart = 0
+        passLetters = [:]
         // Повтор одного шага и «Освежить»: без знакомства и без продолжения урока.
         if plan.singleStep, let spec = plan.exercises.first {
             singleStep = spec
@@ -252,6 +300,7 @@ struct LessonRunnerView: View {
         if start > 0 {
             // Продолжение: знакомство с клавишами уже было.
             resumedStep = start
+            passResumeStart = start
             begin(start)
             return
         }
@@ -263,8 +312,10 @@ struct LessonRunnerView: View {
         }
     }
 
-    private func begin(_ index: Int) {
+    private func begin(_ requested: Int) {
         guard let context, let coordinator else { return }
+        // К проверке урока не пускаем, пока в проходе есть шаг с перебором.
+        let index = pass.entry(requested: requested, lastIndex: exercises.count - 1)
         let hint = (HintMode(rawValue: hintMode) ?? .auto).resolve(context.hint)
         _ = coordinator.start(spec: exercises[index], language: run.language, mode: .course,
                               lessonId: run.lessonId, hint: hint, planSlot: run.planSlot) { session, result in
@@ -281,11 +332,14 @@ struct LessonRunnerView: View {
             return
         }
         let summary = ExerciseSummary(result)
+        passLetters[index] = result.errorsByCharacter
         let isLast = index == exercises.count - 1
         // В базу идут звёзды проверки; на экране — звёзды урока: пятая только при чистых шагах.
         let checkStars = isLast ? LessonScoring.stars(cpm: result.cpm, accuracy: result.accuracy,
                                                       targetCpm: context?.targetCpm ?? 0) : 0
         let steps = isLast ? lessonSteps() : []
+        let stepPassed = stepLimit(index) == nil || StepTolerance.passed(errorCount: result.errorCount, length: exercises[index].text.count)
+        pass.record(step: index, passed: stepPassed)
         let stars = LessonScoring.lessonStars(checkStars: checkStars, steps: steps)
         sound.play(isLast && stars > 0 ? .lessonDone : .exerciseDone)
         let passedBefore = passedLessons()
@@ -300,7 +354,8 @@ struct LessonRunnerView: View {
             LessonResume().clear(lessonId: lessonId)
             coordinator?.onRetrySucceeded = nil
         } else {
-            let markStep = { LessonResume().stepFinished(lessonId: lessonId, index: index, totalSteps: totalSteps) }
+            let markStep = { LessonResume().stepFinished(lessonId: lessonId, index: index, totalSteps: totalSteps,
+                                                         passed: stepPassed) }
             coordinator?.onRetrySucceeded = saved ? nil : markStep
             if saved { markStep() }
         }
@@ -308,7 +363,13 @@ struct LessonRunnerView: View {
             ? LessonRunPlan.speedupOutcome(kind: exercises[index].kind, cpm: result.cpm, reference: speedupReference)
             : nil
         if isLast { gate = loadGateProgress(passedBefore: passedBefore, attemptStars: checkStars) }
-        phase = isLast ? .result(summary, stars: stars, steps: steps, speedup: speedup) : .interim(index, summary)
+        if isLast {
+            let model = LessonReviewModel.make(records: passRecords(), letters: passLetters,
+                                               resumeStart: passResumeStart, passStart: passStart)
+            phase = .result(summary, stars: stars, steps: steps, speedup: speedup, review: model)
+        } else {
+            phase = .interim(index, summary, stepReview(result))
+        }
     }
 
     /// Повтор шага записывается как обычно; повтор проверки и «Освежить» — полноценная проверка урока (со звёздами,
@@ -355,7 +416,8 @@ struct LessonRunnerView: View {
             certificate: ShareEvent.certificateOffer(after: completion, language: run.language,
                                                      average: progressNow.certificateAverage),
             speedup: LessonRunPlan.speedupOutcome(kind: kind, cpm: result.cpm, reference: speedupReference),
-            gateText: gateText, reviewLessonId: gateText == nil ? nil : review?.id))
+            gateText: gateText, reviewLessonId: gateText == nil ? nil : review?.id,
+            review: stepReview(result)))
     }
 
     /// Действующие звёзды урока по истории (как на карте курса); `nil` — истории не прочитать или урока нет в курсе.
@@ -371,6 +433,19 @@ struct LessonRunnerView: View {
     /// (урок идёт как обычный).
     private func loadSpeedupReference(in course: Course) -> Double? {
         (try? ProgressSnapshot(context: modelContext).speedupReference(course: course)) ?? nil
+    }
+
+    /// Разбор шага (§2.2): отрезки те же, что пишет запись шага.
+    private func stepReview(_ result: ExerciseResult) -> StepReviewScreen {
+        StepReviewScreen.make(text: result.text, result: result, targetCpm: speedTarget,
+                              segments: SpeedSegments.split(text: result.text, timings: result.timings))
+    }
+
+    /// Записи шагов этого урока для разбора (проход отбирает `LessonReviewModel.make`).
+    private func passRecords() -> [PassRecord] {
+        let lessonId = run.lessonId
+        let descriptor = FetchDescriptor<SessionRecord>(predicate: #Predicate { $0.lessonId == lessonId })
+        return ((try? modelContext.fetch(descriptor)) ?? []).compactMap(PassRecord.init)
     }
 
     /// Лучшие попытки шагов урока по истории (до текущей попытки).

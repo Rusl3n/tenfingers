@@ -8,17 +8,28 @@ public enum Certificate {
     /// Средняя по этапам скорость лучших завершённых проверок этапа, взявших порог (`Stage.gate`); `nil` — не у всех
     /// этапов есть такая проверка (или у курса нет проверок этапов, как у издания 1).
     public static func averageCheckCpm(course: Course, sessions: [SessionSummary]) -> Double? {
-        var speeds: [Double] = []
-        for stage in course.stages {
+        let speeds = stageCheckSpeeds(course: course, sessions: sessions)
+        return speeds.count == course.stages.count ? average(speeds) : nil
+    }
+
+    /// Средняя по уже сданным проверкам этапов (для показа прогресса); `nil` — ни одной сданной проверки.
+    public static func passedChecksAverageCpm(course: Course, sessions: [SessionSummary]) -> Double? {
+        average(stageCheckSpeeds(course: course, sessions: sessions))
+    }
+
+    /// Лучшая скорость проверки, взявшей порог, у каждого этапа, где такая есть.
+    private static func stageCheckSpeeds(course: Course, sessions: [SessionSummary]) -> [Double] {
+        course.stages.compactMap { stage in
             guard let check = stage.checkLesson else { return nil }
-            let best = CourseGate.scoredChecks(course: course, checkLessonId: check.id, sessions: sessions)
+            return CourseGate.scoredChecks(course: course, checkLessonId: check.id, sessions: sessions)
                 .filter { $0.stars >= stage.gate }
                 .map(\.speed)
                 .max()
-            guard let best else { return nil }
-            speeds.append(best)
         }
-        return speeds.isEmpty ? nil : speeds.reduce(0, +) / Double(speeds.count)
+    }
+
+    private static func average(_ speeds: [Double]) -> Double? {
+        speeds.isEmpty ? nil : speeds.reduce(0, +) / Double(speeds.count)
     }
 
     /// Курс издания 2 пройден и средняя не ниже `minimumAverageCpm` — средняя; иначе `nil`.
