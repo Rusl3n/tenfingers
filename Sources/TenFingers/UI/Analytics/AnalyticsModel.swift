@@ -280,7 +280,17 @@ struct HistoryRow: Identifiable, Equatable {
 
 enum SessionHistory {
     /// Сколько последних записей показывает история.
-    static let limit = 100
+    static let limit = 50
+    /// Сколько строк видно до «Показать все».
+    static let collapsedCount = 10
+
+    /// Строки, видимые в свёрнутой или развёрнутой истории.
+    static func visible<Row>(_ rows: [Row], expanded: Bool) -> [Row] {
+        expanded ? rows : Array(rows.prefix(collapsedCount))
+    }
+
+    /// Есть ли что разворачивать.
+    static func canExpand(count: Int) -> Bool { count > collapsedCount }
 
     static func modeTitle(_ mode: String) -> String {
         switch ExerciseMode(rawValue: mode) {

@@ -5,6 +5,7 @@ import TypingCore
 struct SessionHistoryView: View {
     let rows: [HistoryRow]
     let unit: SpeedUnit
+    @State private var expanded = false
 
     var body: some View {
         AnalyticsCard("История занятий") {
@@ -25,7 +26,7 @@ struct SessionHistoryView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     Divider()
-                    ForEach(rows) { row in
+                    ForEach(SessionHistory.visible(rows, expanded: expanded)) { row in
                         GridRow {
                             Text(row.endedAt.formatted(date: .abbreviated, time: .shortened))
                             Text(row.modeTitle)
@@ -46,9 +47,18 @@ struct SessionHistoryView: View {
                         .foregroundStyle(row.abandoned ? .secondary : .primary)
                     }
                 }
-                Text("Последние \(SessionHistory.limit) занятий")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("Последние \(SessionHistory.limit) занятий")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if SessionHistory.canExpand(count: rows.count) {
+                        Button(expanded ? "Свернуть" : "Показать все") {
+                            withAnimation(.easeOut(duration: 0.15)) { expanded.toggle() }
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
             }
         }
     }

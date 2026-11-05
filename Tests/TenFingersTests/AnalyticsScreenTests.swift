@@ -389,6 +389,17 @@ private func session(day: String, language: Language = .ru, mode: ExerciseMode =
     #expect(zip(rows, rows.dropFirst()).allSatisfy { $0.endedAt > $1.endedAt })
 }
 
+@Test func historyKeepsFiftyAndShowsTenUntilExpanded() {
+    #expect(SessionHistory.limit == 50)
+    #expect(SessionHistory.collapsedCount == 10)
+    let rows = Array(0..<50)
+    #expect(SessionHistory.visible(rows, expanded: false) == Array(0..<10))
+    #expect(SessionHistory.visible(rows, expanded: true) == rows)
+    #expect(SessionHistory.visible(Array(0..<7), expanded: false) == Array(0..<7))
+    #expect(SessionHistory.canExpand(count: 11))
+    #expect(!SessionHistory.canExpand(count: 10))
+}
+
 @MainActor @Test func loaderHistoryRowCarriesLessonTitleAndAbandonedMark() throws {
     let container = try makeContainer()
     let context = container.mainContext
