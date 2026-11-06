@@ -92,3 +92,21 @@ private let layout = HandsOverlayModel.layout(shape: .ansi)
         #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
     }
 }
+
+// MARK: - Пробел: без дуги, подсвечена половина
+
+@Test func spaceHasNoArcOtherKeysDo() {
+    #expect(!HandsOverlayModel.drawsArc(to: KeyboardGeometry.space))
+    #expect(HandsOverlayModel.drawsArc(to: 0))
+}
+
+@Test func pressedSpaceHalfFollowsTheThumbSide() {
+    let left = ActiveHandsPress(press: HandsPress(keyCode: KeyboardGeometry.space, spaceHalf: .left), elapsedMs: 200)
+    let plain = ActiveHandsPress(press: HandsPress(keyCode: KeyboardGeometry.space), elapsedMs: 200)
+    let letter = ActiveHandsPress(press: HandsPress(keyCode: 0), elapsedMs: 200)
+    let rising = ActiveHandsPress(press: HandsPress(keyCode: KeyboardGeometry.space, spaceHalf: .left), elapsedMs: 50)
+    #expect(HandsOverlayModel.pressedSpaceHalf(active: [left]) == .left)
+    #expect(HandsOverlayModel.pressedSpaceHalf(active: [plain]) == .right)
+    #expect(HandsOverlayModel.pressedSpaceHalf(active: [letter]) == nil)
+    #expect(HandsOverlayModel.pressedSpaceHalf(active: [rising]) == nil)
+}

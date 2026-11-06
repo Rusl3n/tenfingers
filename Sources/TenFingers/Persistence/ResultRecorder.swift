@@ -17,6 +17,8 @@ struct ResultRecorder {
     var beforeSave: (() throws -> Void)?
     /// Словарь языка для списка слов с ошибками (по умолчанию — общий кэш; в тестах можно подменить).
     var vocabulary: (Language) -> Set<String> = ErrorWordVocabulary.words
+    /// Курсы языка: знаком ли апостроф (сокращения вроде «don't» — в список только после урока с ним).
+    var courses: (Language) -> [Course] = ErrorWordVocabulary.courses
 
     /// Цель по умолчанию — исходная из настроек (`SettingsDefault.dailyGoalMinutes`), не из `UserDefaults`.
     init(context: ModelContext, dayStartHour: @escaping () -> Int,
@@ -205,10 +207,15 @@ struct ResultRecorder {
     private func recordErrorWords(_ result: ExerciseResult) throws {
         var positions = Set<Int>()
         for (index, timing) in result.timings.enumerated() where timing.hadError { positions.insert(index) }
-        let allowed = vocabulary(result.language)
+        let words = vocabulary(result.language)
         // Словарь не загрузился — ничего не трогаем, иначе уборка удалила бы весь список.
-        guard !allowed.isEmpty else { return }
-        let hits = ErrorWordTracker.hits(text: result.text, errorPositions: positions, vocabulary: allowed)
+        guard !words.isEmpty else { return }
+        // Сокращения — всегда в словаре (уборка их не трогает), а новые попадают в список, только когда апостроф знаком.
+        let allowed = result.language == .en ? words.union(Contractions.english) : words
+        var hits = ErrorWordTracker.hits(text: result.text, errorPositions: positions, vocabulary: allowed)
+        if hits.contains(where: { $0.text.contains("'") }), !(try apostropheKnown(result)) {
+            hits.removeAll { $0.text.contains("'") }
+        }
         let code = result.language.rawValue
         var stored: [ErrorWord] = []
         var byKey: [String: ErrorWord] = [:]
@@ -242,6 +249,15 @@ struct ResultRecorder {
         }
         for word in stored where !kept.contains(Self.errorWordKey(word.text, word.isPhrase)) { context.delete(word) }
         if fixed > 0 { try increment(CounterName.fixedWords, by: fixed) }
+    }
+
+    /// Апостроф знаком: пройден урок курса с ним (или позже) либо упражнение идёт в таком уроке.
+    private func apostropheKnown(_ result: ExerciseResult) throws -> Bool {
+        let code = result.language.rawValue
+        let progress = try context.fetch(FetchDescriptor<LessonProgress>(predicate: #Predicate { $0.language == code }))
+        var ids = Set(progress.filter { $0.passedAt != nil }.map(\.lessonId))
+        if result.mode == .course, let lessonId = result.lessonId { ids.insert(lessonId) }
+        return Contractions.apostropheKnown(courses: courses(result.language), lessonIds: ids)
     }
 
     private static func errorWordKey(_ text: String, _ isPhrase: Bool) -> String { (isPhrase ? "p:" : "w:") + text }

@@ -169,6 +169,16 @@ enum HandsOverlayModel {
         }
         return keys
     }
+
+    /// Половина пробела, которую сейчас жмёт большой палец (последнее нажатие пробела); `nil` — пробел не нажат.
+    static func pressedSpaceHalf(active: [ActiveHandsPress]) -> Hand? {
+        active.last { $0.press.keyCode == KeyboardGeometry.space
+            && FingerPress.isDown(elapsedMs: $0.elapsedMs, durationMs: $0.durationMs) }
+            .map { $0.press.spaceHalf ?? .right }
+    }
+
+    /// Дуга рисуется ко всем клавишам, кроме пробела: большой палец жмёт его на месте, со своей половины.
+    static func drawsArc(to keyCode: UInt16) -> Bool { keyCode != KeyboardGeometry.space }
 }
 
 /// Прозрачный слой над клавиатурой: десять кружков-кончиков и пунктирная дуга нажатия. Размер — базовый, как у
@@ -217,14 +227,21 @@ struct HandsOverlay: View {
                         highlightsAlways: Bool = false) -> some View {
         Canvas { context, _ in
             let shown = highlightsAlways || moves ? active : []
+            let spaceHalf = HandsOverlayModel.pressedSpaceHalf(active: shown)
             for key in HandsOverlayModel.pressedKeys(active: shown) {
                 guard let frame = frames[key] else { continue }
-                let rect = CGRect(x: frame.center.x - frame.width / 2, y: frame.center.y - frame.height / 2,
+                var rect = CGRect(x: frame.center.x - frame.width / 2, y: frame.center.y - frame.height / 2,
                                   width: frame.width, height: frame.height)
+                // Пробел: подсвечена только половина, с которой жмёт большой палец.
+                if key == KeyboardGeometry.space, let spaceHalf {
+                    rect.size.width /= 2
+                    if spaceHalf == .right { rect.origin.x += rect.width }
+                }
                 context.stroke(Path(roundedRect: rect, cornerRadius: 6), with: .color(.accentColor), lineWidth: 3)
             }
             if moves {
-                for item in active where item.elapsedMs < item.durationMs {
+                for item in active where item.elapsedMs < item.durationMs
+                    && HandsOverlayModel.drawsArc(to: item.press.keyCode) {
                     for (finger, target) in arcTargets(press: item.press, frames: frames) {
                         let arc = layout.arc(finger: finger, to: target)
                         guard arc.start != arc.end else { continue }

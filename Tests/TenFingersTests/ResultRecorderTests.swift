@@ -325,7 +325,8 @@ private func longResult(mode: ExerciseMode, completed: Bool = true) -> ExerciseR
 
 /// Набор текста целиком; перед символами из `wrongAt` (позиции в тексте) нажимается неверная клавиша.
 private func typed(_ text: String, wrongAt: Set<Int> = [], mode: ExerciseMode = .practice,
-                   completed: Bool = true, at date: Date) -> ExerciseResult {
+                   completed: Bool = true, language: Language = .ru, lessonId: String? = nil,
+                   at date: Date) -> ExerciseResult {
     var engine = TypingEngine(text: text)
     var time = 0.0
     for (index, character) in text.enumerated() {
@@ -337,7 +338,7 @@ private func typed(_ text: String, wrongAt: Set<Int> = [], mode: ExerciseMode = 
         time += 0.2
         _ = engine.handle(Keystroke(character: character, keyCode: 4, timestamp: time))
     }
-    return ExerciseResult(engine: engine, mode: mode, language: .ru, lessonId: nil,
+    return ExerciseResult(engine: engine, mode: mode, language: language, lessonId: lessonId,
                           startedAt: date, endedAt: date, hintLevel: .full)
 }
 
@@ -352,6 +353,48 @@ private func typed(_ text: String, wrongAt: Set<Int> = [], mode: ExerciseMode = 
     #expect(words.map(\.text) == ["мир", "привет"])
     #expect(words.allSatisfy { !$0.isPhrase })
     #expect(words.allSatisfy { $0.language == "ru" && $0.errors == 1 && $0.cleanStreak == 0 })
+}
+
+/// Урок курса, где вводится апостроф, — первый урок английского курса с `'` среди новых клавиш.
+private func apostropheLesson() throws -> (id: String, before: String) {
+    let lessons = try CourseCatalog.load(.en).lessons
+    let index = try #require(lessons.firstIndex { $0.newCharacters.contains("'") })
+    return (lessons[index].id, lessons[index - 1].id)
+}
+
+@MainActor @Test func contractionIsNotStoredBeforeApostropheLesson() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let lesson = try apostropheLesson()
+    context.insert(LessonProgress(lessonId: lesson.before, language: "en"))
+    try context.fetch(FetchDescriptor<LessonProgress>()).first?.passedAt = date(22, 12)
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    // Ошибка в «don't» (позиция 2) — апостроф ещё не знаком: в список не попадает.
+    try recorder.commit { try recorder.record(typed("I don't know", wrongAt: [2], language: .en, at: date(23, 12))) }
+    #expect(try context.fetchCount(FetchDescriptor<ErrorWord>()) == 0)
+}
+
+@MainActor @Test func contractionIsStoredWholeAfterApostropheLesson() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let lesson = try apostropheLesson()
+    context.insert(LessonProgress(lessonId: lesson.id, language: "en"))
+    try context.fetch(FetchDescriptor<LessonProgress>()).first?.passedAt = date(22, 12)
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    try recorder.commit { try recorder.record(typed("I don't know", wrongAt: [2], language: .en, at: date(23, 12))) }
+    #expect(try context.fetch(FetchDescriptor<ErrorWord>()).map(\.text) == ["don't"])
+}
+
+@MainActor @Test func contractionIsStoredInTheApostropheLessonItself() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let lesson = try apostropheLesson()
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    try recorder.commit {
+        try recorder.record(typed("I can't stop", wrongAt: [5], mode: .course, language: .en, lessonId: lesson.id,
+                                  at: date(23, 12)))
+    }
+    #expect(try context.fetch(FetchDescriptor<ErrorWord>()).map(\.text) == ["can't"])
 }
 
 @MainActor @Test func abandonedExerciseDoesNotStoreErrorWords() throws {

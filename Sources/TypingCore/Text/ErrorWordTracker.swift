@@ -45,6 +45,8 @@ public enum ErrorWordTracker {
             var token = current
             while token.hasPrefix("-") { token.removeFirst() }
             while token.hasSuffix("-") { token.removeLast() }
+            // Типографский апостроф хранится прямым: так слово набирается с клавиатуры.
+            token = token.replacingOccurrences(of: "\u{2019}", with: "'")
             // Ошибка на дефисе по краю тоже считается ошибкой слова.
             if token.filter(\.isLetter).count >= minimumLetters,
                ErrorWordFilter.isAllowed(text: token, isPhrase: false, vocabulary: vocabulary) {

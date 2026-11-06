@@ -13,6 +13,21 @@ enum ErrorWordVocabulary {
         }
     }
 
+    private static let enCourses: [Course] = courses(of: .en)
+    private static let ruCourses: [Course] = courses(of: .ru)
+
+    /// Курсы языка (текущий и архив издания 1): по ним решается, знаком ли апостроф.
+    static func courses(_ language: Language) -> [Course] {
+        switch language {
+        case .ru: return ruCourses
+        case .en: return enCourses
+        }
+    }
+
+    private static func courses(of language: Language) -> [Course] {
+        [try? CourseCatalog.load(language), try? CourseCatalog.legacy(language)].compactMap { $0 }
+    }
+
     private static func load(_ language: Language) -> Set<String> {
         Set((try? WordList.load(language).words) ?? [])
     }
