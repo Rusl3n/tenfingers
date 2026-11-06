@@ -135,6 +135,7 @@ final class ExerciseCoordinator {
     /// Возвращает `true`, если сохранение удалось.
     @discardableResult
     func recordFinish(_ session: ExerciseSession, _ result: ExerciseResult,
+                      measurement: (variant: MeasureVariant, replay: MeasureReplay?, cpm: Double?)? = nil,
                       extra: @escaping (ResultRecorder) throws -> Void = { _ in }) -> Bool {
         session.onFinish = nil
         session.markRecorded()
@@ -143,7 +144,13 @@ final class ExerciseCoordinator {
         exitAfterSave = false
         announceAfterSave = true
         return save(trackingDay(endedAt: result.endedAt) {
-            try recorder.record(result, source: source, planSlot: planSlot)
+            // Замер пишет и сессию (`record`), и `SpeedMeasurement` одним вызовом.
+            if let measurement {
+                try recorder.recordMeasurement(result, variant: measurement.variant, replay: measurement.replay,
+                                                cpm: measurement.cpm)
+            } else {
+                try recorder.record(result, source: source, planSlot: planSlot)
+            }
             try Self.recordCounters(session, recorder)
             try extra(recorder)
         })

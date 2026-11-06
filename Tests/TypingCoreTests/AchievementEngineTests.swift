@@ -598,6 +598,29 @@ private func check(_ time: String, _ lessonId: String, cpm: Double, accuracy: Do
     #expect(got(["fixedWords": 1000]) == Set(ids))
 }
 
+/// Замеры скорости (8c): «Первый замер» — любой сохранённый; «Вдвое быстрее» — ≥ 2 × первого замера того же варианта.
+@Test func measureAchievementsFollowSavedMeasurements() {
+    func got(_ list: [MeasureFact]) -> (first: Date?, double: Date?) {
+        let f = AchievementFacts(measurements: list, timeZone: msk, now: testNow)
+        return (earned(.measureFirst, f), earned(.measureDoubled, f))
+    }
+    #expect(got([]) == (nil, nil))
+    let a = MeasureFact(date: at("2026-11-01 10:00"), variantKey: "60:plain:ru", cpm: 100)
+    #expect(got([a]) == (at("2026-11-01 10:00"), nil))
+    let b = MeasureFact(date: at("2026-11-02 10:00"), variantKey: "60:plain:ru", cpm: 199)
+    let c = MeasureFact(date: at("2026-11-03 10:00"), variantKey: "60:plain:ru", cpm: 200)
+    #expect(got([c, b, a]) == (at("2026-11-01 10:00"), at("2026-11-03 10:00")))
+    // Другой вариант (длительность, вид, язык) со своим первым замером: чужая скорость не считается.
+    let other = MeasureFact(date: at("2026-11-04 10:00"), variantKey: "120:plain:ru", cpm: 400)
+    let otherLang = MeasureFact(date: at("2026-11-05 10:00"), variantKey: "60:plain:en", cpm: 500)
+    #expect(got([a, other, otherLang]).double == nil)
+    // Первый замер с нулём точкой отсчёта не служит.
+    let zero = MeasureFact(date: at("2026-11-01 10:00"), variantKey: "60:plain:ru", cpm: 0)
+    #expect(got([zero, b]).double == nil)
+    // Обычные упражнения замерами не считаются.
+    #expect(earned(.measureFirst, facts([ex("2026-11-01 10:00", maxErrorStreak: 0)])) == nil)
+}
+
 @Test func engineErrorConditionsCountAnyExerciseIncludingAbandoned() {
     let list = [
         ex("2026-10-01 10:00", maxErrorStreak: 9, wrong: 49),

@@ -307,6 +307,43 @@ import TypingCore
     }
 }
 
+/// Замер скорости (поколение схемы 10, спецификация 8c §9.2). Рядом с ним замер пишется и как обычная `SessionRecord`
+/// (`mode` `measure`). По каждому варианту (длительность + вид текста + язык) хранятся первый замер и последние 5:
+/// остальные удаляются при сохранении нового (`MeasureRetention`).
+@Model final class SpeedMeasurement {
+    var id: UUID = UUID()
+    /// `Language.rawValue`.
+    var language: String = ""
+    /// `MeasureDuration.rawValue`: `60`, `120`, `300`, `text300`.
+    var duration: String = ""
+    /// `MeasureTextKind.rawValue`.
+    var textKind: String = ""
+    var date: Date = Date(timeIntervalSince1970: 0)
+    var cpm: Double = 0
+    var accuracy: Double = 0
+    var chars: Int = 0
+    var errors: Int = 0
+    /// `MeasureReplay.encoded()`; `nil` — записи повтора нет.
+    var replay: Data? = nil
+
+    init(language: String, duration: String, textKind: String, date: Date, cpm: Double, accuracy: Double,
+         chars: Int, errors: Int, replay: Data? = nil) {
+        id = UUID()
+        self.language = language
+        self.duration = duration
+        self.textKind = textKind
+        self.date = date
+        self.cpm = cpm
+        self.accuracy = accuracy
+        self.chars = chars
+        self.errors = errors
+        self.replay = replay
+    }
+
+    /// Вариант замера; `nil`, если в строках неизвестные значения.
+    var variant: MeasureVariant? { MeasureVariant(key: "\(duration):\(textKind):\(language)") }
+}
+
 enum CounterName {
     static let wrongLayoutStarts = "wrongLayoutStarts"
     static let capsLockPresses = "capsLockPresses"

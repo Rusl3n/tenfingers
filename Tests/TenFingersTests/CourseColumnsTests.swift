@@ -246,3 +246,7 @@ private let lesson: Lesson = {
     #expect(RefreshMark.symbol == "arrow.clockwise.circle")
     #expect(HelpText.all.contains(HelpText.refresh) && HelpText.all.contains(HelpText.hardLesson))
 }
+
+@Test func lessonIntroButtonIconExists() {
+    #expect(NSImage(systemSymbolName: CourseLessonRow.introSymbol, accessibilityDescription: nil) != nil)
+}

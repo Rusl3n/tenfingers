@@ -300,6 +300,7 @@ enum SessionHistory {
         case .practice: String(localized: "Практика")
         case .rhythm: String(localized: "Ритм")
         case .errorWords: String(localized: "Слова с ошибками")
+        case .measure: String(localized: "Замер скорости")
         case nil: mode
         }
     }

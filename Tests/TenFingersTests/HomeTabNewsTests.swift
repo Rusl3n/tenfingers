@@ -46,7 +46,7 @@ private func prints(plan: DayPlanCardModel? = plan(), challenges: ChallengesCard
 
 @Test func fingerprintsFollowTheContent() throws {
     let base = prints(course: try course(passed: []))
-    #expect(Set(base.keys) == [.plan, .challenges, .course])      // у «Тренировки и практики» отпечатка нет
+    #expect(Set(base.keys) == [.plan, .challenges, .course, .quick])   // у «Тренировки» — постоянный, новость о замере
     // Новый день плана — новый отпечаток; ход выполнения внутри дня — тот же.
     #expect(prints(plan: plan(day: "2026-11-05"), course: try course(passed: []))[.plan] != base[.plan])
     #expect(prints(plan: plan(done: [true, true, false, false]), course: try course(passed: []))[.plan] == base[.plan])
@@ -56,7 +56,7 @@ private func prints(plan: DayPlanCardModel? = plan(), challenges: ChallengesCard
     #expect(prints(challenges: challenges(today: "2026-11-06"), course: nil)[.challenges] == base[.challenges])
     // Следующий урок.
     #expect(prints(course: try course(passed: ["ru2.s1.01"]))[.course] != base[.course])
-    // Нет содержимого — нет отпечатка.
+    // Нет содержимого — нет отпечатка (и новости о замере: иначе первая запись оставила бы прочие вкладки незаписанными).
     #expect(prints(plan: nil, challenges: nil, course: nil).isEmpty)
 }
 
@@ -81,8 +81,8 @@ private func prints(plan: DayPlanCardModel? = plan(), challenges: ChallengesCard
 @Test func selectedTabHasNoDot() throws {
     let fresh = prints(plan: plan(day: "2026-11-05"), challenges: challenges(doneGoal: true),
                        course: try course(passed: ["ru2.s1.01"]))
-    #expect(HomeTabNews.dots(fingerprints: fresh, seen: [:], selected: .challenges) == [.plan, .course])
-    #expect(HomeTabNews.dots(fingerprints: fresh, seen: [:], selected: .plan) == [.challenges, .course])
+    #expect(HomeTabNews.dots(fingerprints: fresh, seen: [:], selected: .challenges) == [.plan, .course, .quick])
+    #expect(HomeTabNews.dots(fingerprints: fresh, seen: [:], selected: .plan) == [.challenges, .course, .quick])
 }
 
 @Test func firstRunLightsNothingAndRecordsEverything() throws {
@@ -92,7 +92,8 @@ private func prints(plan: DayPlanCardModel? = plan(), challenges: ChallengesCard
     #expect(HomeTabNews.seen(defaults) == nil)
     #expect(HomeTabNews.dots(fingerprints: current, seen: nil, selected: .plan).isEmpty)
     let seen = HomeTabNews.markSeen(selected: .plan, fingerprints: current, defaults)
-    #expect(seen == ["plan": current[.plan]!, "challenges": current[.challenges]!, "course": current[.course]!])
+    #expect(seen == ["plan": current[.plan]!, "challenges": current[.challenges]!, "course": current[.course]!,
+                     "quick": HomeTabNews.measureNews])
     #expect(HomeTabNews.seen(defaults) == seen)
     #expect(HomeTabNews.dots(fingerprints: current, seen: seen, selected: .plan).isEmpty)
 }
@@ -112,8 +113,8 @@ private func prints(plan: DayPlanCardModel? = plan(), challenges: ChallengesCard
     seen = HomeTabNews.markSeen(selected: .plan, fingerprints: later, defaults)
     seen = HomeTabNews.markSeen(selected: .course, fingerprints: later, defaults)
     #expect(HomeTabNews.dots(fingerprints: later, seen: seen, selected: .quick).isEmpty)
-    // Вкладка без отпечатка («Тренировка и практика») ничего не меняет.
-    #expect(HomeTabNews.markSeen(selected: .quick, fingerprints: later, defaults) == seen)
+    // Новость о замере показана на вкладке тренировки и записана как увиденная.
+    #expect(HomeTabNews.markSeen(selected: .quick, fingerprints: later, defaults)["quick"] == HomeTabNews.measureNews)
 }
 
 @Test func seenKeyIsOutsideTheArchive() {
@@ -133,4 +134,26 @@ private func prints(plan: DayPlanCardModel? = plan(), challenges: ChallengesCard
 @Test func newHintIsTranslated() {
     let text = localization("en").localizedString(forKey: "есть новое", value: "\u{0}", table: nil)
     #expect(text != "\u{0}" && text != "есть новое")
+}
+
+/// Новость о замере (2.9.0): у обновившихся (словарь есть, вкладки «тренировка» в нём нет) горит один раз; у
+/// первого запуска не горит вовсе; после показа вкладки — не горит.
+@Test func measureNewsLightsOnceForExistingUsers() throws {
+    let (defaults, name) = makeTestDefaults("HomeTabNewsTests-")
+    defer { removeTestDefaults(name) }
+    let current = prints(course: try course(passed: []))
+    #expect(current[.quick] == HomeTabNews.measureNews)
+    // Пользователь прежней версии: три вкладки записаны, «тренировки» нет.
+    let old = ["plan": current[.plan]!, "challenges": current[.challenges]!, "course": current[.course]!]
+    defaults.set(old, forKey: SettingsKey.homeTabSeen)
+    #expect(HomeTabNews.dots(fingerprints: current, seen: old, selected: .plan) == [.quick])
+    #expect(HomeTabNews.isPending(.quick, fingerprints: current, seen: old))
+    // Первый запуск: ничего не горит и новость не ждёт.
+    #expect(HomeTabNews.dots(fingerprints: current, seen: nil, selected: .plan).isEmpty)
+    #expect(!HomeTabNews.isPending(.quick, fingerprints: current, seen: nil))
+    // Вкладка показана — записана; больше не горит.
+    let seen = HomeTabNews.markSeen(selected: .quick, fingerprints: current, defaults)
+    #expect(HomeTabNews.dots(fingerprints: current, seen: seen, selected: .plan).isEmpty)
+    #expect(!HomeTabNews.isPending(.quick, fingerprints: current, seen: seen))
+    #expect(!HomeTabNews.isPending(.quick, fingerprints: [:], seen: old))
 }

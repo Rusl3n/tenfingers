@@ -77,6 +77,7 @@ enum ArchiveError: Error, Equatable, LocalizedError {
         case "AchievementGrant": String(localized: "Повторные получения ачивок")
         case "RhythmResult": String(localized: "Результаты игры «Ритм»")
         case "ErrorWord": String(localized: "Слова с ошибками")
+        case "SpeedMeasurement": String(localized: "Замеры скорости")
         default: model
         }
     }
@@ -87,14 +88,14 @@ enum ArchiveError: Error, Equatable, LocalizedError {
 /// Формат версии 1: `format`, `version`, `exportedAt`, `appVersion`, `schemaGeneration`, `profile`, `settings`,
 /// `lessonResume` и разделы моделей. Формат версии 2 (с поколения схемы 6): у сессий поля `stepIndex`, `planSlot`,
 /// `textTraits`, раздел `achievementGrants`; файлы версии 1 читаются. Формат версии 3 (с поколения схемы 7): раздел
-/// `rhythmResults`; файлы версий 1 и 2 читаются, раздела в них нет — пустой список. Формат версии 4 (с поколения схемы 8): у сессий поле `speedSegments` (отрезки скорости шага); файлы версий 1–3 читаются, поля в них нет. Формат версии 5 (с поколения схемы 9): раздел `errorWords` (список «слов с ошибками»; счётчик `fixedWords` едет в `counters`); файлы версий 1–4 читаются, раздела в них нет — пустой список. Даты — числа: секунды от 1 января 2001 года UTC (как `Date` в Foundation),
+/// `rhythmResults`; файлы версий 1 и 2 читаются, раздела в них нет — пустой список. Формат версии 4 (с поколения схемы 8): у сессий поле `speedSegments` (отрезки скорости шага); файлы версий 1–3 читаются, поля в них нет. Формат версии 5 (с поколения схемы 9): раздел `errorWords` (список «слов с ошибками»; счётчик `fixedWords` едет в `counters`); файлы версий 1–4 читаются, раздела в них нет — пустой список. Формат версии 6 (с поколения схемы 10): раздел `measurements` (замеры скорости с повтором `replay`); файлы версий 1–5 читаются, раздела в них нет — пустой список. Даты — числа: секунды от 1 января 2001 года UTC (как `Date` в Foundation),
 /// без потери точности; при чтении принимаются и строки ISO 8601 (так писали первые сборки). Ключи упорядочены,
 /// записи разделов отсортированы: один и тот же прогресс всегда даёт один и тот же файл.
 /// Чтение терпимо к старым файлам: отсутствующие разделы и поля, у которых в модели есть значение
 /// по умолчанию, получают это значение. Файл более нового формата или поколения схемы не читается.
 enum ProgressArchive {
     static let format = "tenfingers-progress"
-    static let version = 5
+    static let version = 6
     static let fileExtension = "tenfingers"
 
     /// Тип файла: объявлен в `Info.plist` (`local.tenfingers.progress`, подтип `public.json`).
@@ -130,6 +131,8 @@ enum ProgressArchive {
         var rhythmResults: [RhythmResultDTO]
         /// Слова с ошибками (поколение 9). В файлах версий 1–4 раздела нет — пустой список.
         var errorWords: [ErrorWordDTO]
+        /// Замеры скорости (поколение 10). В файлах версий 1–5 раздела нет — пустой список.
+        var measurements: [SpeedMeasurementDTO]
 
         init(format: String = ProgressArchive.format, version: Int = ProgressArchive.version, exportedAt: Date?,
              appVersion: String, schemaGeneration: Int = SchemaGeneration.current, profile: ProfileDTO,
@@ -138,7 +141,8 @@ enum ProgressArchive {
              lessonProgress: [LessonProgressDTO], adaptiveStates: [AdaptiveStateDTO],
              adaptiveUnlocks: [AdaptiveUnlockDTO], counters: [CounterDTO], customTexts: [CustomTextDTO],
              achievements: [AchievementDTO], achievementGrants: [AchievementGrantDTO] = [],
-             rhythmResults: [RhythmResultDTO] = [], errorWords: [ErrorWordDTO] = []) {
+             rhythmResults: [RhythmResultDTO] = [], errorWords: [ErrorWordDTO] = [],
+             measurements: [SpeedMeasurementDTO] = []) {
             self.format = format
             self.version = version
             self.exportedAt = exportedAt
@@ -160,6 +164,7 @@ enum ProgressArchive {
             self.achievementGrants = achievementGrants
             self.rhythmResults = rhythmResults
             self.errorWords = errorWords
+            self.measurements = measurements
         }
 
         init(from decoder: any Decoder) throws {
@@ -185,13 +190,14 @@ enum ProgressArchive {
             achievementGrants = try c.value(.achievementGrants, default: [])
             rhythmResults = try c.value(.rhythmResults, default: [])
             errorWords = try c.value(.errorWords, default: [])
+            measurements = try c.value(.measurements, default: [])
         }
 
         /// Количество записей в каждом разделе (для проверки записанной резервной копии).
         var recordCounts: [Int] {
             [sessions.count, days.count, keyStats.count, bigramStats.count, lessonProgress.count,
              adaptiveStates.count, adaptiveUnlocks.count, counters.count, customTexts.count, lessonResume.count,
-             achievements.count, achievementGrants.count, rhythmResults.count, errorWords.count]
+             achievements.count, achievementGrants.count, rhythmResults.count, errorWords.count, measurements.count]
         }
 
         /// Число записей по моделям (имя совпадает с сущностью `ModelStore.schema`): по нему тест проверяет,
@@ -203,7 +209,7 @@ enum ProgressArchive {
              AdaptiveUnlockDTO.modelName: adaptiveUnlocks.count, CounterDTO.modelName: counters.count,
              CustomTextDTO.modelName: customTexts.count, AchievementDTO.modelName: achievements.count,
              AchievementGrantDTO.modelName: achievementGrants.count, RhythmResultDTO.modelName: rhythmResults.count,
-             ErrorWordDTO.modelName: errorWords.count]
+             ErrorWordDTO.modelName: errorWords.count, SpeedMeasurementDTO.modelName: measurements.count]
         }
     }
 
@@ -223,6 +229,7 @@ enum ProgressArchive {
         case "achievementGrants": AchievementGrantDTO.modelName
         case "rhythmResults": RhythmResultDTO.modelName
         case "errorWords": ErrorWordDTO.modelName
+        case "measurements": SpeedMeasurementDTO.modelName
         default: nil
         }
     }
@@ -268,7 +275,9 @@ enum ProgressArchive {
                 .sorted { ($0.startedAt, $0.id.uuidString) < ($1.startedAt, $1.id.uuidString) },
             errorWords: try all(ErrorWord.self).map(ErrorWordDTO.init)
                 .sorted { ($0.language, $0.isPhrase ? 1 : 0, $0.text, $0.id.uuidString)
-                    < ($1.language, $1.isPhrase ? 1 : 0, $1.text, $1.id.uuidString) })
+                    < ($1.language, $1.isPhrase ? 1 : 0, $1.text, $1.id.uuidString) },
+            measurements: try all(SpeedMeasurement.self).map(SpeedMeasurementDTO.init)
+                .sorted { ($0.date, $0.id.uuidString) < ($1.date, $1.id.uuidString) })
     }
 
     /// Весь прогресс (с несохранёнными изменениями контекста) в JSON.
@@ -440,6 +449,7 @@ enum ProgressArchive {
         try each(archive.achievementGrants, body)
         try each(archive.rhythmResults, body)
         try each(archive.errorWords, body)
+        try each(archive.measurements, body)
     }
 
     /// Настройки, профиль и продолжения уроков из архива (после успешной замены базы).
@@ -1069,6 +1079,55 @@ extension ProgressArchive {
     }
 }
 
+extension ProgressArchive {
+    struct SpeedMeasurementDTO: Codable, Equatable, ArchiveRecord {
+        var id: UUID
+        var language: String
+        var duration: String
+        var textKind: String
+        var date: Date
+        var cpm: Double
+        var accuracy: Double
+        var chars: Int
+        var errors: Int
+        /// `MeasureReplay.encoded()` (Base64 в JSON); `nil` — повтора нет.
+        var replay: Data?
+
+        init(_ m: SpeedMeasurement) {
+            id = m.id; language = m.language; duration = m.duration; textKind = m.textKind; date = m.date
+            cpm = m.cpm; accuracy = m.accuracy; chars = m.chars; errors = m.errors; replay = m.replay
+        }
+
+        init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.value(.id, default: UUID())
+            language = try c.decode(String.self, forKey: .language)
+            duration = try c.decode(String.self, forKey: .duration)
+            textKind = try c.decode(String.self, forKey: .textKind)
+            date = try c.decode(Date.self, forKey: .date)
+            cpm = try c.value(.cpm, default: 0)
+            accuracy = try c.value(.accuracy, default: 0)
+            chars = try c.value(.chars, default: 0)
+            errors = try c.value(.errors, default: 0)
+            replay = try c.decodeIfPresent(Data.self, forKey: .replay)
+        }
+
+        static let modelName = "SpeedMeasurement"
+        var isValid: Bool {
+            MeasureVariant(key: "\(duration):\(textKind):\(language)") != nil && cpm.isFinite && accuracy.isFinite
+                && chars >= 0 && errors >= 0
+        }
+        var uniqueKey: String? { nil }
+
+        func makeModel() -> any PersistentModel {
+            let m = SpeedMeasurement(language: language, duration: duration, textKind: textKind, date: date, cpm: cpm,
+                                     accuracy: accuracy, chars: chars, errors: errors, replay: replay)
+            m.id = id
+            return m
+        }
+    }
+}
+
 // MARK: - Настройки
 
 /// Значение настройки в архиве: JSON-скаляр. Тип при загрузке определяется ключом (`ArchivedSettings`).
@@ -1118,7 +1177,8 @@ enum ArchivedSettings {
             (SettingsKey.activeLanguage, .string), (SettingsKey.hintMode, .string), (SettingsKey.speedUnit, .string),
             (SettingsKey.dayStartHour, .int), (SettingsKey.firstWeekday, .string), (SettingsKey.dailyGoalMinutes, .int),
             (SettingsKey.adaptiveTargetCpm, .int), (SettingsKey.trainingLetters, .string),
-            (SettingsKey.spaceThumbHint, .bool),
+            (SettingsKey.measureChoice, .string),
+            (SettingsKey.spaceThumbHint, .bool), (SettingsKey.fingerAnimation, .bool),
             (SettingsKey.quitOnWindowClose, .bool), (SettingsKey.adultHumor, .bool),
             (SettingsKey.keyboardUnit, .double), (SettingsKey.keyboardOffset, .double),
             (SettingsKey.remindersEnabled, .bool), (SettingsKey.reminderHour, .int), (SettingsKey.reminderMinute, .int),
@@ -1191,6 +1251,7 @@ enum ArchivedSettings {
         SettingsKey.shareProgressShowAccuracy: 5,
         SettingsKey.shareProgressShowVisits: 6, SettingsKey.shareProgressShowGoalDays: 6,
         SettingsKey.firstWeekday: 6, SettingsKey.trainingLetters: 9,
+        SettingsKey.measureChoice: 10,
         SettingsKey.shareAchievementShowJoke: 5, SettingsKey.shareAchievementShowReason: 5,
         SettingsKey.shareAchievementShowDate: 6,
         SettingsKey.reminderSchedule: 4, SettingsKey.reminderTime1: 4, SettingsKey.reminderTime2: 4,

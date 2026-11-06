@@ -137,6 +137,8 @@ public enum AchievementConditionText {
                                                                          localization: localization))
         case .rhythmAllModes: return text("rhythmAllModes")
         case .rhythmSeconds(let seconds): return line("rhythmMinutes", Int((seconds / 60).rounded()))
+        case .measureFirst: return text("measureFirst")
+        case .measureDoubled: return text("measureDoubled")
         }
     }
 

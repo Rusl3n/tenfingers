@@ -10,6 +10,9 @@ public enum ExerciseMode: String, Codable, Sendable {
     case rhythm
     /// Занятие «Слова с ошибками» (8b): в статистике, дне, огне и ачивках — как тренировка.
     case errorWords
+    /// Замер скорости (8c): в статистике, дне, огне, скорости «Аналитики» и ачивках — как практика; сохраняется ещё
+    /// и как `SpeedMeasurement`. В «тренировки» (ачивки серии тренировок) не входит.
+    case measure
 }
 
 public struct ExerciseResult: Sendable {

@@ -103,6 +103,20 @@ public struct RhythmFact: Equatable, Sendable {
     }
 }
 
+/// Один сохранённый замер скорости (`SpeedMeasurement`): то, что нужно `AchievementEngine` (8c).
+public struct MeasureFact: Equatable, Sendable {
+    public let date: Date
+    /// Ключ варианта (`MeasureVariant.key`): замеры сравниваются только внутри него.
+    public let variantKey: String
+    public let cpm: Double
+
+    public init(date: Date, variantKey: String, cpm: Double) {
+        self.date = date
+        self.variantKey = variantKey
+        self.cpm = cpm
+    }
+}
+
 /// Изменение действующих звёзд урока по истории (`LessonScoring.effectiveStars`): после завершённого упражнения
 /// урока в `date` звёзд стало `stars`. `checkCpm` — скорость проверки, давшей эти звёзды (`nil`, если неизвестна).
 /// Заполняет приложение (только уроки издания 2).
@@ -174,6 +188,8 @@ public struct AchievementFacts: Sendable {
     public let today: String?
     /// Заходы игры «Ритм» (любой порядок); время игры берётся из `exercises` (сессии `rhythm`).
     public let rhythm: [RhythmFact]
+    /// Сохранённые замеры скорости (любой порядок): по варианту хранятся первый и последние 5.
+    public let measurements: [MeasureFact]
 
     public init(exercises: [ExerciseFact] = [], days: [String: DayActivity] = [:],
                 abandonedByDay: [String: Int] = [:], languagesByDay: [String: Set<Language>] = [:],
@@ -183,9 +199,10 @@ public struct AchievementFacts: Sendable {
                 openLetterDates: [Language: [Character: Date]] = [:],
                 counters: [String: Int] = [:], yoKeyStatCorrect: Int = 0,
                 lessonStarSteps: [String: [LessonStarStep]] = [:], lessonStepCounts: [String: Int] = [:],
-                rhythm: [RhythmFact] = [],
+                rhythm: [RhythmFact] = [], measurements: [MeasureFact] = [],
                 timeZone: TimeZone, now: Date, currentGoalSeconds: Double? = nil, today: String? = nil) {
         self.rhythm = rhythm
+        self.measurements = measurements
         self.exercises = exercises
         self.days = days
         self.abandonedByDay = abandonedByDay

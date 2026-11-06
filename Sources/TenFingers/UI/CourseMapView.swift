@@ -17,6 +17,8 @@ struct CourseMapView: View {
     @Query(filter: #Predicate<SessionRecord> { $0.mode == "course" && $0.completed })
     private var courseSessions: [SessionRecord]
     @State private var expanded: Set<String> = []
+    /// Урок, чьё знакомство с клавишами открыто листом (один лист на карту).
+    @State private var introLesson: Lesson?
 
     private var language: Language { Language(rawValue: activeLanguage) ?? .ru }
     private var unit: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
@@ -76,7 +78,8 @@ struct CourseMapView: View {
                                                     isUnlocked: isUnlocked, unit: unit,
                                                     stepPlan: stepPlan(course, lesson, isExpanded: expanded.contains(lesson.id)),
                                                     isExtern: isExtern, refresh: refresh,
-                                                    isExpanded: expandedBinding(lesson.id), start: start, course: course)
+                                                    isExpanded: expandedBinding(lesson.id), start: start, course: course,
+                                                    showIntro: { introLesson = $0 })
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 6)
                                 }
@@ -112,13 +115,20 @@ struct CourseMapView: View {
                 .task(id: activeLanguage) {
                     guard let lessonId = CourseFocus.lessonId(requested: focus, course: course, passed: passed,
                                                               checkStars: checkStars) else { return }
-                    focus = nil
-                    expanded.insert(lessonId)
-                    await Task.yield()
-                    proxy.scrollTo(lessonId, anchor: .center)
+                    await reveal(lessonId, proxy: proxy)
+                }
+                // Карта жива и под запуском: «К курсу» приходит в уже открытую карту.
+                .onChange(of: focus) { _, requested in
+                    guard let requested, course.lessons.contains(where: { $0.id == requested }) else { return }
+                    Task { await reveal(requested, proxy: proxy) }
                 }
             }
             .navigationTitle("Курс · \(language.displayName)")
+            .sheet(item: $introLesson) { lesson in
+                LessonIntroView(lesson: lesson, language: language,
+                                teachesSpaceThumb: course.lessons.first?.id == lesson.id,
+                                onStart: { introLesson = nil }, isPreview: true)
+            }
         }
     }
 
@@ -127,6 +137,19 @@ struct CourseMapView: View {
     private func stepPlan(_ course: Course, _ lesson: Lesson, isExpanded: Bool) -> [ResolvedStep] {
         guard isExpanded, course.edition >= 2, let context = course.context(for: lesson.id) else { return [] }
         return StepTemplates.resolve(context)
+    }
+
+    /// Урок раскрыт и прокручен к середине. Строки ленивые: высоты ещё не построенных SwiftUI оценивает,
+    /// и первая прокрутка к дальнему уроку проскакивает ниже; следующие — по настоящим высотам строк рядом с целью.
+    private func reveal(_ lessonId: String, proxy: ScrollViewProxy) async {
+        focus = nil
+        expanded.insert(lessonId)
+        await Task.yield()
+        for _ in 0..<3 {
+            proxy.scrollTo(lessonId, anchor: .center)
+            try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled else { return }
+        }
     }
 
     private func expandedBinding(_ lessonId: String) -> Binding<Bool> {
@@ -174,6 +197,8 @@ struct CourseLessonRow: View {
     @State private var stats: LessonStatsRequest?
     /// Курс урока: для окна «Статистика урока» (цель и названия шагов); без него кнопки нет.
     var course: Course? = nil
+    /// Открыть знакомство с клавишами урока (лист на карте); `nil` — кнопки нет.
+    var showIntro: ((Lesson) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -265,11 +290,20 @@ struct CourseLessonRow: View {
                 }
                 .padding(.leading, 32)
             }
+            if isExpanded, lesson.introducesSomething, let showIntro {
+                Button { showIntro(lesson) } label: {
+                    Label("Знакомство с клавишами", systemImage: Self.introSymbol)
+                }
+                .buttonStyle(.borderless)
+                .padding(.leading, 32)
+            }
         }
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .sheet(item: $stats) { LessonStatsView(request: $0) }
     }
+
+    nonisolated static let introSymbol = "keyboard"
 
     /// Шаг: колонки «ошибки», «скорость» те же, что у строки урока (ширина по тем же шаблонам, правые края
     /// совпадают), а «Пройти заново» стоит на месте звёзд, «?» и стрелки.

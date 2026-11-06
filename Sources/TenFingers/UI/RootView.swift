@@ -69,6 +69,7 @@ enum RunKind: Identifiable, Equatable {
     case weakSpots(TrainingRun)
     case errorWords(TrainingRun)
     case finger(FingerRun)
+    case measure(MeasureRun)
     case practice(PracticeRun)
     case rhythm(RhythmRun)
 
@@ -78,6 +79,7 @@ enum RunKind: Identifiable, Equatable {
         case .lesson(let run): run.id
         case .adaptive(let run), .weakSpots(let run), .errorWords(let run): run.id
         case .finger(let run): run.id
+        case .measure(let run): run.id
         case .practice(let run): run.id
         case .rhythm(let run): run.id
         }
@@ -88,6 +90,7 @@ enum RunKind: Identifiable, Equatable {
         case .lesson(let run): run.language
         case .adaptive(let run), .weakSpots(let run), .errorWords(let run): run.language
         case .finger(let run): run.language
+        case .measure(let run): run.variant.language
         case .practice(let run): run.language
         case .rhythm(let run): run.language
         }
@@ -100,7 +103,7 @@ enum RunKind: Identifiable, Equatable {
         case .adaptive(let run), .weakSpots(let run), .errorWords(let run): run.planSlot
         case .finger(let run): run.planSlot
         case .practice(let run): run.planSlot
-        case .rhythm: nil
+        case .measure, .rhythm: nil
         }
     }
 
@@ -112,6 +115,7 @@ enum RunKind: Identifiable, Equatable {
         case .weakSpots: String(localized: "Слабые места идут")
         case .errorWords: String(localized: "Слова с ошибками идут")
         case .finger: String(localized: "Пальцы идут")
+        case .measure: String(localized: "Замер идёт")
         case .practice: String(localized: "Практика идёт")
         case .rhythm: String(localized: "Ритм идёт")
         }
@@ -125,6 +129,7 @@ enum RunKind: Identifiable, Equatable {
         case .weakSpots: String(localized: "Слабые места будут завершены. Начать новое занятие?")
         case .errorWords: String(localized: "Слова с ошибками будут завершены. Начать новое занятие?")
         case .finger: String(localized: "Занятие по пальцу будет завершено. Начать новое занятие?")
+        case .measure: String(localized: "Замер будет прерван и не сохранится. Начать новое занятие?")
         case .practice: String(localized: "Практика будет завершена. Начать новое занятие?")
         case .rhythm: String(localized: "Игра будет завершена. Начать новое занятие?")
         }
@@ -175,6 +180,10 @@ struct RootView: View {
     @State private var pendingRun: RunKind?
     /// Карточка «Поделиться», открытая из тоста ачивки.
     @State private var shareCard: ShareCard?
+    /// Открытый повтор замера (лист).
+    @State private var replayRequest: ReplayRequest?
+    /// «Замерить» на последнем шаге знакомства: замер откроется, когда лист знакомства закроется.
+    @State private var measureAfterOnboarding = false
     /// Промежуточный экран плана вместо раздела: после выхода из запуска плана (решение 16).
     @State private var planStep: PlanStep?
     /// Урок, к которому «Курс» прокрутит при следующем открытии («К курсу» на итоге урока); `nil` — текущий урок.
@@ -247,8 +256,8 @@ struct RootView: View {
                 if visibilityBeforeLesson == nil { visibilityBeforeLesson = columnVisibility }
                 withAnimation { columnVisibility = .detailOnly }
             } else if let previous = visibilityBeforeLesson {
-                withAnimation { columnVisibility = previous }
                 visibilityBeforeLesson = nil
+                withAnimation { columnVisibility = previous }
             }
         }
         .onChange(of: presence.lastEvent) { _, event in
@@ -269,8 +278,11 @@ struct RootView: View {
         }
         .onDisappear(perform: removeEscapeMonitor)
         .shareSheet($shareCard)
+        .sheet(item: $replayRequest) { request in
+            MeasureReplayView(measurementId: request.measurementId, onClose: { replayRequest = nil })
+        }
         // Знакомство: лист закрывают только его кнопки («Пропустить» или «Готово» ставят флаг).
-        .sheet(isPresented: Binding(get: { !onboardingCompleted }, set: { _ in })) { OnboardingView() }
+        .sheet(isPresented: Binding(get: { !onboardingCompleted }, set: { _ in })) { OnboardingView(onMeasure: { measureAfterOnboarding = true }) }
         .interactiveDismissDisabled()
         // «Новый курс»: любое закрытие листа ставит флаг, «Начать» ещё и открывает «Курс».
         .sheet(isPresented: Binding(get: { showsNewCourseIntro },
@@ -285,6 +297,11 @@ struct RootView: View {
         // Пока открыто знакомство, запуск скрыт: без монитора клавиш Return и буквы не уходят в упражнение.
         .onChange(of: onboardingCompleted, initial: true) { _, done in
             if !done, activeRun != nil { presence.isVisible = false }
+            if done, measureAfterOnboarding {
+                measureAfterOnboarding = false
+                let language = Language(rawValue: activeLanguage) ?? .ru
+                start(.measure(MeasureRun(variant: MeasureChoice.default.variant(language: language))))
+            }
         }
         // Первый запуск версии с ачивками выдаёт всё заработанное задним числом (одна сводка вместо лавины тостов).
         // Кнопка «Поделиться» в тостах ачивок открывает карточку здесь.
@@ -350,8 +367,18 @@ struct RootView: View {
                         .disabled(!visible)
                         .accessibilityHidden(!visible)
                 }
-                if !isRunVisible {
-                    if let planStep { interstitial(planStep) } else { section }
+                if let planStep, !isRunVisible {
+                    interstitial(planStep)
+                } else if !isRunVisible || selection == .course {
+                    // Карта курса жива и под запуском (скрыта, как скрыт запуск под разделом): после выхода она там же,
+                    // где была, — не строится заново и не прокручивается. Её данные — из `@Query`, свежие и так;
+                    // остальные разделы читают данные при появлении и под запуском не живут. Скрытые кнопки
+                    // отключены, чтобы Return не нажимал их во время упражнения.
+                    section
+                        .opacity(isRunVisible ? 0 : 1)
+                        .allowsHitTesting(!isRunVisible)
+                        .disabled(isRunVisible)
+                        .accessibilityHidden(isRunVisible)
                 }
             }
             .environment(\.openAchievements, OpenAchievementsAction(openAchievements))
@@ -362,7 +389,7 @@ struct RootView: View {
         switch selection ?? .home {
         case .home: HomeView(start: { start($0) }, navigate: { selection = $0 })
         case .course: CourseMapView(focus: $courseFocus, start: { start(.lesson($0)) })
-        case .training: TrainingView(start: { start($0) })
+        case .training: TrainingView(start: { start($0) }, replay: { replayRequest = ReplayRequest(measurementId: $0) })
         case .practice: PracticeView(start: { start($0) })
         case .rhythm: RhythmHomeView(start: { start($0) })
         case .analytics: AnalyticsView()
@@ -398,6 +425,8 @@ struct RootView: View {
                                  chars: training.chars ?? ErrorWordsRunnerView.targetChars, onExit: end)
         case .finger(let finger):
             FingerRunnerView(run: finger, onExit: end)
+        case .measure(let measure):
+            MeasureRunnerView(run: measure, onReplay: { replayRequest = ReplayRequest(measurementId: $0) }, onExit: end)
         case .practice(let practice):
             PracticeRunnerView(run: practice, onExit: end)
         case .rhythm(let rhythm):

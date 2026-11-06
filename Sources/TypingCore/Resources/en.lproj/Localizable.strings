@@ -705,3 +705,9 @@
 "achievement.errorwords.fixed200.detail" = "Two hundred words that used to let you down no longer do";
 "achievement.errorwords.fixed1000.title" = "Clean Hands";
 "achievement.errorwords.fixed1000.detail" = "A thousand words fixed. Mistakes are now just material to work on";
+"achievement.measure.first.title" = "First Speed Test";
+"achievement.measure.first.detail" = "Your first speed test is saved. Now there is something to compare with";
+"achievement.measure.double.title" = "Twice the First Test";
+"achievement.measure.double.detail" = "A speed test at twice the speed of your first one of the same kind";
+"achievement.condition.measureFirst" = "Save your first speed test";
+"achievement.condition.measureDoubled" = "A speed test at least twice as fast as your first one of the same kind";

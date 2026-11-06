@@ -42,9 +42,14 @@ enum SettingsKey {
     static let adaptiveTargetCpm = "adaptiveTargetCpm"
     /// Буквы в «Слабых местах» и «Словах с ошибками» (`TrainingLetters`): open | all. Архивируется (поколение 9).
     static let trainingLetters = "trainingLetters"
+    /// Выбранный вариант замера (`MeasureChoice`): «60:plain». Архивируется (поколение 10).
+    static let measureChoice = "measureChoice"
     static let settingsSection = "settingsSection"
     /// Подсказывать, каким большим пальцем жать пробел (противоположным предыдущему символу).
     static let spaceThumbHint = "spaceThumbHint"
+    /// Кончики пальцев над клавиатурой на знакомстве с клавишами двигаются (`HandsOverlay`), Bool, по умолчанию true.
+    /// Архивируется. «Уменьшить движение» в системе выключает движение независимо от этой настройки.
+    static let fingerAnimation = "fingerAnimation"
     /// Масштаб интерфейса (`UIScale`), Double: 1 — 100%.
     static let uiScale = "uiScale"
     /// Напоминания о занятиях (`ReminderScheduler`): включены ли, час и минута (по умолчанию выключены, 20:00).
@@ -152,10 +157,12 @@ enum SettingsDefault {
     static let dailyGoalOptions = [5, 10, 15, 20, 30]
     static let adaptiveTargetCpm = 175
     static let trainingLetters = TrainingLetters.open.rawValue
+    static let measureChoice = MeasureChoice.default.rawValue
     static let adaptiveTargetOptions = [100, 150, 175, 200, 250]
     static let darkFromHour = 20
     static let darkToHour = 7
     static let spaceThumbHint = true
+    static let fingerAnimation = true
     static let remindersEnabled = false
     static let reminderHour = 20
     static let reminderMinute = 0

@@ -1,21 +1,38 @@
 import SwiftUI
 import TypingCore
 
-/// Знакомство с новыми клавишами: каким пальцем и куда тянуться. Подсветка мигает между исходной и новой клавишей.
+/// Знакомство с новыми клавишами: каким пальцем и куда тянуться. Кончики пальцев по очереди нажимают новые клавиши (без анимации — подсветка мигает между исходной и новой).
 struct LessonIntroView: View {
     let lesson: Lesson
     let language: Language
     /// Самый первый урок курса: рассказать, каким большим пальцем жать пробел.
     var teachesSpaceThumb = false
     let onStart: () -> Void
+    /// Просмотр с карты курса: без запуска урока, вместо «Начать» — «Готово».
+    var isPreview = false
+    /// «Выйти» до начала урока (как в упражнении): урок закрывается и не остаётся «Текущим уроком».
+    var onExit: (() -> Void)? = nil
 
     @Environment(KeyboardLayoutService.self) private var layout
     @Environment(RunPresence.self) private var presence: RunPresence?
     @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
     @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
+    @AppStorage(SettingsKey.fingerAnimation) private var fingerAnimation = SettingsDefault.fingerAnimation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showTarget = false
+    @State private var handsPress: HandsPress?
+    @State private var pressStartedAt = Date.distantPast
+    @State private var animationPaused = false
     /// Какая половина пробела подсвечена в показе большого пальца.
     @State private var spaceHalf: Hand = .left
+
+    private var movesTips: Bool { HandsOverlayModel.movesTips(setting: fingerAnimation, reduceMotion: reduceMotion) }
+
+    private struct LoopID: Hashable {
+        let visible: Bool
+        let moves: Bool
+        let paused: Bool
+    }
 
     private var keyboardUnitValue: Double { KeyboardSizing.clampedUnit(keyboardUnit) }
 
@@ -63,19 +80,53 @@ struct LessonIntroView: View {
             }
             .frame(maxWidth: 760, alignment: .leading)
             ScaledKeyboardView(snapshot: layout.snapshot, marks: marks, unit: keyboardUnitValue,
-                               spaceHalf: teachesSpaceThumb ? spaceHalf : nil)
+                               spaceHalf: teachesSpaceThumb ? spaceHalf : nil,
+                               hands: HandsState(press: handsPress, startedAt: pressStartedAt, moves: movesTips))
                 .keyboardPlacement(offset: keyboardOffset, unit: keyboardUnitValue)
-            Button("Начать", action: onStart)
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+            HStack(spacing: 12) {
+                if let onExit, !isPreview {
+                    Button("Выйти", action: onExit)
+                }
+                if movesTips {
+                    Button {
+                        animationPaused.toggle()
+                    } label: {
+                        Label(animationPaused ? "Продолжить" : "Пауза анимации",
+                              systemImage: animationPaused ? "play.fill" : "pause.fill")
+                    }
+                }
+                Button(isPreview ? "Готово" : "Начать", action: onStart)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
         }
         .padding(28)
-        // Пока запуск скрыт другим разделом, подсветка не мигает: таймер не работает.
-        .task(id: presence?.isVisible ?? true) {
-            guard presence?.isVisible ?? true else { return }
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(800))
-                showTarget.toggle()
+        .onExitCommand { if isPreview { onStart() } }
+        // Пока запуск скрыт другим разделом (или анимация на паузе), ничего не крутится.
+        .task(id: LoopID(visible: presence?.isVisible ?? true, moves: movesTips, paused: animationPaused)) {
+            guard presence?.isVisible ?? true, !animationPaused else { return }
+            if movesTips {
+                showTarget = false
+                defer { handsPress = nil }
+                var index = 0
+                while !Task.isCancelled {
+                    guard !presses.isEmpty else {
+                        try? await Task.sleep(for: .milliseconds(700))
+                        continue
+                    }
+                    let press = presses[index % presses.count].1
+                    handsPress = HandsPress(keyCode: press.keyCode, shift: press.shift)
+                    pressStartedAt = Date()
+                    try? await Task.sleep(for: .milliseconds(Int(FingerPress.durationMs)))
+                    handsPress = nil
+                    try? await Task.sleep(for: .milliseconds(700))
+                    index += 1
+                }
+            } else {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(800))
+                    showTarget.toggle()
+                }
             }
         }
         // Половины пробела по очереди, по секунде.

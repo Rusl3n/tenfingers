@@ -705,3 +705,9 @@
 "achievement.errorwords.fixed200.detail" = "Две сотни слов, которые раньше подводили, больше не подводят";
 "achievement.errorwords.fixed1000.title" = "Чистописание";
 "achievement.errorwords.fixed1000.detail" = "Тысяча исправленных слов. Ошибки для вас теперь материал для работы";
+"achievement.measure.first.title" = "Первый замер";
+"achievement.measure.first.detail" = "Первый замер скорости сохранён. Теперь есть с чем сравнивать";
+"achievement.measure.double.title" = "Вдвое быстрее первого замера";
+"achievement.measure.double.detail" = "Скорость замера вдвое выше, чем в первом замере того же вида";
+"achievement.condition.measureFirst" = "Сохраните первый замер скорости";
+"achievement.condition.measureDoubled" = "Скорость замера не меньше чем вдвое выше первого замера того же вида";

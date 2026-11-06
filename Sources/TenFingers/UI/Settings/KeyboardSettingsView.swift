@@ -8,6 +8,7 @@ struct KeyboardSettingsView: View {
     let miniature: KeyboardMiniatureFrame
     @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
     @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
+    @AppStorage(SettingsKey.fingerAnimation) private var fingerAnimation = SettingsDefault.fingerAnimation
     @Environment(KeyboardLayoutService.self) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var previewWidth = 0.0
@@ -20,6 +21,8 @@ struct KeyboardSettingsView: View {
     var body: some View {
         Form {
             Section {
+                Toggle("Анимация пальцев", isOn: $fingerAnimation)
+                    .help(HelpText.fingerAnimation)
                 Slider(value: $keyboardUnit, in: KeyboardSizing.unitRange, step: 2,
                        label: { Text("Размер клавиатуры") },
                        onEditingChanged: { preview.isEditingSize = $0 })

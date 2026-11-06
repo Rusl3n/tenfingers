@@ -59,6 +59,8 @@ struct TrainingSnapshot: Equatable {
 
 struct TrainingView: View {
     let start: (RunKind) -> Void
+    /// Повтор замера по `SpeedMeasurement.id` (лист открывает `RootView`).
+    var replay: (UUID) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(ContentLibrary.self) private var library
@@ -68,9 +70,11 @@ struct TrainingView: View {
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var targetCpm = SettingsDefault.adaptiveTargetCpm
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @AppStorage(SettingsKey.trainingLetters) private var trainingLetters = SettingsDefault.trainingLetters
+    @AppStorage(SettingsKey.measureChoice) private var measureChoice = SettingsDefault.measureChoice
     @State private var snapshot: TrainingSnapshot?
     @State private var errorWords = ErrorWordsCardModel(listCount: 0, eligibleCount: 0, fixed: 0)
     @State private var fingers = FingerCardModel(cells: [])
+    @State private var measure: MeasureCardModel?
     /// Букв пальцев нет ни в истории клавиш, ни в раскладке: кнопок занятий нет, нужна раскладка языка.
     @State private var fingerLettersMissing = false
 
@@ -80,20 +84,26 @@ struct TrainingView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Тренировка: \(language.displayName)").font(.largeTitle.bold())
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Тренировка: \(language.displayName)").font(.title.bold())
                 if let snapshot {
                     adaptiveCard(snapshot)
                     weakSpotsCard(snapshot)
                     ErrorWordsCard(model: errorWords,
                                    start: { start(.errorWords(TrainingRun(language: language))) })
+                    if let measure {
+                        MeasureCard(model: measure, unit: unit,
+                                    onChoose: { measureChoice = $0.rawValue },
+                                    start: { start(.measure(MeasureRun(variant: measure.choice.variant(language: language)))) },
+                                    onReplay: { replay($0.id) })
+                    }
                     FingerCard(model: fingers, unit: unit,
                                layoutPrompt: fingerLettersMissing && layout.snapshot.language != language
                                    ? LayoutPrompt.switchTo(language) : nil,
                                start: { start(.finger(FingerRun(language: language, finger: $0, drill: $1))) })
                 }
             }
-            .padding(24)
+            .padding(20)
             .frame(maxWidth: 820, alignment: .leading)
         }
         .scrollContentBackground(.hidden)
@@ -101,6 +111,7 @@ struct TrainingView: View {
         .onChange(of: activeLanguage) { reload() }
         .onChange(of: targetCpm) { reload() }
         .onChange(of: trainingLetters) { reload() }
+        .onChange(of: measureChoice) { reload() }
         .onChange(of: layout.snapshot) { reload() }
     }
 
@@ -120,6 +131,7 @@ struct TrainingView: View {
         errorWords = ErrorWordsCardModel.make(
             entries: (try? reader.errorWords(language: language)) ?? [], fixed: (try? reader.fixedWords()) ?? 0,
             allowed: lettersSetting.letters(open: openLetters, language: language))
+        loadMeasure(reader)
         let thresholdMs = AdaptiveTrainer(language: language, targetCpm: Double(targetCpm)).thresholdMs
         let fingerOf = (try? reader.fingerLetters(language: language, layout: layout.fingerOf(language: language)))
             ?? layout.fingerOf(language: language)
@@ -130,95 +142,109 @@ struct TrainingView: View {
             fingerOf: fingerOf.filter { openLetters.contains($0.key) })
     }
 
+    private func loadMeasure(_ reader: StatsReader) {
+        let keys = (try? reader.measureKeys(language: language, course: library.courses[language],
+                                            legacy: library.legacyCourses[language]))
+            ?? MeasureKeys(open: [], capitalsLearned: false)
+        let stored = MeasureChoice(rawValue: measureChoice)
+        let model = MeasureCardModel.make(stored: stored, language: language, keys: keys, entries: [])
+        let entries = (try? reader.measurements(variant: model.choice.variant(language: language))) ?? []
+        measure = MeasureCardModel.make(stored: stored, language: language, keys: keys, entries: entries)
+    }
+
     private func adaptiveCard(_ snapshot: TrainingSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text("Адаптивная тренировка").font(.title3.bold())
+                Text("Адаптивная тренировка").font(.headline)
                 InfoButton(text: HelpText.trainingLetters)
-            }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 10)], alignment: .leading, spacing: 10) {
-                ForEach(snapshot.letters) { letterBadge($0) }
-            }
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    if let next = snapshot.nextLetter {
-                        let name = String(next)
-                        Text("Следующая буква: \(name)")
-                    } else {
-                        Text("Все буквы открыты")
-                    }
-                    let goal = unit.format(Double(targetCpm))
-                    Text("Цель: \(goal)").foregroundStyle(.secondary)
-                }
                 Spacer()
                 Button("Начать") { start(.adaptive(TrainingRun(language: language))) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 32), spacing: 6)], alignment: .leading, spacing: 6) {
+                ForEach(snapshot.letters) { letterBadge($0) }
+            }
+            HStack(spacing: 16) {
+                if let next = snapshot.nextLetter {
+                    let name = String(next)
+                    Text("Следующая буква: \(name)")
+                } else {
+                    Text("Все буквы открыты")
+                }
+                let goal = unit.format(Double(targetCpm))
+                Text("Цель: \(goal)").foregroundStyle(.secondary)
+            }
+            .font(.callout)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(palette.card, in: RoundedRectangle(cornerRadius: 12))
+        .compactCard(palette)
     }
 
     private func letterBadge(_ letter: TrainingSnapshot.Letter) -> some View {
         let accent = letter.isFocus ? Color.accentColor : Color.green
         return ZStack {
             Circle().fill(letter.isFocus ? Color.accentColor.opacity(0.18) : Color.clear)
-            Circle().stroke(Color.secondary.opacity(0.25), lineWidth: 3)
+            Circle().stroke(Color.secondary.opacity(0.25), lineWidth: 2.5)
             Circle().trim(from: 0, to: letter.progress)
-                .stroke(accent, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .stroke(accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text(String(letter.character))
-                .font(.system(.title3, design: .monospaced).weight(.semibold))
+                .font(.system(.body, design: .monospaced).weight(.semibold))
                 .foregroundStyle(letter.isFocus ? Color.accentColor : Color.primary)
         }
-        .frame(width: 44, height: 44)
+        .frame(width: 32, height: 32)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(letter.character))
         .accessibilityValue(Formatting.percent(letter.progress))
     }
 
     private func weakSpotsCard(_ snapshot: TrainingSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text("Слабые места").font(.title3.bold())
+                Text("Слабые места").font(.headline)
                 InfoButton(text: HelpText.weakSpots)
-            }
-            HStack(alignment: .top, spacing: 32) {
-                weakColumn("Клавиши", items: snapshot.weakKeys.map { String($0) })
-                weakColumn("Сочетания", items: snapshot.weakBigrams)
-            }
-            HStack {
-                if snapshot.needsMoreLetters {
-                    Text("Сначала откройте больше букв в курсе или тренировке")
-                        .foregroundStyle(.secondary)
-                }
                 Spacer()
                 Button("5 минут на слабые места") { start(.weakSpots(TrainingRun(language: language))) }
                     .disabled(!snapshot.canStartWeakSpots)
             }
+            HStack(alignment: .firstTextBaseline, spacing: 24) {
+                weakColumn("Клавиши", items: snapshot.weakKeys.map { String($0) })
+                weakColumn("Сочетания", items: snapshot.weakBigrams)
+            }
+            if snapshot.needsMoreLetters {
+                Text("Сначала откройте больше букв в курсе или тренировке")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(palette.card, in: RoundedRectangle(cornerRadius: 12))
+        .compactCard(palette)
     }
 
     private func weakColumn(_ title: LocalizedStringKey, items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title).foregroundStyle(.secondary)
             if items.isEmpty {
                 Text("Нужно больше данных").foregroundStyle(.tertiary)
             } else {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     ForEach(items, id: \.self) { item in
                         Text(item)
                             .font(.system(.body, design: .monospaced))
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(Color.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Color.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 5))
                     }
                 }
             }
         }
+        .font(.callout)
+    }
+}
+
+extension View {
+    /// Карточка экрана «Тренировка» в сжатом виде: меньше полей, чтобы страница помещалась по высоте.
+    func compactCard(_ palette: Palette) -> some View {
+        padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(palette.card, in: RoundedRectangle(cornerRadius: 10))
     }
 }

@@ -14,7 +14,21 @@ enum HomeTabNews {
         if let plan { result[.plan] = plan.day }
         if let challenges { result[.challenges] = challenges.fingerprint }
         if let course { result[.course] = course.lessonRun?.lessonId ?? "completed" }
+        // Одноразовая новость 2.9.0 — «Замер скорости» на вкладке тренировки. Отпечаток постоянный: у тех, кто уже
+        // открывал «Главную» прежних версий, вкладка не записана и загорается один раз; на первом запуске (словаря
+        // ещё нет) он записывается сразу как увиденный. Пока нет прочего содержимого, его тоже нет: иначе первая
+        // запись оставила бы остальные вкладки незаписанными, и они загорелись бы.
+        if !result.isEmpty { result[.quick] = measureNews }
         return result
+    }
+
+    /// Отпечаток новости о замере скорости (2.9.0).
+    static let measureNews = "measure-2.9.0"
+
+    /// Новость вкладки ещё не видна пользователю: словарь уже есть (не первый запуск), а вкладка записана иначе.
+    static func isPending(_ tab: HomeTab, fingerprints: [HomeTab: String], seen: [String: String]?) -> Bool {
+        guard let seen, let fingerprint = fingerprints[tab] else { return false }
+        return seen[tab.rawValue] != fingerprint
     }
 
     /// Вкладки с кружком; `seen == nil` — первый запуск.

@@ -45,6 +45,14 @@ final class ExerciseSession {
     /// Пауза поставлена (`true`) или снята (`false`). При снятии передаётся причина снятой паузы.
     @ObservationIgnored var onPauseChanged: ((Bool, PauseReason) -> Void)?
     @ObservationIgnored private var startedAt: Date?
+    /// Таймер замера (8c); `nil` — обычное упражнение или замер «Текст 300 знаков» (идёт до конца текста).
+    private(set) var measureTimer: MeasureTimer?
+    /// Запись нажатий замера для повтора; `nil` вне замера.
+    @ObservationIgnored private(set) var keyLog: MeasureKeyLog?
+    /// Есть у замера: Esc не ставит паузу, а вызывает это (замер без сохранения).
+    @ObservationIgnored var onEscape: (() -> Void)?
+    /// Часы паузы замера; время событий клавиш — той же шкалы (`systemUptime`).
+    @ObservationIgnored var clock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
 
     init(spec: ExerciseSpec, language: Language, mode: ExerciseMode, lessonId: String?, hint: HintLevel) {
         self.spec = spec
@@ -53,6 +61,25 @@ final class ExerciseSession {
         self.lessonId = lessonId
         self.hint = hint
         engine = TypingEngine(text: spec.text)
+    }
+
+    /// Включает замер: запись нажатий, точность по набранному и, у замера по таймеру, ограничение по времени.
+    func configureMeasure(limit: TimeInterval?) {
+        measureTimer = limit.map { MeasureTimer(limit: $0) }
+        keyLog = MeasureKeyLog()
+        engine.accuracyByTypedChars = true
+    }
+
+    /// Вызывается по тику экрана: время вышло — набор останавливается и приходит итог.
+    func expireIfNeeded() {
+        guard let measureTimer, !engine.isFinished, !isStopped, !isRecorded,
+              measureTimer.isExpired(at: clock()) else { return }
+        finishByTimer()
+    }
+
+    private func finishByTimer() {
+        engine.stop()
+        onFinish?(makeResult())
     }
 
     var layoutMismatch: Bool {
@@ -93,7 +120,7 @@ final class ExerciseSession {
         syncModifiers(modifiers)
         if isRepeat { return true }
         if keyCode == Self.escapeKeyCode {
-            togglePause()
+            if let onEscape { onEscape() } else { togglePause() }
             return true
         }
         guard !engine.isFinished else { return true }
@@ -106,8 +133,18 @@ final class ExerciseSession {
             wrongLayoutAttempted = true
             return true
         }
+        if let measureTimer, measureTimer.isExpired(at: timestamp) {
+            finishByTimer()
+            return true
+        }
         if startedAt == nil { startedAt = .now }
-        switch engine.handle(Keystroke(character: character, keyCode: keyCode, timestamp: timestamp)) {
+        let positionBefore = engine.position
+        let outcome = engine.handle(Keystroke(character: character, keyCode: keyCode, timestamp: timestamp))
+        if outcome != .ignored {
+            measureTimer?.start(at: timestamp)
+            keyLog?.record(position: positionBefore, typed: character, at: timestamp)
+        }
+        switch outcome {
         case .wrong:
             errorFlash = true
             onSound?(.error)
@@ -144,6 +181,7 @@ final class ExerciseSession {
         isPaused = true
         pauseReason = reason
         engine.pause()
+        measureTimer?.pause(at: clock())
         onPauseChanged?(true, reason)
     }
 
@@ -151,6 +189,7 @@ final class ExerciseSession {
         let reason = pauseReason ?? .escape
         isPaused = false
         pauseReason = nil
+        measureTimer?.resume(at: clock())
         onPauseChanged?(false, reason)
     }
 

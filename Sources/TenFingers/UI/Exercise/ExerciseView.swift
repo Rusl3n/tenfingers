@@ -16,6 +16,9 @@ struct ExerciseView: View {
     var errorLimit: Int? = nil
     /// Строка над текстом упражнения («Обгоните себя: 142 зн/мин → цель 149 зн/мин» у шагов «Ускорения»).
     var banner: String? = nil
+    /// Замер по таймеру: вместо времени упражнения — оставшееся, а полоса показывает прошедшую долю.
+    var timeText: String? = nil
+    var progressOverride: Double? = nil
     var onRestart: (() -> Void)?
     let onExit: () -> Void
 
@@ -60,7 +63,11 @@ struct ExerciseView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            ProgressView(value: Double(session.engine.position), total: Double(max(session.engine.target.count, 1)))
+            if let progressOverride {
+                ProgressView(value: progressOverride, total: 1)
+            } else {
+                ProgressView(value: Double(session.engine.position), total: Double(max(session.engine.target.count, 1)))
+            }
             TypingTextView(target: session.engine.target, position: session.engine.position,
                            errorAtCursor: session.errorFlash)  // занимает свободную высоту
             if session.hint == .hidden {
@@ -139,7 +146,7 @@ struct ExerciseView: View {
                         Text(Formatting.percent(session.engine.accuracy)).font(.caption).monospacedDigit()
                     }
                 }
-                Text(Formatting.clock(session.engine.activeTime)).monospacedDigit()
+                Text(timeText ?? Formatting.clock(session.engine.activeTime)).monospacedDigit()
                 Text(layout.snapshot.language?.shortName ?? "?")
                     .padding(.horizontal, 6)
                     .background(session.layoutMismatch ? Color.red.opacity(0.25) : Color.secondary.opacity(0.15),

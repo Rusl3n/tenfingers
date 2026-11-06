@@ -75,3 +75,18 @@ import Testing
     defer { removeTestDefaults(name) }
     #expect(!OnboardingDraft.isCompleted(defaults))
 }
+
+/// «Замерить (1 минута)» после знакомства: замер на 60 секунд, «Простой» (как по умолчанию в карточке «Тренировки»).
+@Test func measureAfterOnboardingIsOneMinutePlain() {
+    let variant = MeasureChoice.default.variant(language: .ru)
+    #expect(variant.duration == .seconds(60) && variant.kind == .plain && variant.language == .ru)
+}
+
+/// Выбор на последнем шаге («Замерить» или «Позже») на сохранённое не влияет: «Готово» пишет то же, что раньше.
+@Test func finishDoesNotDependOnTheMeasureStep() {
+    let (defaults, name) = makeTestDefaults("onboarding")
+    defer { removeTestDefaults(name) }
+    OnboardingDraft(nickname: "", fullName: "", isAdult: true, language: .system).finish(defaults)
+    #expect(OnboardingDraft.isCompleted(defaults))
+    #expect(defaults.string(forKey: SettingsKey.measureChoice) == nil)
+}

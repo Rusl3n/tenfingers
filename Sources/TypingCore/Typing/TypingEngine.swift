@@ -38,6 +38,8 @@ public struct TypingEngine: Sendable {
     public let target: [Character]
     /// Включается при горящем Caps Lock.
     public var caseInsensitive = false
+    /// Точность — по знакам, до которых дошёл набор, а не по всему тексту (замер по таймеру: текст заведомо длиннее набора).
+    public var accuracyByTypedChars = false
     public private(set) var position = 0
     public private(set) var errorPositions: Set<Int> = []
     public private(set) var activeTime: TimeInterval = 0
@@ -45,6 +47,9 @@ public struct TypingEngine: Sendable {
     public private(set) var wrongKeystrokes = 0
     public private(set) var maxErrorStreak = 0
     public private(set) var timings: [KeyTiming] = []
+
+    /// Набор остановлен снаружи (время замера вышло): упражнение считается законченным.
+    public private(set) var isStopped = false
 
     private var errorStreak = 0
     private var lastTimestamp: TimeInterval?
@@ -54,7 +59,7 @@ public struct TypingEngine: Sendable {
         target = Array(text)
     }
 
-    public var isFinished: Bool { position >= target.count }
+    public var isFinished: Bool { isStopped || position >= target.count }
     public var hasStarted: Bool { keystrokeCount > 0 }
     public var expected: Character? { isFinished ? nil : target[position] }
     public var currentPositionHasError: Bool { errorPositions.contains(position) }
@@ -64,7 +69,11 @@ public struct TypingEngine: Sendable {
     public var cpm: Double { activeTime > 0 && position > 1 ? Double(position - 1) / activeTime * 60 : 0 }
 
     public var accuracy: Double {
-        target.isEmpty ? 1 : 1 - Double(errorPositions.count) / Double(target.count)
+        if accuracyByTypedChars {
+            let reached = position + (errorPositions.contains(position) ? 1 : 0)
+            return reached == 0 ? 1 : 1 - Double(errorPositions.count) / Double(reached)
+        }
+        return target.isEmpty ? 1 : 1 - Double(errorPositions.count) / Double(target.count)
     }
 
     public var errorsByCharacter: [Character: Int] {
@@ -97,6 +106,9 @@ public struct TypingEngine: Sendable {
         positionStartedAt = stroke.timestamp
         return .correct
     }
+
+    /// Останавливает набор (время замера вышло): дальше нажатия не принимаются.
+    public mutating func stop() { isStopped = true }
 
     /// Пауза (Esc, потеря фокуса): следующий интервал не засчитывается.
     public mutating func pause() {

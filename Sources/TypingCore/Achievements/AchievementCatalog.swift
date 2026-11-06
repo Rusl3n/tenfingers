@@ -3,7 +3,7 @@
 /// Id стабильны: по ним хранятся полученные ачивки, переименовывать нельзя.
 public enum AchievementCatalog {
     public static let all: [Achievement] =
-        streak + speed + accuracy + course + milestone + volume + special + letters + fun + rhythm + errorWords
+        streak + speed + accuracy + course + milestone + volume + special + letters + fun + rhythm + errorWords + measure
 
     private static let streak: [Achievement] = [
         Achievement(id: "streak.3", category: .streak, icon: "flame", condition: .streak(days: 3)),
@@ -176,6 +176,13 @@ public enum AchievementCatalog {
         Achievement(id: "errorwords." + step.0, category: .trainings, icon: step.1,
                     condition: .counter(name: "fixedWords", threshold: step.2))
     }
+
+    /// «Замер скорости» (8c): по сохранённым замерам; замеров до 2.9.0 нет, задним числом ничего не выдаётся.
+    private static let measure: [Achievement] = [
+        Achievement(id: "measure.first", category: .trainings, icon: "stopwatch", condition: .measureFirst),
+        Achievement(id: "measure.double", category: .trainings, icon: "multiply.square.fill",
+                    condition: .measureDoubled),
+    ]
 
     private static let special: [Achievement] = [
         Achievement(id: "special.night_owl", category: .special, icon: "moon.stars.fill", secret: true, repeatable: true,

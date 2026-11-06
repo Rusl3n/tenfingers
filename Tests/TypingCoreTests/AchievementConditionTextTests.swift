@@ -21,6 +21,7 @@ private let samples: [AchievementCondition] = [
     .wholeAlphabet(.en),
     .counter(name: "wrongLayoutStarts", threshold: 10), .counter(name: "capsLockPresses", threshold: 1),
     .counter(name: "fixedWords", threshold: 10), .counter(name: "unknownCounter", threshold: 3),
+    .measureFirst, .measureDoubled,
     .errorStreak(10), .errorsInExercise(50), .lessonReplays(10), .abandonsInDay(3),
     .dayOfYear(month: 1, day: 1), .fridayThe13th, .bilingualDay, .marathonDay(minutes: 60),
     .comeback(gapDays: 7),
@@ -177,6 +178,9 @@ private let samples: [AchievementCondition] = [
     // Неизвестный счётчик (из более новой версии) — общий текст, а не ключ.
     #expect(ru(.counter(name: "fixedWords", threshold: 10)) == "Исправлено слов с ошибками: 10")
     #expect(en(.counter(name: "fixedWords", threshold: 10)) == "Words with errors fixed: 10")
+    #expect(ru(.measureFirst) == "Сохраните первый замер скорости")
+    #expect(en(.measureFirst) == "Save your first speed test")
+    #expect(!ru(.measureDoubled).isEmpty && !en(.measureDoubled).isEmpty)
     #expect(ru(.counter(name: "unknownCounter", threshold: 3)) == "Событий в приложении: 3")
     #expect(en(.counter(name: "unknownCounter", threshold: 3)) == "App events: 3")
 }

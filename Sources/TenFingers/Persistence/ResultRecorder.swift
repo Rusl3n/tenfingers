@@ -104,6 +104,23 @@ struct ResultRecorder {
         }
     }
 
+    /// Замер скорости (8c, §9.2): сессия `measure` (время дня, огонь, ачивки, статистика клавиш — как у обычного
+    /// упражнения) и `SpeedMeasurement` с повтором; затем по варианту остаются первый замер и последние 5
+    /// (`MeasureRetention`), остальные удаляются. `result.mode` должен быть `.measure`. Только меняет контекст,
+    /// сохраняет `commit`.
+    func recordMeasurement(_ result: ExerciseResult, variant: MeasureVariant, replay: MeasureReplay?,
+                           cpm: Double? = nil) throws {
+        try record(result, source: "measure:\(variant.key)")
+        let code = variant.language.rawValue, duration = variant.duration.rawValue, kind = variant.kind.rawValue
+        context.insert(SpeedMeasurement(
+            language: code, duration: duration, textKind: kind, date: result.endedAt,
+            cpm: cpm ?? result.cpm, accuracy: result.accuracy, chars: result.chars, errors: result.errorCount, replay: replay?.encoded()))
+        let same = try context.fetch(FetchDescriptor<SpeedMeasurement>(predicate: #Predicate {
+            $0.language == code && $0.duration == duration && $0.textKind == kind
+        }))
+        for old in MeasureRetention.discard(same, variant: { _ in variant }, date: \.date) { context.delete(old) }
+    }
+
     /// Заход игры «Ритм» (решения 8–9): сессия `rhythm` (скорости нет, `cpm` 0), день, статистика букв и `RhythmResult`.
     /// Статистика букв — как у обычного упражнения, но без времени (`ewmaMs` не трогается) и без сочетаний: в игре
     /// буквы идут по такту, а не по скорости пальцев. Новая строка буквы получает код клавиши из раскладки

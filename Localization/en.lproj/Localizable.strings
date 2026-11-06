@@ -46,6 +46,7 @@
 "Курс · %@" = "Course · %@";
 
 /* Знакомство с клавишами */
+"Знакомство с клавишами" = "Key introduction";
 "Переключите раскладку на русскую" = "Switch the keyboard layout to Russian";
 "Переключите раскладку на английскую" = "Switch the keyboard layout to English";
 "В текущей раскладке нет символов: %@" = "Not in the current layout: %@";
@@ -968,3 +969,45 @@
 "Буквы в тренировках" = "Letters in training";
 "Слова, в которых вы ошибались. Если слово набрано без ошибок три раза подряд, оно считается исправленным и уходит из списка. Занятие собирает текст из этих слов." = "Words you made mistakes in. Type a word without errors three times in a row and it counts as fixed and leaves the list. The exercise builds its text from these words.";
 "Если курс пройден или открыт весь алфавит, настройка ни на что не влияет." = "If the course is finished or the whole alphabet is open, this setting has no effect.";
+"Анимация пальцев" = "Finger animation";
+"На знакомстве с клавишами кружки-пальцы нажимают новые клавиши. Если выключить или включить в системе «Уменьшить движение», пальцы стоят, а подсвечивается только клавиша." = "When you meet new keys, the finger circles press them. If you turn this off, or turn on Reduce Motion in the system, the fingers stay still and only the key is highlighted.";
+"Пауза анимации" = "Pause animation";
+"Замер скорости" = "Speed test";
+"Замеры скорости" = "Speed tests";
+"Сначала откройте буквы в курсе" = "Open some letters in the course first";
+"Нужно пройти урок с заглавными буквами" = "Complete the lesson with capital letters first";
+"Нужно пройти урок со знаками препинания" = "Complete the lesson with punctuation first";
+"Нужно пройти урок с цифрами" = "Complete the lesson with digits first";
+"Текст 300 знаков" = "300-character text";
+"Простой" = "Simple";
+"Заглавные и знаки" = "Capitals and punctuation";
+"С цифрами" = "With digits";
+"Последний замер" = "Latest measurement";
+"Замеров этого варианта пока нет" = "No measurements of this variant yet";
+"Замерить" = "Measure";
+"Первый замер" = "First measurement";
+"Пока нельзя составить текст для этого замера" = "Can't build a text for this measurement yet";
+"Не набрано ни одного знака, замер не сохранён" = "No characters typed, the measurement was not saved";
+"Первый замер этого варианта: дальше будет с чем сравнить" = "First measurement of this variant: later ones will have something to compare with";
+"К первому замеру: %@" = "Compared with the first: %@";
+"К прошлому замеру: %@" = "Compared with the previous: %@";
+"Знаков" = "Characters";
+"Замер идёт" = "Measurement in progress";
+"Замер будет прерван и не сохранится. Начать новое занятие?" = "The measurement will be stopped and not saved. Start a new session?";
+
+/* Замер 8c: повтор */
+"Как было" = "As recorded";
+"Сначала" = "From the start";
+"Смотреть запись" = "Watch replay";
+"Запись набора" = "Typing replay";
+"Записи набора нет" = "No typing recorded";
+"×1,5" = "×1.5";
+"×2" = "×2";
+"×3" = "×3";
+"Замерить (1 минута)" = "Measure (1 minute)";
+"Позже" = "Later";
+"Скрыть" = "Hide";
+"Замерить скорость сейчас?" = "Measure your speed now?";
+"Одна минута набора без Backspace. Этот замер станет точкой отсчёта: дальше приложение покажет, во сколько раз вы стали быстрее." = "One minute of typing without Backspace. This test becomes your starting point: later the app will show how many times faster you have become.";
+"Новое: замер скорости" = "New: speed test";
+"Измерьте скорость за минуту — и сравнивайте с первым замером по мере тренировок." = "Measure your speed in a minute and compare it with your first test as you train.";

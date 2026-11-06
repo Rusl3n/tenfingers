@@ -225,3 +225,13 @@ private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Doub
     #expect(overview.steps.first { $0.stepIndex == 5 }?.kind == .check)
     #expect(overview.stars >= 4)
 }
+
+@Test func lessonIntroShownOnFullRunOfIntroducingLessonOnly() {
+    // Первый и повторный (уже пройденный) полный запуск с первого шага — знакомство есть.
+    #expect(LessonRunPlan.showsIntro(introducesSomething: true, resumeStart: 0, singleStep: false, restart: false))
+    // Продолжение, отдельный шаг (и «Освежить»), перезапуск внутри урока, урок без новых клавиш — без знакомства.
+    #expect(!LessonRunPlan.showsIntro(introducesSomething: true, resumeStart: 2, singleStep: false, restart: false))
+    #expect(!LessonRunPlan.showsIntro(introducesSomething: true, resumeStart: 0, singleStep: true, restart: false))
+    #expect(!LessonRunPlan.showsIntro(introducesSomething: true, resumeStart: 0, singleStep: false, restart: true))
+    #expect(!LessonRunPlan.showsIntro(introducesSomething: false, resumeStart: 0, singleStep: false, restart: false))
+}

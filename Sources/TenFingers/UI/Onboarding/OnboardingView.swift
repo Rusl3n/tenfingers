@@ -1,19 +1,18 @@
 import AppKit
 import SwiftUI
 
-/// Знакомство из четырёх шагов (§1 спецификации фазы 5). Лист `RootView`, пока `onboardingCompleted` не стоит.
+/// Знакомство из пяти шагов (пятый — «Замерить скорость сейчас?») (§1 спецификации фазы 5). Лист `RootView`, пока `onboardingCompleted` не стоит.
 /// Всё введённое живёт в черновике и применяется только по «Готово»; «Пропустить» ставит один флаг.
 struct OnboardingView: View {
-    private static let stepCount = 4
+    private static let stepCount = 5
+
+    /// «Замерить (1 минута)»: знакомство завершено, замер открывает `RootView`.
+    var onMeasure: () -> Void = {}
 
     @State private var step = 1
     @State private var draft = OnboardingDraft.load()
 
     private var isLastStep: Bool { step == Self.stepCount }
-    /// Перезапуск нужен и возможен: «Готово и перезапустить» становится кнопкой по умолчанию.
-    private var restarts: Bool {
-        isLastStep && AppRelauncher.canRelaunch && draft.needsRestart(atLaunch: InterfaceLanguage.atLaunch)
-    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -32,7 +31,8 @@ struct OnboardingView: View {
         case 1: welcome
         case 2: profile
         case 3: adult
-        default: language
+        case 4: language
+        default: measure
         }
     }
 
@@ -86,6 +86,23 @@ struct OnboardingView: View {
         }
     }
 
+    private var measure: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "timer").font(.system(size: 40)).foregroundStyle(Color.accentColor)
+                .accessibilityHidden(true)
+            Text("Замерить скорость сейчас?").font(.title2.bold())
+            Text("Одна минута набора без Backspace. Этот замер станет точкой отсчёта: дальше приложение покажет, во сколько раз вы стали быстрее.")
+                .foregroundStyle(.secondary)
+            // Перезапуск для смены языка: замер при этом не открывается.
+            if draft.needsRestart(atLaunch: InterfaceLanguage.atLaunch) {
+                LanguageRestartBanner(relaunch: {
+                    draft.finish()
+                    AppRelauncher.relaunch()
+                })
+            }
+        }
+    }
+
     private var buttons: some View {
         HStack {
             Button("Пропустить знакомство") { OnboardingDraft.skip() }
@@ -97,16 +114,14 @@ struct OnboardingView: View {
             if !isLastStep {
                 Button("Далее") { step += 1 }
                     .keyboardShortcut(.defaultAction)
-            } else if restarts {
-                Button("Готово") { draft.finish() }
-                Button("Готово и перезапустить") {
+            } else {
+                Button("Позже") { draft.finish() }
+                Button("Замерить (1 минута)") {
+                    // Сначала просьба о замере, потом закрытие знакомства: лист закрывается уже с ней.
+                    onMeasure()
                     draft.finish()
-                    AppRelauncher.relaunch()
                 }
                 .keyboardShortcut(.defaultAction)
-            } else {
-                Button("Готово") { draft.finish() }
-                    .keyboardShortcut(.defaultAction)
             }
         }
     }

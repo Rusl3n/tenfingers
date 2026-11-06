@@ -479,3 +479,56 @@ private func typed(_ text: String, wrongAt: Set<Int> = [], mode: ExerciseMode = 
     reader.vocabulary = { _ in [] }
     #expect(try reader.errorWords(language: .ru).map(\.text) == ["привет"])
 }
+
+// MARK: - Замер скорости
+
+private func measureResult(at date: Date, cpmTarget: String = "ао") -> ExerciseResult {
+    var engine = TypingEngine(text: cpmTarget)
+    _ = engine.handle(Keystroke(character: "а", keyCode: 3, timestamp: 0))
+    _ = engine.handle(Keystroke(character: "о", keyCode: 38, timestamp: 0.5))
+    return ExerciseResult(engine: engine, mode: .measure, language: .ru, lessonId: nil,
+                          startedAt: date, endedAt: date, hintLevel: .hidden)
+}
+
+@MainActor @Test func measurementIsRecordedAsSessionDayAndKeyStats() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    let variant = MeasureVariant(duration: .seconds(60), kind: .plain, language: .ru)
+    let replay = MeasureReplay(text: "ао", keys: [ReplayKey(position: 0, typed: "а", offsetMs: 0)])
+    try recorder.commit { try recorder.recordMeasurement(measureResult(at: date(23, 12)), variant: variant, replay: replay) }
+
+    let session = try #require(try context.fetch(FetchDescriptor<SessionRecord>()).first)
+    #expect(session.mode == "measure" && session.completed && session.source == "measure:60:plain:ru")
+    let day = try #require(try context.fetch(FetchDescriptor<DayRecord>()).first)
+    #expect(day.logicalDay == "2026-10-23" && day.completedExercises == 1 && day.activeSeconds > 0)
+    #expect(try context.fetch(FetchDescriptor<KeyStat>()).contains { $0.character == "о" && $0.presses == 1 })
+    let saved = try #require(try context.fetch(FetchDescriptor<SpeedMeasurement>()).first)
+    #expect(saved.duration == "60" && saved.textKind == "plain" && saved.language == "ru")
+    #expect(saved.chars == 2 && saved.errors == 0 && saved.cpm == session.cpm)
+    #expect(MeasureReplay(data: try #require(saved.replay)) == replay)
+}
+
+@MainActor @Test func seventhMeasurementOfVariantRemovesSecondByDate() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    let variant = MeasureVariant(duration: .seconds(60), kind: .plain, language: .ru)
+    let other = MeasureVariant(duration: .seconds(120), kind: .plain, language: .ru)
+    try recorder.commit { try recorder.recordMeasurement(measureResult(at: date(1, 12)), variant: other, replay: nil) }
+    for day in 1...7 {
+        try recorder.commit { try recorder.recordMeasurement(measureResult(at: date(day, 12)), variant: variant, replay: nil) }
+    }
+    let kept = try context.fetch(FetchDescriptor<SpeedMeasurement>(sortBy: [SortDescriptor(\.date)]))
+        .filter { $0.duration == "60" }
+    let days = kept.map { Calendar.current.component(.day, from: $0.date) }
+    #expect(days == [1, 3, 4, 5, 6, 7])
+    #expect(try context.fetchCount(FetchDescriptor<SpeedMeasurement>()) == 7)   // другой вариант не тронут
+    #expect(try context.fetchCount(FetchDescriptor<SessionRecord>()) == 8)      // сессии не удаляются
+}
+
+@Test func measureModeCountsAsPracticeInAnalytics() {
+    #expect(Analytics.isQualifyingLength(mode: .measure, kind: nil, chars: 300))
+    #expect(!Analytics.isQualifyingLength(mode: .measure, kind: nil, chars: 100))
+    #expect(SessionHistory.modeTitle("measure") == "Замер скорости")
+}

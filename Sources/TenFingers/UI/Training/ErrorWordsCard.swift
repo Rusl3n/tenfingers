@@ -31,32 +31,29 @@ struct ErrorWordsCard: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text("Слова с ошибками").font(.title3.bold())
+                Text("Слова с ошибками").font(.headline)
                 InfoButton(text: HelpText.errorWords)
-            }
-            HStack(alignment: .top, spacing: 32) {
-                column("В списке", value: model.listCount)
-                column("Исправлено всего", value: model.fixed)
-            }
-            HStack {
-                if let shortage = model.shortage {
-                    Text(shortage).foregroundStyle(.secondary)
-                }
                 Spacer()
                 Button("Начать", action: start).disabled(!model.canStart)
             }
+            HStack(alignment: .firstTextBaseline, spacing: 24) {
+                column("В списке", value: model.listCount)
+                column("Исправлено всего", value: model.fixed)
+                if let shortage = model.shortage {
+                    Text(shortage).foregroundStyle(.secondary)
+                }
+            }
+            .font(.callout)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(palette.card, in: RoundedRectangle(cornerRadius: 12))
+        .compactCard(palette)
     }
 
     private func column(_ title: LocalizedStringKey, value: Int) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(title).foregroundStyle(.secondary)
-            Text("\(value)").font(.title2.bold()).monospacedDigit()
+            Text("\(value)").font(.headline).monospacedDigit()
         }
     }
 }

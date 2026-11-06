@@ -109,3 +109,14 @@ import TypingCore
         #expect(AchievementCatalog.all.filter { $0.icon == item.icon }.count == 1, "значок «\(item.icon)» занят")
     }
 }
+
+/// Значки ачивок замера скорости (8c) существуют как SF Symbols и не повторяются.
+@Test func measureAchievementIconsExist() {
+    let items = AchievementCatalog.all.filter { $0.id.hasPrefix("measure.") }
+    #expect(items.map(\.id) == ["measure.first", "measure.double"])
+    #expect(items.allSatisfy { $0.category == .trainings })
+    for item in items {
+        #expect(NSImage(systemSymbolName: item.icon, accessibilityDescription: nil) != nil, "нет символа «\(item.icon)»")
+        #expect(AchievementCatalog.all.filter { $0.icon == item.icon }.count == 1, "значок «\(item.icon)» занят")
+    }
+}

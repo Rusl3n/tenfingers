@@ -280,7 +280,7 @@ enum LegacySchemaGeneration5 {
     #expect(SchemaGeneration.canOpen(stored: 5, current: 6))
     let old = Set(Schema(LegacySchemaGeneration5.models).entities.map(\.name))
     let new = Set(ModelStore.schema.entities.map(\.name))
-    #expect(ModelStore.unknownEntities(store: new, known: old) == ["AchievementGrant", "ErrorWord", "RhythmResult"])
+    #expect(ModelStore.unknownEntities(store: new, known: old) == ["AchievementGrant", "ErrorWord", "RhythmResult", "SpeedMeasurement"])
 }
 
 /// Пара (ачивка, ключ получения) уникальна: повтор сливается в одну запись, другой ключ — новая запись.

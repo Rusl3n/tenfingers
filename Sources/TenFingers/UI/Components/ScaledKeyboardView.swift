@@ -11,10 +11,18 @@ struct ScaledKeyboardView: View {
     var shiftDown = false
     let unit: Double
     var spaceHalf: Hand? = nil
+    /// Кончики пальцев поверх клавиатуры (до масштабирования, в базовых единицах); `nil` — без них.
+    var hands: HandsState? = nil
 
     var body: some View {
         KeyboardView(snapshot: snapshot, marks: marks, shiftDown: shiftDown, unit: CGFloat(KeyboardSizing.baseUnit),
                      spaceHalf: spaceHalf)
+            .overlay(alignment: .topLeading) {
+                if let hands {
+                    HandsOverlay(shape: snapshot.shape, press: hands.press, startedAt: hands.startedAt, moves: hands.moves,
+                                 sequence: hands.sequence)
+                }
+            }
             .geometryGroup()
             .scaleEffect(KeyboardSizing.scale(unit: unit), anchor: .topLeading)
             .frame(width: KeyboardSizing.keyboardWidth(unit: unit), height: KeyboardSizing.keyboardHeight(unit: unit),

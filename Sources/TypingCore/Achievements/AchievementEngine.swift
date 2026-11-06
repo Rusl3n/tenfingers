@@ -320,7 +320,23 @@ struct Evaluator {
         case .rhythmSeconds(let seconds):
             // Время любых сессий `rhythm`, пройденных и брошенных: проигранный трек тоже время в игре.
             return crossing(exercises.filter { $0.mode == .rhythm }, seconds) { $0.activeSeconds }
+        case .measureFirst:
+            return facts.measurements.map(\.date).min()
+        case .measureDoubled:
+            return measureDoubledDate()
         }
+    }
+
+    /// Первый (по дате) замер, чей `cpm` не меньше удвоенного `cpm` первого замера его варианта; первый замер
+    /// варианта сам себя не удваивает, нулевой первый замер точкой отсчёта не служит.
+    private func measureDoubledDate() -> Date? {
+        let byVariant = Dictionary(grouping: facts.measurements, by: \.variantKey)
+        let dates = byVariant.values.compactMap { list -> Date? in
+            let sorted = list.sorted { $0.date < $1.date }
+            guard let first = sorted.first, first.cpm > 0 else { return nil }
+            return sorted.dropFirst().first { $0.cpm >= 2 * first.cpm }?.date
+        }
+        return dates.min()
     }
 
     // MARK: Упражнения

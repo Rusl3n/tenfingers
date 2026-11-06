@@ -4,7 +4,7 @@ public enum AchievementCategory: String, CaseIterable, Sendable {
     case streak, speed, accuracy, course, milestone, volume, special, letters, fun
     /// Игра «Ритм» (решение 12 плана игры): ачивки по сохранённым заходам и времени в игре.
     case rhythm
-    /// «Работа над ошибками» (8b): исправленные слова.
+    /// «Тренировки» (8b–8c): исправленные слова, замеры скорости.
     case trainings
 }
 
@@ -193,6 +193,13 @@ public enum AchievementCondition: Equatable, Sendable {
     case rhythmAllModes
     /// Сумма `activeSeconds` всех сессий `rhythm` (пройденных и нет) достигла N секунд.
     case rhythmSeconds(Double)
+
+    // Замер скорости (8c): по сохранённым `SpeedMeasurement`, задним числом не выдаются (замеров до 2.9.0 нет).
+
+    /// Первый сохранённый замер скорости (любого варианта).
+    case measureFirst
+    /// Замер, чей `cpm` ≥ 2 × `cpm` первого замера того же варианта (длительность + вид текста + язык).
+    case measureDoubled
 }
 
 public struct Achievement: Identifiable, Equatable, Sendable {

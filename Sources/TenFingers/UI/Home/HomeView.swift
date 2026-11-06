@@ -59,6 +59,7 @@ struct HomeView: View {
                             openTraining: { navigate(.training) },
                             startWeakSpots: { start(.weakSpots(TrainingRun(language: language))) },
                             startErrorWords: { start(.errorWords(TrainingRun(language: language))) },
+                            startMeasure: { start(.measure(MeasureRun(variant: MeasureChoice.default.variant(language: language)))) },
                             openPractice: { navigate(.practice) },
                             latestAchievement: latestAchievement,
                             openAchievements: { navigate(.achievements) },
@@ -199,6 +200,8 @@ struct HomeContent: View {
     let openTraining: () -> Void
     let startWeakSpots: () -> Void
     var startErrorWords: () -> Void = {}
+    /// «Замерить» в новости о замере скорости: замер 1 минута, «Простой».
+    var startMeasure: () -> Void = {}
     let openPractice: () -> Void
     var latestAchievement: AchievementEntry?
     var openAchievements: () -> Void = {}
@@ -212,6 +215,8 @@ struct HomeContent: View {
     @AppStorage(SettingsKey.homeTab) private var storedTab = SettingsDefault.homeTab
     /// Увиденные отпечатки вкладок (`HomeTabNews`); `nil` — ещё не прочитаны или первый запуск.
     @State private var seenTabs: [String: String]?
+    /// Карточка «Новое: замер скорости» на вкладке тренировки: одноразовая (см. `HomeTabNews.measureNews`).
+    @State private var showsMeasureNews = false
 
     private var availableTabs: [HomeTab] {
         HomeTabs.available(hasPlan: dayPlan != nil, hasChallenges: challenges != nil, hasCourse: continueInfo != nil)
@@ -233,6 +238,11 @@ struct HomeContent: View {
     /// Показанная вкладка считается увиденной: при появлении, смене вкладки и смене её содержимого.
     private func markSeen() {
         guard tabOverride == nil, dotsOverride == nil else { return }
+        // Новость о замере показывается на самой вкладке, пока «Главная» открыта; запись «увиденное» её не гасит.
+        if selectedTab.wrappedValue == .quick,
+           HomeTabNews.isPending(.quick, fingerprints: fingerprints, seen: seenTabs ?? HomeTabNews.seen()) {
+            showsMeasureNews = true
+        }
         seenTabs = HomeTabNews.markSeen(selected: selectedTab.wrappedValue, fingerprints: fingerprints)
     }
 
@@ -266,6 +276,10 @@ struct HomeContent: View {
                 case .course:
                     if let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }
                 case .quick:
+                    if showsMeasureNews {
+                        MeasureNewsCard(measure: { showsMeasureNews = false; startMeasure() },
+                                        dismiss: { showsMeasureNews = false })
+                    }
                     QuickLinks(data: data, openTraining: openTraining, startWeakSpots: startWeakSpots,
                                startErrorWords: startErrorWords, openPractice: openPractice)
                 }

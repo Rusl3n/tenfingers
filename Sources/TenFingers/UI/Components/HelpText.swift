@@ -113,6 +113,9 @@ enum HelpText {
     static var keyboardOffset: String {
         String(localized: "Сдвигает экранную клавиатуру влево или вправо, например под центр клавиатуры ноутбука.")
     }
+    static var fingerAnimation: String {
+        String(localized: "На знакомстве с клавишами кружки-пальцы нажимают новые клавиши. Если выключить или включить в системе «Уменьшить движение», пальцы стоят, а подсвечивается только клавиша.")
+    }
     static var keyboardReset: String {
         String(localized: "Вернёт размер и сдвиг экранной клавиатуры к исходным.")
     }
@@ -160,7 +163,7 @@ enum HelpText {
     /// Все тексты — для теста длины.
     static var all: [String] {
         [fireFull, fireHalf, fireNone, freezes, fireRepaired, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots, errorWords, trainingLettersSetting,
-         speedUnits, dayStart, hintMode, spaceThumb, adaptiveTarget, keyboardSize, keyboardOffset, quitOnClose, interfaceLanguage,
+         speedUnits, dayStart, hintMode, spaceThumb, adaptiveTarget, keyboardSize, keyboardOffset, fingerAnimation, quitOnClose, interfaceLanguage,
          reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, spark, level, challenges, speedRank, repair, goalDays, futureDay, firstWeekday, reminderTest, refresh, hardLesson, fingerWeak, fingerStrong, dayPlan, sparkSummary, fireMode, fireSummary]
     }
 }

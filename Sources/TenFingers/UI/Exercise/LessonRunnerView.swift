@@ -116,7 +116,8 @@ struct LessonRunnerView: View {
         case .intro:
             if let context {
                 LessonIntroView(lesson: context.lesson, language: run.language,
-                                teachesSpaceThumb: course?.lessons.first?.id == run.lessonId, onStart: { begin(0) })
+                                teachesSpaceThumb: course?.lessons.first?.id == run.lessonId, onStart: { begin(0) },
+                                onExit: exit)
             }
         case .exercise(let index):
             if let session = coordinator?.session {
@@ -304,8 +305,8 @@ struct LessonRunnerView: View {
             begin(start)
             return
         }
-        let firstAttempt = !progress.contains { $0.lessonId == run.lessonId }
-        if context.lesson.introducesSomething && firstAttempt {
+        if LessonRunPlan.showsIntro(introducesSomething: context.lesson.introducesSomething, resumeStart: start,
+                                    singleStep: false, restart: fresh) {
             phase = .intro
         } else {
             begin(0)
@@ -490,6 +491,13 @@ enum LessonRunPlan {
         let plan = planner.exercises(for: context, learner: learner, rng: &rng)
         if let index = onlyStepIndex, plan.indices.contains(index) { return ([plan[index]], true) }
         return (plan, false)
+    }
+
+    /// Знакомство с клавишами перед уроком: при первом прохождении и когда пройденный урок запускается заново целиком
+    /// с первого шага. Не показывать: продолжение (`resumeStart` > 0), отдельный шаг и «Освежить» (`singleStep`),
+    /// перезапуск внутри урока (`restart`).
+    static func showsIntro(introducesSomething: Bool, resumeStart: Int, singleStep: Bool, restart: Bool) -> Bool {
+        introducesSomething && resumeStart == 0 && !singleStep && !restart
     }
 
     /// Итог проверки «Ускорения» против ориентира до попытки; `nil` — не проверка или ориентира нет (урок не «Ускорение»,

@@ -214,6 +214,9 @@ struct AchievementService {
             lessonStarSteps: lessonStars.steps,
             lessonStepCounts: stepCounts(exercises),
             rhythm: try context.fetch(FetchDescriptor<RhythmResult>()).compactMap(Self.rhythmFact),
+            measurements: try context.fetch(FetchDescriptor<SpeedMeasurement>()).map {
+                MeasureFact(date: $0.date, variantKey: "\($0.duration):\($0.textKind):\($0.language)", cpm: $0.cpm)
+            },
             timeZone: timeZone, now: now,
             currentGoalSeconds: currentGoal, today: today)
     }
