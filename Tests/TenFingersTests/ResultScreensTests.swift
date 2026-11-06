@@ -214,7 +214,11 @@ private func record(_ step: Int, at offset: Double, cpm: Double = 200, errors: I
     #expect(weak.language == .en && weak.focus == nil)
     #expect(ReviewDestination.run(for: .nextLesson, language: .ru, next: next) == .lesson(next))
     #expect(ReviewDestination.run(for: .nextLesson, language: .ru, next: nil) == nil)
-    #expect(ReviewDestination.run(for: .errorWords, language: .ru, next: next) == nil)
+    guard case .errorWords(let words)? = ReviewDestination.run(for: .errorWords, language: .ru, next: next) else {
+        Issue.record("«Слова с ошибками» — занятие слов с ошибками"); return
+    }
+    #expect(words.language == .ru && words.planSlot == nil)
+    #expect(ReviewDestination.title(for: .errorWords) == "Слова с ошибками")
 }
 
 /// Все ключи `review.*` ядра переведены на оба языка приложения (`ReviewLine` локализует приложение).
@@ -235,4 +239,13 @@ private func record(_ step: Int, at offset: Double, cpm: Double = 200, errors: I
 
 @Test func reviewSymbolsExist() {
     for name in ["chart.bar.fill", "chevron.right"] { #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil) }
+}
+
+@Test func lessonReviewAdvisesErrorWordsWhenAvailable() {
+    let records = [record(0, at: 10, errors: 2)]
+    let with = LessonReviewModel.make(records: records, letters: [0: ["a": 2]], resumeStart: 0, passStart: day,
+                                      errorWordsAvailable: true)
+    #expect(with.review.advice == .errorWords)
+    let without = LessonReviewModel.make(records: records, letters: [0: ["a": 2]], resumeStart: 0, passStart: day)
+    #expect(without.review.advice == .weakSpots)
 }

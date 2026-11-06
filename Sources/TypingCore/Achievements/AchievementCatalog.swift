@@ -3,7 +3,7 @@
 /// Id стабильны: по ним хранятся полученные ачивки, переименовывать нельзя.
 public enum AchievementCatalog {
     public static let all: [Achievement] =
-        streak + speed + accuracy + course + milestone + volume + special + letters + fun + rhythm
+        streak + speed + accuracy + course + milestone + volume + special + letters + fun + rhythm + errorWords
 
     private static let streak: [Achievement] = [
         Achievement(id: "streak.3", category: .streak, icon: "flame", condition: .streak(days: 3)),
@@ -165,6 +165,16 @@ public enum AchievementCatalog {
     private static let distance: [Achievement] = distanceSteps.map { step in
         Achievement(id: "distance." + step.id, category: .volume, icon: step.icon,
                     condition: .distance(step.kind, step.count))
+    }
+
+    /// «Работа над ошибками» (8b): исправленные слова из списка «Слов с ошибками». Счётчик `fixedWords` начинается с 0,
+    /// задним числом ступени не выдаются.
+    private static let errorWords: [Achievement] = [
+        ("fixed10", "pencil.line", 10), ("fixed50", "highlighter", 50),
+        ("fixed200", "eraser.fill", 200), ("fixed1000", "checkmark.rectangle.stack.fill", 1000),
+    ].map { step in
+        Achievement(id: "errorwords." + step.0, category: .trainings, icon: step.1,
+                    condition: .counter(name: "fixedWords", threshold: step.2))
     }
 
     private static let special: [Achievement] = [

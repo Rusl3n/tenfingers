@@ -320,3 +320,162 @@ private func longResult(mode: ExerciseMode, completed: Bool = true) -> ExerciseR
     #expect(segments.count >= 2 && segments.first?.start == 0 && segments.last?.end == 60)
     #expect(sessions.filter { $0.mode != "course" }.allSatisfy { $0.speedSegments == nil })
 }
+
+// MARK: - Слова с ошибками (поколение 9)
+
+/// Набор текста целиком; перед символами из `wrongAt` (позиции в тексте) нажимается неверная клавиша.
+private func typed(_ text: String, wrongAt: Set<Int> = [], mode: ExerciseMode = .practice,
+                   completed: Bool = true, at date: Date) -> ExerciseResult {
+    var engine = TypingEngine(text: text)
+    var time = 0.0
+    for (index, character) in text.enumerated() {
+        if !completed && index == text.count - 1 { break }
+        if wrongAt.contains(index) {
+            time += 0.2
+            _ = engine.handle(Keystroke(character: "~", keyCode: 50, timestamp: time))
+        }
+        time += 0.2
+        _ = engine.handle(Keystroke(character: character, keyCode: 4, timestamp: time))
+    }
+    return ExerciseResult(engine: engine, mode: mode, language: .ru, lessonId: nil,
+                          startedAt: date, endedAt: date, hintLevel: .full)
+}
+
+@MainActor @Test func errorsInTextAreStoredAsErrorWords() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    // «Привет» (позиция 0) и «мир» (позиция 7) с ошибками, «да» — чисто, «я» — короче двух букв, «дсэо» — не слово.
+    try recorder.commit {
+        try recorder.record(typed("Привет мир да я дсэо", wrongAt: [0, 7, 16], at: date(23, 12)))
+    }
+    let words = try container.mainContext.fetch(FetchDescriptor<ErrorWord>(sortBy: [SortDescriptor(\.text)]))
+    #expect(words.map(\.text) == ["мир", "привет"])
+    #expect(words.allSatisfy { !$0.isPhrase })
+    #expect(words.allSatisfy { $0.language == "ru" && $0.errors == 1 && $0.cleanStreak == 0 })
+}
+
+@MainActor @Test func abandonedExerciseDoesNotStoreErrorWords() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit {
+        try recorder.record(typed("Привет мир", wrongAt: [0], completed: false, at: date(23, 12)))
+    }
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<ErrorWord>()) == 0)
+}
+
+@MainActor @Test func rhythmModeDoesNotStoreErrorWords() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let recorder = ResultRecorder(context: container.mainContext, dayStartHour: 4)
+    try recorder.commit {
+        try recorder.record(typed("Привет мир", wrongAt: [0], mode: .rhythm, at: date(23, 12)))
+    }
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<ErrorWord>()) == 0)
+}
+
+@MainActor @Test func threeCleanRunsRemoveWordAndCountFixed() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    try recorder.commit { try recorder.record(typed("привет", wrongAt: [0], at: date(23, 12))) }
+    #expect(try context.fetchCount(FetchDescriptor<ErrorWord>()) == 1)
+    for hour in 13...14 {
+        try recorder.commit { try recorder.record(typed("Привет", at: date(23, hour))) }
+    }
+    #expect(try context.fetch(FetchDescriptor<ErrorWord>()).first?.cleanStreak == 2)
+    #expect(try StatsReader(context: context).fixedWords() == 0)
+    try recorder.commit { try recorder.record(typed("привет", at: date(23, 15))) }
+    #expect(try context.fetchCount(FetchDescriptor<ErrorWord>()) == 0)
+    #expect(try StatsReader(context: context).fixedWords() == 1)
+    let counters = try context.fetch(FetchDescriptor<CounterRecord>())
+    #expect(counters.first { $0.name == "fixedWords" }?.value == 1)
+}
+
+@MainActor @Test func statsReaderReadsLanguageErrorWords() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let now = date(23, 12)
+    context.insert(ErrorWord(language: "ru", text: "привет", isPhrase: false, errors: 3, cleanStreak: 1,
+                             firstSeen: now, lastSeen: now))
+    context.insert(ErrorWord(language: "en", text: "hello", isPhrase: false, errors: 1, cleanStreak: 0,
+                             firstSeen: now, lastSeen: now))
+    try context.save()
+    let reader = StatsReader(context: context)
+    #expect(try reader.errorWords(language: .ru) == [
+        ErrorWordEntry(text: "привет", isPhrase: false, errors: 3, cleanStreak: 1, firstSeen: now, lastSeen: now)])
+    #expect(try reader.errorWords(language: .en).map(\.text) == ["hello"])
+    #expect(try reader.fixedWords() == 0)
+}
+
+@MainActor @Test func duplicateErrorWordsInStoreCollapseToOne() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    let seen = date(22, 12)
+    for _ in 0..<2 {
+        context.insert(ErrorWord(language: "ru", text: "привет", isPhrase: false, errors: 1, cleanStreak: 0,
+                                 firstSeen: seen, lastSeen: seen))
+    }
+    try context.save()
+    try recorder.commit { try recorder.record(typed("привет", wrongAt: [0], at: date(23, 12))) }
+    let words = try context.fetch(FetchDescriptor<ErrorWord>())
+    #expect(words.count == 1)
+    #expect(words.first?.errors == 2)
+}
+
+@MainActor @Test func threeCleanOccurrencesInOneExerciseFixWord() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    try recorder.commit { try recorder.record(typed("привет", wrongAt: [0], at: date(23, 12))) }
+    try recorder.commit { try recorder.record(typed("привет привет привет", at: date(23, 13))) }
+    #expect(try context.fetchCount(FetchDescriptor<ErrorWord>()) == 0)
+    #expect(try StatsReader(context: context).fixedWords() == 1)
+}
+
+@MainActor @Test func recordingCleansPhrasesAndNonWordsWithoutCountingFixed() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let seen = date(22, 12)
+    for (text, phrase) in [("бт", false), ("бт сделает", true), ("привет мир", true), ("привет", false)] {
+        context.insert(ErrorWord(language: "ru", text: text, isPhrase: phrase, errors: 1, cleanStreak: 2,
+                                 firstSeen: seen, lastSeen: seen))
+    }
+    context.insert(ErrorWord(language: "en", text: "бт", isPhrase: false, errors: 1, cleanStreak: 0,
+                             firstSeen: seen, lastSeen: seen))
+    try context.save()
+    let recorder = ResultRecorder(context: context, dayStartHour: 4)
+    try recorder.commit { try recorder.record(typed("мир", wrongAt: [0], at: date(23, 12))) }
+    let ru = try context.fetch(FetchDescriptor<ErrorWord>(sortBy: [SortDescriptor(\.text)])).filter { $0.language == "ru" }
+    #expect(ru.map(\.text) == ["мир", "привет"])
+    #expect(try context.fetchCount(FetchDescriptor<ErrorWord>()) == 3)   // запись другого языка не тронута
+    #expect(try StatsReader(context: context).fixedWords() == 0)
+}
+
+@MainActor @Test func statsReaderHidesPhrasesAndNonWords() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let now = date(23, 12)
+    for (text, phrase) in [("бт", false), ("бт сделает", true), ("привет мир", true), ("привет", false), ("дсэо", false)] {
+        context.insert(ErrorWord(language: "ru", text: text, isPhrase: phrase, errors: 1, cleanStreak: 0,
+                                 firstSeen: now, lastSeen: now))
+    }
+    try context.save()
+    #expect(try StatsReader(context: context).errorWords(language: .ru).map(\.text) == ["привет"])
+    #expect(try context.fetchCount(FetchDescriptor<ErrorWord>()) == 5)   // читатель ничего не удаляет
+}
+
+@MainActor @Test func emptyVocabularyLeavesErrorWordsUntouched() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    let seen = date(22, 12)
+    context.insert(ErrorWord(language: "ru", text: "привет", isPhrase: false, errors: 1, cleanStreak: 0,
+                             firstSeen: seen, lastSeen: seen))
+    try context.save()
+    var recorder = ResultRecorder(context: context, dayStartHour: 4)
+    recorder.vocabulary = { _ in [] }
+    try recorder.commit { try recorder.record(typed("мир", wrongAt: [0], at: date(23, 12))) }
+    #expect(try context.fetch(FetchDescriptor<ErrorWord>()).map(\.text) == ["привет"])
+    var reader = StatsReader(context: context)
+    reader.vocabulary = { _ in [] }
+    #expect(try reader.errorWords(language: .ru).map(\.text) == ["привет"])
+}

@@ -5,6 +5,7 @@ struct QuickLinks: View {
     let data: HomeData
     let openTraining: () -> Void
     let startWeakSpots: () -> Void
+    var startErrorWords: () -> Void = {}
     let openPractice: () -> Void
 
     var body: some View {
@@ -13,6 +14,9 @@ struct QuickLinks: View {
             link("Слабые места", icon: "scope", subtitle: weakSubtitle,
                  action: data.canStartWeakSpots ? startWeakSpots : openTraining)
                 .help(HelpText.weakSpots)
+            link("Слова с ошибками", icon: "text.badge.xmark", subtitle: errorWordsSubtitle,
+                 action: data.errorWords.canStart ? startErrorWords : openTraining)
+                .help(HelpText.errorWords)
             link("Практика", icon: "text.book.closed", subtitle: String(localized: "Слова, отрывки, свой текст"),
                  action: openPractice)
         }
@@ -30,6 +34,12 @@ struct QuickLinks: View {
         guard !data.weakKeys.isEmpty else { return String(localized: "Пока мало данных") }
         let keys = data.weakKeys.prefix(3).map { String($0) }.joined(separator: ", ")
         return String(localized: "Слабые: \(keys)")
+    }
+
+    private var errorWordsSubtitle: String {
+        if let shortage = data.errorWords.shortage { return shortage }
+        let count = data.errorWords.listCount
+        return String(localized: "В списке: \(count)")
     }
 
     private func link(_ title: LocalizedStringKey, icon: String, subtitle: String,

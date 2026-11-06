@@ -4,6 +4,8 @@ public enum AchievementCategory: String, CaseIterable, Sendable {
     case streak, speed, accuracy, course, milestone, volume, special, letters, fun
     /// Игра «Ритм» (решение 12 плана игры): ачивки по сохранённым заходам и времени в игре.
     case rhythm
+    /// «Работа над ошибками» (8b): исправленные слова.
+    case trainings
 }
 
 /// Группа клавиш курса для вех: цифры 0–9 или знаки и символы (все `newKeys` издания 2, кроме букв и цифр).

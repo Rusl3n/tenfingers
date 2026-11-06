@@ -27,6 +27,7 @@ private func plan(_ done: [Bool], actions: [PlanAction]? = nil, extra: String? =
 
     #expect(detail(.refresh(lessonId: lesson.id)) == "Освежить «\(lesson.localizedTitle)»")
     #expect(detail(.review(focus: ["а", "о", "е"], chars: 300)) == "Повтор: а о е")
+    #expect(detail(.errorWords(chars: 300)) == "Слова с ошибками")
     #expect(detail(.lesson(lessonId: lesson.id, retake: false)) == lesson.localizedTitle)
     #expect(detail(.lesson(lessonId: lesson.id, retake: true)) == "Пересдать проверку · \(lesson.localizedTitle)")
     #expect(detail(.finger(.leftRing, .accuracy, portions: 2)) == "Точность пальца · \(Finger.leftRing.displayName)")

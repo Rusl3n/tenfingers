@@ -299,6 +299,7 @@ enum SessionHistory {
         case .weak: String(localized: "Слабые места")
         case .practice: String(localized: "Практика")
         case .rhythm: String(localized: "Ритм")
+        case .errorWords: String(localized: "Слова с ошибками")
         case nil: mode
         }
     }

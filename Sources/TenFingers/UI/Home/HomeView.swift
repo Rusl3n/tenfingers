@@ -15,6 +15,7 @@ struct HomeView: View {
     @Environment(KeyboardLayoutService.self) private var layout
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
+    @AppStorage(SettingsKey.trainingLetters) private var trainingLetters = SettingsDefault.trainingLetters
     @AppStorage(SettingsKey.firstWeekday) private var firstWeekday = SettingsDefault.firstWeekday
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
@@ -57,6 +58,7 @@ struct HomeView: View {
                             startLesson: { start(.lesson($0)) },
                             openTraining: { navigate(.training) },
                             startWeakSpots: { start(.weakSpots(TrainingRun(language: language))) },
+                            startErrorWords: { start(.errorWords(TrainingRun(language: language))) },
                             openPractice: { navigate(.practice) },
                             latestAchievement: latestAchievement,
                             openAchievements: { navigate(.achievements) },
@@ -81,6 +83,7 @@ struct HomeView: View {
         .onChange(of: firstWeekday) { reload() }
         .onChange(of: dailyGoal) { reload() }
         .onChange(of: targetCpm) { reload() }
+        .onChange(of: trainingLetters) { reload() }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in reload() }
     }
 
@@ -140,7 +143,8 @@ struct HomeView: View {
             data = HomeData.make(language: language, streak: streak, days: days, sessions: sessions, today: today,
                                  goalMinutes: dailyGoal, focus: training?.letters.first(where: \.isFocus)?.character,
                                  weakKeys: training?.weakKeys ?? [], canStartWeakSpots: training?.canStartWeakSpots ?? false,
-                                 firstSessionDate: first, firstWeekday: StoredSettings.firstWeekday())
+                                 firstSessionDate: first, firstWeekday: StoredSettings.firstWeekday(),
+                                 errorWords: errorWordsModel())
             loadFailed = false
             // План — отдельно: его ошибка не прячет главную, вместо карточки плана — «Продолжить курс».
             plan = try? planLoader.plan(language: language, today: today)
@@ -162,7 +166,19 @@ struct HomeView: View {
                                                  legacy: library.legacyCourses[language])
         else { return nil }
         return TrainingSnapshot.make(language: language, unlockedCount: count, keyMastery: keys,
-                                     bigramMastery: bigrams, targetCpm: Double(targetCpm), openLetters: open)
+                                     bigramMastery: bigrams, targetCpm: Double(targetCpm),
+                                     openLetters: trainingLettersSetting.letters(open: open, language: language))
+    }
+
+    private var trainingLettersSetting: TrainingLetters { TrainingLetters(rawValue: trainingLetters) ?? .open }
+
+    private func errorWordsModel() -> ErrorWordsCardModel {
+        let reader = StatsReader(context: modelContext)
+        let open = (try? reader.openLetters(language: language, course: library.courses[language],
+                                            legacy: library.legacyCourses[language])) ?? []
+        return ErrorWordsCardModel.make(entries: (try? reader.errorWords(language: language)) ?? [],
+                                        fixed: (try? reader.fixedWords()) ?? 0,
+                                        allowed: trainingLettersSetting.letters(open: open, language: language))
     }
 }
 
@@ -182,6 +198,7 @@ struct HomeContent: View {
     let startLesson: (LessonRun) -> Void
     let openTraining: () -> Void
     let startWeakSpots: () -> Void
+    var startErrorWords: () -> Void = {}
     let openPractice: () -> Void
     var latestAchievement: AchievementEntry?
     var openAchievements: () -> Void = {}
@@ -250,7 +267,7 @@ struct HomeContent: View {
                     if let continueInfo { ContinueCard(info: continueInfo, start: startLesson) }
                 case .quick:
                     QuickLinks(data: data, openTraining: openTraining, startWeakSpots: startWeakSpots,
-                               openPractice: openPractice)
+                               startErrorWords: startErrorWords, openPractice: openPractice)
                 }
             }
             if let latestAchievement { LatestAchievementCard(entry: latestAchievement, open: openAchievements) }

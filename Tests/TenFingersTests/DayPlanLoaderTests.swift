@@ -202,3 +202,45 @@ private let settings = DayPlanSettings(goalMinutes: 20, dayStartHour: 4, adaptiv
     let plan = try DayPlanLoader(context: context, library: library, settings: settings).plan(language: .ru, today: today)
     #expect(plan.items[1] == PlanItem(slot: .lesson, action: .lesson(lessonId: lesson.id, retake: false), done: true))
 }
+
+/// Настоящие слова из частотного словаря (в списке хранятся только они).
+@MainActor private func addErrorWords(_ context: ModelContext, count: Int, language: String = "ru",
+                                      containing letter: Character? = nil) {
+    let now = Date(timeIntervalSince1970: 1_000)
+    let list = (try? WordList.load(Language(rawValue: language) ?? .ru).words) ?? []
+    let words = list.filter { $0.count >= 2 && (letter.map($0.contains) ?? true) }.prefix(count)
+    for text in words {
+        context.insert(ErrorWord(language: language, text: text, isPhrase: false, errors: 1, cleanStreak: 0,
+                                 firstSeen: now, lastSeen: now))
+    }
+}
+
+@MainActor @Test func errorWordsCountComesFromTheList() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let context = container.mainContext
+    addErrorWords(context, count: 12, language: "ru")
+    addErrorWords(context, count: 30, language: "en")   // другой язык не считается
+    try context.save()
+    // Все буквы разрешены — считается весь список языка.
+    let all = DayPlanSettings(goalMinutes: 20, dayStartHour: 4, adaptiveTargetCpm: 175, layoutFingers: { _ in [:] },
+                              trainingLetters: TrainingLetters.all.rawValue)
+    let loader = DayPlanLoader(context: context, library: ContentLibrary(), settings: all)
+    #expect(try loader.input(language: .ru, today: today).errorWordsCount == 12)
+    // «Только открытые»: слова с неоткрытыми буквами не подходят (в пустой базе открыты первые буквы курса).
+    addErrorWords(context, count: 3, language: "ru", containing: "ъ")
+    try context.save()
+    let open = DayPlanSettings(goalMinutes: 20, dayStartHour: 4, adaptiveTargetCpm: 175, layoutFingers: { _ in [:] })
+    let openLoader = DayPlanLoader(context: context, library: ContentLibrary(), settings: open)
+    let count = try openLoader.input(language: .ru, today: today).errorWordsCount
+    #expect(count < 15)
+    #expect(try loader.input(language: .ru, today: today).errorWordsCount == 15)
+}
+
+@MainActor @Test func errorWordsActionBecomesRunWithSlot() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let loader = DayPlanLoader(context: container.mainContext, library: ContentLibrary(), settings: settings)
+    guard case let .errorWords(training)? = run(.errorWords(chars: 320), slot: .warmup, loader) else {
+        Issue.record("слова с ошибками"); return
+    }
+    #expect(training.planSlot == .warmup && training.language == .ru && training.chars == 320)
+}

@@ -41,6 +41,8 @@ enum DayPlanRows {
         case let .review(focus, _):
             let letters = focus.map(String.init).joined(separator: " ")
             return letters.isEmpty ? String(localized: "Повтор") : String(localized: "Повтор: \(letters)")
+        case .errorWords:
+            return String(localized: "Слова с ошибками")
         case let .lesson(lessonId, retake):
             let name = lessonTitle(lessonId, course: course)
             return retake ? String(localized: "Пересдать проверку · \(name)") : name

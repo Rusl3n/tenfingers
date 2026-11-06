@@ -584,6 +584,20 @@ private func check(_ time: String, _ lessonId: String, cpm: Double, accuracy: Do
     #expect(earned(.counter(name: "wrongLayoutStarts", threshold: 10), facts(counters: ["capsLockPresses": 50])) == nil)
 }
 
+/// «Работа над ошибками»: считает только `fixedWords`; задним числом не выдаётся (счётчик начинается с 0).
+@Test func errorWordsAchievementsFollowTheFixedWordsCounter() {
+    let ids = ["errorwords.fixed10", "errorwords.fixed50", "errorwords.fixed200", "errorwords.fixed1000"]
+    func got(_ counters: [String: Int]) -> Set<String> {
+        Set(AchievementEngine.evaluate(facts(counters: counters)).map(\.id)).intersection(ids)
+    }
+    #expect(got([:]).isEmpty)
+    #expect(got(["capsLockPresses": 500]).isEmpty)
+    #expect(got(["fixedWords": 9]).isEmpty)
+    #expect(got(["fixedWords": 10]) == ["errorwords.fixed10"])
+    #expect(got(["fixedWords": 200]) == Set(ids.prefix(3)))
+    #expect(got(["fixedWords": 1000]) == Set(ids))
+}
+
 @Test func engineErrorConditionsCountAnyExerciseIncludingAbandoned() {
     let list = [
         ex("2026-10-01 10:00", maxErrorStreak: 9, wrong: 49),
@@ -1487,4 +1501,15 @@ private func game(_ time: String, chars: Int = 300, accuracy: Double = 1, comple
     #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(first + last)) != nil)
     #expect(earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(first + last + games))
             == earned(.speedGrowth(factor: 1.5, minExercises: 5), facts(first + last)))
+}
+
+@Test func engineErrorWordsCountAsTrainingsButNotWeakSpotsClean() {
+    let list = [
+        ex("2026-11-01 10:00", mode: .errorWords),
+        ex("2026-11-01 10:10", mode: .errorWords),
+        ex("2026-11-01 10:20", mode: .errorWords, completed: false)
+    ]
+    #expect(earned(.distance(.trainings, 2), facts(list)) == at("2026-11-01 10:10"))
+    #expect(earned(.distance(.trainings, 3), facts(list)) == nil)
+    #expect(earned(.weakSpotsClean(count: 1, minimum: 0.98), facts(list)) == nil)
 }

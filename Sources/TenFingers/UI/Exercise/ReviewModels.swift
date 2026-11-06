@@ -84,7 +84,7 @@ struct LessonReviewModel: Equatable {
     /// `passStart`, тоже последняя на шаг (повтор шага заменяет прежнюю попытку). `letters` — ошибки по буквам
     /// шагов (в базе их нет, держит раннер; после перезапуска приложения посреди урока ранних шагов в них нет).
     static func make(records: [PassRecord], letters: [Int: [Character: Int]], resumeStart: Int,
-                     passStart: Date) -> LessonReviewModel {
+                     passStart: Date, errorWordsAvailable: Bool = false) -> LessonReviewModel {
         var latest: [Int: PassRecord] = [:]
         for record in records where record.completed {
             guard record.stepIndex < resumeStart || record.startedAt >= passStart else { continue }
@@ -102,7 +102,7 @@ struct LessonReviewModel: Equatable {
                 LessonStepSummary(stepIndex: $0.stepIndex, cpm: $0.cpm, errorCount: $0.errorCount,
                                   errorsByCharacter: letters[$0.stepIndex] ?? [:])
             },
-            fingerPresses: presses, fingerErrors: wrong, errorWordsAvailable: false)
+            fingerPresses: presses, fingerErrors: wrong, errorWordsAvailable: errorWordsAvailable)
         return LessonReviewModel(stepSpeeds: steps.map { StepSpeed(index: $0.stepIndex, cpm: $0.cpm) },
                                  finalSegments: steps.last?.segments, review: review)
     }
@@ -111,13 +111,13 @@ struct LessonReviewModel: Equatable {
 /// Куда ведёт рекомендация «Куда дальше»: тот же запуск, что у карточки раздела.
 enum ReviewDestination {
     /// «Пальцы» с этим пальцем (занятие на точность, как кнопка карточки), «Слабые места», следующий урок.
-    /// `.errorWords` в 8a не возникает; следующего урока нет — `nil` (кнопки нет).
+    /// Следующего урока нет — `nil` (кнопки нет).
     static func run(for advice: ReviewAdvice, language: Language, next: LessonRun?) -> RunKind? {
         switch advice {
         case .finger(let finger): .finger(FingerRun(language: language, finger: finger, drill: .accuracy))
         case .weakSpots: .weakSpots(TrainingRun(language: language))
         case .nextLesson: next.map { .lesson($0) }
-        case .errorWords: nil
+        case .errorWords: .errorWords(TrainingRun(language: language))
         }
     }
 
@@ -126,7 +126,7 @@ enum ReviewDestination {
         case .finger(let finger): String(localized: "Тренировать: \(finger.displayName)")
         case .weakSpots: String(localized: "Слабые места")
         case .nextLesson: String(localized: "Следующий урок")
-        case .errorWords: nil
+        case .errorWords: String(localized: "Слова с ошибками")
         }
     }
 }

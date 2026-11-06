@@ -88,6 +88,8 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
                                 endedAt: base.addingTimeInterval(180), score: 54_321, accuracy: 0.9375, maxCombo: 42,
                                 grade: "B", cleared: true, judgements: Data(#"{"late":3,"perfect":13}"#.utf8),
                                 report: Data(#"{"accuracy":0.9375}"#.utf8)))
+    context.insert(ErrorWord(language: "ru", text: "привет мир", isPhrase: true, errors: 4, cleanStreak: 2,
+                             firstSeen: base.addingTimeInterval(100), lastSeen: base.addingTimeInterval(200)))
     try context.save()
 }
 
@@ -101,7 +103,7 @@ private func temporaryDirectory(_ prefix: String) throws -> URL {
      try count(BigramStat.self, context), try count(DayRecord.self, context), try count(CounterRecord.self, context),
      try count(AdaptiveState.self, context), try count(CustomText.self, context), try count(AdaptiveUnlock.self, context),
      try count(AchievementRecord.self, context), try count(AchievementGrant.self, context),
-     try count(RhythmResult.self, context)]
+     try count(RhythmResult.self, context), try count(ErrorWord.self, context)]
 }
 
 private func archiveJSON(_ fields: String) -> Data {
@@ -122,14 +124,14 @@ private func archiveJSON(_ fields: String) -> Data {
     let data = try ProgressArchive.export(context: source, defaults: sourceDefaults, now: base)
     let archive = try ProgressArchive.decode(data)
     #expect(archive.format == "tenfingers-progress")
-    #expect(archive.version == 4)
+    #expect(archive.version == 5)
     #expect(archive.schemaGeneration == SchemaGeneration.current)
 
     let targetContainer = try ModelStore.makeContainer(inMemory: true)
     let target = targetContainer.mainContext
     try ProgressArchive.replaceAll(with: archive, context: target)
     #expect(try counts(target) == counts(source))
-    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1])
+    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 1])
 
     let sessions = try target.fetch(FetchDescriptor<SessionRecord>(sortBy: [SortDescriptor(\.startedAt)]))
     #expect(Set(sessions.map(\.id)) == originalSessionIds)
@@ -220,6 +222,7 @@ private func archiveJSON(_ fields: String) -> Data {
         "BigramStat": "bigramStats", "DayRecord": "days", "CounterRecord": "counters",
         "AdaptiveState": "adaptiveStates", "AdaptiveUnlock": "adaptiveUnlocks", "CustomText": "customTexts",
         "AchievementRecord": "achievements", "AchievementGrant": "achievementGrants", "RhythmResult": "rhythmResults",
+        "ErrorWord": "errorWords",
     ]
     #expect(Set(ModelStore.schema.entities.map(\.name)) == Set(sections.keys))
     for entity in ModelStore.schema.entities {
@@ -235,12 +238,12 @@ private func archiveJSON(_ fields: String) -> Data {
 // MARK: - Формат и версии
 
 @Test func newerFormatVersionIsUnsupported() throws {
-    #expect(ProgressArchive.version == 4)
+    #expect(ProgressArchive.version == 5)
     let next = ProgressArchive.version + 1
     let data = archiveJSON(#""format": "tenfingers-progress", "version": \#(next), "schemaGeneration": 2"#)
     #expect(throws: ArchiveError.unsupported(next)) { _ = try ProgressArchive.decode(data) }
     let message = try #require(ArchiveError.unsupported(next).errorDescription)
-    #expect(message.contains("до 4"), "\(message)")
+    #expect(message.contains("до 5"), "\(message)")
 }
 
 @Test func archiveFromNewerSchemaGenerationIsRefused() throws {
@@ -367,7 +370,7 @@ private func archiveJSON(_ fields: String) -> Data {
 
     try ProgressArchive.replaceAll(with: archive, context: target)
     #expect(!target.hasChanges)
-    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1])
+    #expect(try counts(target) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 1])
     let sources = Set(try target.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source))
     #expect(sources == ["library:new"])
     #expect(try target.fetch(FetchDescriptor<LessonProgress>()).allSatisfy { $0.attempts == 42 })
@@ -852,7 +855,7 @@ private struct SimulatedDiskFailure: Error {}
     do {
         let container = try ModelStore.makeContainer(at: storeURL)
         let context = container.mainContext
-        #expect(try counts(context) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1])
+        #expect(try counts(context) == [2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 1])
         #expect(try context.fetch(FetchDescriptor<SessionRecord>()).compactMap(\.source) == ["library:new"])
         #expect(try context.fetch(FetchDescriptor<CustomText>()).map(\.title) == ["Заметка new"])
         #expect(try context.fetch(FetchDescriptor<CustomText>()).first?.offset == 7)
@@ -1317,7 +1320,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
 
     let first = try ProgressArchive.export(context: source, defaults: defaults, now: base)
     let archive = try ProgressArchive.decode(first)
-    #expect(archive.version == 4 && archive.rhythmResults.count == 1)
+    #expect(archive.version == 5 && archive.rhythmResults.count == 1)
     #expect(ArchiveError.sectionTitle(model: "RhythmResult") == "Результаты игры «Ритм»")
 
     let targetContainer = try ModelStore.makeContainer(inMemory: true)
@@ -1387,7 +1390,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let (defaults, name) = makeDefaults()
     defer { removeTestDefaults(name) }
     let archive = try ProgressArchive.decode(try ProgressArchive.export(context: source, defaults: defaults, now: base))
-    #expect(archive.version == 4)
+    #expect(archive.version >= 4)
 
     let targetContainer = try ModelStore.makeContainer(inMemory: true)
     try ProgressArchive.replaceAll(with: archive, context: targetContainer.mainContext)
@@ -1398,7 +1401,7 @@ private func fillPreferences(_ defaults: UserDefaults) {
 }
 
 /// Архив версии 3 читается: у сессий отрезков нет. Версия 5 не читается.
-@MainActor @Test func archiveV3HasNoSpeedSegmentsAndV5IsUnsupported() throws {
+@MainActor @Test func archiveV3HasNoSpeedSegmentsAndV6IsUnsupported() throws {
     let v3 = archiveJSON(#"""
         "format": "tenfingers-progress", "version": 3, "schemaGeneration": 7, "settings": {},
         "sessions": [{"mode": "course", "language": "ru", "startedAt": 0, "endedAt": 0, "logicalDay": "2026-09-21",
@@ -1410,7 +1413,63 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let container = try ModelStore.makeContainer(inMemory: true)
     try ProgressArchive.replaceAll(with: archive, context: container.mainContext)
     #expect(try container.mainContext.fetch(FetchDescriptor<SessionRecord>()).allSatisfy { $0.speedSegments == nil })
-    #expect(throws: ArchiveError.unsupported(5)) {
-        _ = try ProgressArchive.decode(archiveJSON(#""format": "tenfingers-progress", "version": 5, "schemaGeneration": 8"#))
+    #expect(throws: ArchiveError.unsupported(6)) {
+        _ = try ProgressArchive.decode(archiveJSON(#""format": "tenfingers-progress", "version": 6, "schemaGeneration": 9"#))
     }
+}
+
+// MARK: - Версия 5: слова с ошибками
+
+@MainActor @Test func errorWordsRoundTripThroughArchive() throws {
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    try populate(source)
+    let original = try #require(try source.fetch(FetchDescriptor<ErrorWord>()).first)
+    let archive = try ProgressArchive.decode(ProgressArchive.export(context: source, defaults: defaults, now: base))
+    #expect(archive.errorWords.count == 1)
+    #expect(ArchiveError.sectionTitle(model: "ErrorWord") == "Слова с ошибками")
+
+    let targetContainer = try ModelStore.makeContainer(inMemory: true)
+    let target = targetContainer.mainContext
+    try ProgressArchive.replaceAll(with: archive, context: target)
+    let restored = try #require(try target.fetch(FetchDescriptor<ErrorWord>()).first)
+    #expect(try count(ErrorWord.self, target) == 1)
+    #expect(restored.language == "ru" && restored.text == "привет мир" && restored.isPhrase)
+    #expect(restored.errors == 4 && restored.cleanStreak == 2)
+    #expect(restored.firstSeen == original.firstSeen && restored.lastSeen == original.lastSeen)
+}
+
+@MainActor @Test func versionFourArchiveImportsWithoutErrorWords() throws {
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    try populate(source)
+    let data = try ProgressArchive.export(context: source, defaults: defaults, now: base)
+    var json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    json["version"] = 4
+    json["schemaGeneration"] = 8
+    json.removeValue(forKey: "errorWords")
+    let old = try JSONSerialization.data(withJSONObject: json)
+
+    let archive = try ProgressArchive.decode(old)
+    #expect(archive.errorWords.isEmpty)
+    let targetContainer = try ModelStore.makeContainer(inMemory: true)
+    let target = targetContainer.mainContext
+    try ProgressArchive.replaceAll(with: archive, context: target)
+    #expect(try count(ErrorWord.self, target) == 0)
+    #expect(try count(SessionRecord.self, target) == count(SessionRecord.self, source))
+}
+
+@MainActor @Test func invalidErrorWordInArchiveIsRejected() throws {
+    let sourceContainer = try ModelStore.makeContainer(inMemory: true)
+    let source = sourceContainer.mainContext
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    try populate(source)
+    var archive = try ProgressArchive.decode(ProgressArchive.export(context: source, defaults: defaults, now: base))
+    archive.errorWords[0].text = ""
+    #expect(throws: ArchiveError.invalidRecord("ErrorWord", 0)) { try ProgressArchive.validate(archive) }
 }

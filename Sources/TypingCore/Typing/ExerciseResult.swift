@@ -8,6 +8,8 @@ public enum ExerciseMode: String, Codable, Sendable {
     case course, adaptive, weak, practice
     /// Ритм-игра: скорости нет (`cpm` 0), в скорость, точность и рекорды не входит, время и число упражнений — входят.
     case rhythm
+    /// Занятие «Слова с ошибками» (8b): в статистике, дне, огне и ачивках — как тренировка.
+    case errorWords
 }
 
 public struct ExerciseResult: Sendable {

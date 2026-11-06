@@ -30,11 +30,14 @@ struct HomeData: Equatable {
     let focus: Character?
     let weakKeys: [Character]
     let canStartWeakSpots: Bool
+    /// «Слова с ошибками» (8b): числа и доступность занятия.
+    var errorWords = ErrorWordsCardModel(listCount: 0, eligibleCount: 0, fixed: 0)
 
     static func make(language: Language, streak: StreakSummary, days: [String: DayActivity],
                      sessions: [SessionSummary], today: String, goalMinutes: Int,
                      focus: Character? = nil, weakKeys: [Character] = [], canStartWeakSpots: Bool = false,
                      firstSessionDate: Date? = nil, firstWeekday: Int,
+                     errorWords: ErrorWordsCardModel = ErrorWordsCardModel(listCount: 0, eligibleCount: 0, fixed: 0),
                      weekdaySymbols: [String] = weekdaySymbols(locale: Formatting.interfaceLocale())) -> HomeData {
         let week = weekKeys(today: today, firstWeekday: firstWeekday).map { key in
             let isFuture = key > today
@@ -55,7 +58,8 @@ struct HomeData: Equatable {
                         weekCpm: cpm, weekAccuracy: accuracy,
                         totalSeconds: Analytics.totals(secondsByDay: secondsByDay, today: today).all,
                         firstSessionDate: firstSessionDate ?? sessions.map(\.endedAt).min(),
-                        focus: focus, weakKeys: weakKeys, canStartWeakSpots: canStartWeakSpots)
+                        focus: focus, weakKeys: weakKeys, canStartWeakSpots: canStartWeakSpots,
+                        errorWords: errorWords)
     }
 
     /// Семь ключей календарной недели, в которой лежит `today`, от `firstWeekday` (1 — воскресенье, 2 — понедельник);

@@ -67,12 +67,15 @@ struct TrainingView: View {
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var targetCpm = SettingsDefault.adaptiveTargetCpm
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
+    @AppStorage(SettingsKey.trainingLetters) private var trainingLetters = SettingsDefault.trainingLetters
     @State private var snapshot: TrainingSnapshot?
+    @State private var errorWords = ErrorWordsCardModel(listCount: 0, eligibleCount: 0, fixed: 0)
     @State private var fingers = FingerCardModel(cells: [])
     /// Букв пальцев нет ни в истории клавиш, ни в раскладке: кнопок занятий нет, нужна раскладка языка.
     @State private var fingerLettersMissing = false
 
     private var language: Language { Language(rawValue: activeLanguage) ?? .ru }
+    private var lettersSetting: TrainingLetters { TrainingLetters(rawValue: trainingLetters) ?? .open }
     private var unit: SpeedUnit { SpeedUnit(rawValue: speedUnit) ?? .cpm }
 
     var body: some View {
@@ -82,6 +85,8 @@ struct TrainingView: View {
                 if let snapshot {
                     adaptiveCard(snapshot)
                     weakSpotsCard(snapshot)
+                    ErrorWordsCard(model: errorWords,
+                                   start: { start(.errorWords(TrainingRun(language: language))) })
                     FingerCard(model: fingers, unit: unit,
                                layoutPrompt: fingerLettersMissing && layout.snapshot.language != language
                                    ? LayoutPrompt.switchTo(language) : nil,
@@ -95,6 +100,7 @@ struct TrainingView: View {
         .onAppear(perform: reload)
         .onChange(of: activeLanguage) { reload() }
         .onChange(of: targetCpm) { reload() }
+        .onChange(of: trainingLetters) { reload() }
         .onChange(of: layout.snapshot) { reload() }
     }
 
@@ -110,7 +116,10 @@ struct TrainingView: View {
             keyMastery: (try? reader.keyMastery(language: language)) ?? [:],
             bigramMastery: (try? reader.bigramMastery(language: language)) ?? [:],
             targetCpm: Double(targetCpm),
-            openLetters: openLetters)
+            openLetters: lettersSetting.letters(open: openLetters, language: language))
+        errorWords = ErrorWordsCardModel.make(
+            entries: (try? reader.errorWords(language: language)) ?? [], fixed: (try? reader.fixedWords()) ?? 0,
+            allowed: lettersSetting.letters(open: openLetters, language: language))
         let thresholdMs = AdaptiveTrainer(language: language, targetCpm: Double(targetCpm)).thresholdMs
         let fingerOf = (try? reader.fingerLetters(language: language, layout: layout.fingerOf(language: language)))
             ?? layout.fingerOf(language: language)

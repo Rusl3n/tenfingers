@@ -92,6 +92,7 @@ public enum AchievementConditionText {
             switch name {
             case "wrongLayoutStarts": return line("wrongLayout", threshold)
             case "capsLockPresses": return line("capsLock", threshold)
+            case "fixedWords": return line("fixedWords", threshold)
             default: return line("counter", threshold)
             }
         case .errorStreak(let count): return line("errorStreak", count)

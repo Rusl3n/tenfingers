@@ -26,6 +26,8 @@ public enum PlanAction: Equatable, Sendable {
     case refresh(lessonId: String)
     /// «Повтор» вне курса: `mode = practice`, `source = "plan:review"`, слова по буквам `focus`.
     case review(focus: [Character], chars: Int)
+    /// «Слова с ошибками» вместо «Повтора» (8b, решение 10): `chars` — длина «Повтора».
+    case errorWords(chars: Int)
     /// Урок курса; `retake` — «Пересдать проверку».
     case lesson(lessonId: String, retake: Bool)
     case finger(Finger, FingerDrill, portions: Int)
@@ -95,11 +97,15 @@ public struct DayPlanInput: Sendable {
     /// Число шагов уроков, которые может взять пункт «Урок» (продолжение курса, «Повтор», «Ускорение»): урок
     /// засчитывает и половина его шагов. Урока нет — его засчитывает только проверка.
     public let lessonStepCounts: [String: Int]
+    /// Записей списка «Слов с ошибками», подходящих под настройку букв: от `DayPlanner.errorWordsThreshold` они
+    /// заменяют «Повтор» в разминке.
+    public let errorWordsCount: Int
 
     public init(today: String, goalMinutes: Int, medianCpm: Double?, continueTarget: ContinueTarget?,
                 courseCompleted: Bool, lastReviewId: String?, lastSpeedupId: String?, dueRefreshes: [String],
                 rotationLesson: String?, reviewFocus: [Character], weakFinger: Finger?, strongFinger: Finger?,
-                textStageIndex: Int?, todaySessions: [SessionSummary], lessonStepCounts: [String: Int] = [:]) {
+                textStageIndex: Int?, todaySessions: [SessionSummary], lessonStepCounts: [String: Int] = [:],
+                errorWordsCount: Int = 0) {
         self.today = today
         self.goalMinutes = goalMinutes
         self.medianCpm = medianCpm
@@ -115,6 +121,7 @@ public struct DayPlanInput: Sendable {
         self.textStageIndex = textStageIndex
         self.todaySessions = todaySessions
         self.lessonStepCounts = lessonStepCounts
+        self.errorWordsCount = errorWordsCount
     }
 }
 
@@ -125,6 +132,8 @@ public enum DayPlanner {
     static let lessonMinutes = 5
     /// «Повтор» разминки, знаков.
     static let reviewChars = 200...600
+    /// Слов в списке, с которых «Слова с ошибками» заменяют «Повтор» разминки (решение 10).
+    public static let errorWordsThreshold = 20
     /// Порция текста, знаков.
     static let textPortionChars = 450
     /// Связный текст — с этапа 4 (индекс 3); раньше — фразы из изученных букв.
@@ -139,6 +148,9 @@ public enum DayPlanner {
         let charsShare = share * (input.medianCpm ?? defaultCpm)
         let portions = max(1, Int((share / 3).rounded()))
 
+        // Завершённые сегодня упражнения: выполнение пунктов (решение 14) и действие уже выполненной разминки.
+        let done = input.todaySessions.filter { $0.completed && $0.day == input.today }
+
         // Разминка: до двух возвратов; нет — ротация в чётный день, иначе «Повтор».
         let warmup: PlanAction
         if let first = input.dueRefreshes.first {
@@ -147,7 +159,11 @@ public enum DayPlanner {
             warmup = .refresh(lessonId: rotation)
         } else {
             let chars = min(reviewChars.upperBound, max(reviewChars.lowerBound, Int(charsShare.rounded())))
-            warmup = .review(focus: input.reviewFocus, chars: chars)
+            // Выполненная сегодня разминка сохраняет действие по режиму выполнившей сессии, а не по числу слов.
+            let warmupSessions = done.filter { $0.planSlot == .warmup }
+            let useErrorWords = warmupSessions.isEmpty
+                ? input.errorWordsCount >= errorWordsThreshold : warmupSessions.contains { $0.mode == .errorWords }
+            warmup = useErrorWords ? .errorWords(chars: chars) : .review(focus: input.reviewFocus, chars: chars)
         }
 
         // Урок: «Продолжить»; курс пройден — «Повтор» в чётный день, «Ускорение» в нечётный. Запасом — другой
@@ -177,7 +193,6 @@ public enum DayPlanner {
         // Выполнение (решение 14): завершённое сегодня упражнение пункта. Урок — любая проверка урока (`check`, не
         // `refresh`) или половина шагов урока пункта (с округлением вверх), с планом или без (решение пользователя
         // 2026-10-31): один шаг из плана урок ещё не засчитывает.
-        let done = input.todaySessions.filter { $0.completed && $0.day == input.today }
         let lessonCheck = done.contains { lessonCheckCounts(mode: $0.mode, kind: $0.exerciseKind) }
         let lessonDone: Bool
         if case let .lesson(lessonId, retake) = lesson, !retake {

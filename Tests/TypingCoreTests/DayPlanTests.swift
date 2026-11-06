@@ -13,11 +13,12 @@ private func input(today: Int = 20_100, goal: Int = 10, median: Double? = 120, t
                    completed: Bool = false, review: String? = "ru2.review", speedup: String? = "ru2.speedup",
                    due: [String] = [], rotation: String? = nil, focus: [Character] = ["а", "о", "в"],
                    weak: Finger? = .leftRing, strong: Finger? = .rightIndex, stage: Int? = 4,
-                   sessions: [SessionSummary] = [], steps: [String: Int] = [:]) -> DayPlanInput {
+                   sessions: [SessionSummary] = [], steps: [String: Int] = [:], errorWords: Int = 0) -> DayPlanInput {
     DayPlanInput(today: day(today), goalMinutes: goal, medianCpm: median, continueTarget: target,
                  courseCompleted: completed, lastReviewId: review, lastSpeedupId: speedup, dueRefreshes: due,
                  rotationLesson: rotation, reviewFocus: focus, weakFinger: weak, strongFinger: strong,
-                 textStageIndex: stage, todaySessions: sessions, lessonStepCounts: steps)
+                 textStageIndex: stage, todaySessions: sessions, lessonStepCounts: steps,
+                 errorWordsCount: errorWords)
 }
 
 private func session(day key: String, slot: PlanSlot? = nil, mode: ExerciseMode = .practice,
@@ -229,4 +230,46 @@ private func action(_ plan: DayPlan, _ slot: PlanSlot) -> PlanAction? { plan.ite
             == ["Warm-up", "Lesson", "Training", "Text"])
     #expect(PlanSlot.allCases.map { CoreText.localized($0.titleKey, localization: "ru") }
             == ["Разминка", "Урок", "Тренировка", "Текст"])
+}
+
+// MARK: - Слова с ошибками вместо «Повтора» (8b, решение 10)
+
+@Test func errorWordsReplaceReviewFromThreshold() {
+    // Нечётный день, возвратов нет: при 20 словах — «Слова с ошибками» той же длины, что у «Повтора».
+    let review = action(DayPlanner.make(input(today: 20_101)), .warmup)
+    guard case let .review(_, chars)? = review else { Issue.record("повтор"); return }
+    #expect(DayPlanner.errorWordsThreshold == 20)
+    #expect(action(DayPlanner.make(input(today: 20_101, errorWords: 20)), .warmup) == .errorWords(chars: chars))
+    #expect(action(DayPlanner.make(input(today: 20_101, errorWords: 19)), .warmup) == review)
+    // Чётный день без ротации — тоже «Повтор» → слова.
+    #expect(action(DayPlanner.make(input(today: 20_100, errorWords: 50)), .warmup) == .errorWords(chars: chars))
+}
+
+@Test func refreshesBeatErrorWords() {
+    #expect(action(DayPlanner.make(input(today: 20_101, due: ["ru2.s1.01"], errorWords: 30)), .warmup)
+            == .refresh(lessonId: "ru2.s1.01"))
+    #expect(action(DayPlanner.make(input(today: 20_100, rotation: "ru2.s1.02", errorWords: 30)), .warmup)
+            == .refresh(lessonId: "ru2.s1.02"))
+}
+
+@Test func errorWordsWarmupIsDoneByItsSlot() {
+    let done = DayPlanner.make(input(today: 20_101, sessions: [session(day: day(20_101), slot: .warmup)],
+                                     errorWords: 25))
+    #expect(done.items[0].done)
+    let other = DayPlanner.make(input(today: 20_101, sessions: [session(day: day(20_101), slot: .training)],
+                                      errorWords: 25))
+    #expect(!other.items[0].done)
+}
+
+@Test func doneWarmupKeepsItsActionWhenWordCountChanges() {
+    // Выполнено «Словами с ошибками», слов стало 19 — строка остаётся словами и выполненной.
+    let byWords = DayPlanner.make(input(today: 20_101, sessions: [
+        session(day: day(20_101), slot: .warmup, mode: .errorWords)], errorWords: 19))
+    guard case .errorWords? = action(byWords, .warmup) else { Issue.record("слова с ошибками"); return }
+    #expect(byWords.items[0].done)
+    // Выполнено «Повтором», слов стало 25 — остаётся «Повтор» и выполненной.
+    let byReview = DayPlanner.make(input(today: 20_101, sessions: [
+        session(day: day(20_101), slot: .warmup, mode: .practice)], errorWords: 25))
+    guard case .review? = action(byReview, .warmup) else { Issue.record("повтор"); return }
+    #expect(byReview.items[0].done)
 }

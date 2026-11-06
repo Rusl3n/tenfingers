@@ -297,7 +297,7 @@ private func period(_ period: ChallengePeriod, _ results: [ChallengeResult], all
         #expect(!achievement.repeatable && !achievement.secret && !achievement.adult)
         #expect(icons.filter { $0 == icon }.count == 1, "значок «\(icon)» занят")
     }
-    #expect(AchievementCatalog.all.count == 158)
+    #expect(AchievementCatalog.all.count == 162)
 }
 
 // MARK: - Один расчёт на проверку

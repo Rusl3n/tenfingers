@@ -358,7 +358,7 @@ struct Evaluator {
         case .pinkies:
             return crossing(exercises, Double(count)) { Double($0.pinkyPresses) }
         case .trainings:
-            return nth(count, of: completed.filter { $0.mode == .adaptive || $0.mode == .weak })
+            return nth(count, of: completed.filter { $0.mode == .adaptive || $0.mode == .weak || $0.mode == .errorWords })
         case .lessons:
             return nth(count, of: completed.filter { $0.mode == .course && $0.exerciseKind == .check })
         case .texts:

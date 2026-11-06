@@ -557,6 +557,7 @@
 "achievement.condition.wrongLayout" = "Попыток начать печатать не в той раскладке: %lld";
 "achievement.condition.capsLock" = "Нажатий Caps Lock во время упражнения: %lld";
 "achievement.condition.counter" = "Событий в приложении: %lld";
+"achievement.condition.fixedWords" = "Исправлено слов с ошибками: %lld";
 "achievement.condition.errorStreak" = "Ошибок подряд в одном упражнении: %lld";
 "achievement.condition.errorsInExercise" = "Ошибок в одном упражнении: %lld";
 "achievement.condition.lessonReplays" = "Попыток одного урока: %lld";
@@ -695,3 +696,12 @@
 "Серия {streak} дн. лежит в гипсе. Двойная цель сегодня его снимет" = "Серия {streak} дн. лежит в гипсе. Двойная цель сегодня его снимет";
 "Подкиньте ещё {minutes} мин — и серия вернётся из больницы" = "Подкиньте ещё {minutes} мин — и серия вернётся из больницы";
 "Пальцы, на починку серии в {streak} дн.! Нужна двойная цель" = "Пальцы, на починку серии в {streak} дн.! Нужна двойная цель";
+
+"achievement.errorwords.fixed10.title" = "Исправитель";
+"achievement.errorwords.fixed10.detail" = "Десять слов, на которых вы спотыкались, теперь набираются чисто";
+"achievement.errorwords.fixed50.title" = "Над ошибками";
+"achievement.errorwords.fixed50.detail" = "Полсотни трудных слов исправлено: три чистых набора подряд каждое";
+"achievement.errorwords.fixed200.title" = "Без запинок";
+"achievement.errorwords.fixed200.detail" = "Две сотни слов, которые раньше подводили, больше не подводят";
+"achievement.errorwords.fixed1000.title" = "Чистописание";
+"achievement.errorwords.fixed1000.detail" = "Тысяча исправленных слов. Ошибки для вас теперь материал для работы";

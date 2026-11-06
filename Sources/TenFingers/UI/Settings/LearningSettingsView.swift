@@ -5,6 +5,7 @@ struct LearningSettingsView: View {
     @AppStorage(SettingsKey.hintMode) private var hintMode = HintMode.auto.rawValue
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var adaptiveTarget = SettingsDefault.adaptiveTargetCpm
+    @AppStorage(SettingsKey.trainingLetters) private var trainingLetters = SettingsDefault.trainingLetters
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
     @AppStorage(SettingsKey.firstWeekday) private var firstWeekday = SettingsDefault.firstWeekday
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
@@ -33,6 +34,16 @@ struct LearningSettingsView: View {
                     }
                 }
                 .help(HelpText.adaptiveTarget)
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("Буквы в тренировках", selection: $trainingLetters) {
+                        ForEach(TrainingLetters.allCases) { Text($0.title).tag($0.rawValue) }
+                    }
+                    Text(HelpText.trainingLettersSetting)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .help(HelpText.trainingLettersSetting)
             }
             Section("День") {
                 VStack(alignment: .leading, spacing: 4) {

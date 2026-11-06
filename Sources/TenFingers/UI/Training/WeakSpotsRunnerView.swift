@@ -60,6 +60,7 @@ struct WeakSpotsRunnerView: View {
     @Environment(RunPresence.self) private var presence: RunPresence?
     @AppStorage(SettingsKey.hintMode) private var hintMode = HintMode.auto.rawValue
     @AppStorage(SettingsKey.adaptiveTargetCpm) private var targetCpm = SettingsDefault.adaptiveTargetCpm
+    @AppStorage(SettingsKey.trainingLetters) private var trainingLetters = SettingsDefault.trainingLetters
     @State private var phase: Phase = .loading
     @State private var coordinator: ExerciseCoordinator?
     @State private var totals = WeakSpotsSessionTotals()
@@ -137,9 +138,11 @@ struct WeakSpotsRunnerView: View {
         let reader = StatsReader(context: modelContext)
         let thresholdMs = trainer.thresholdMs
         // Текст и цели — только из открытых букв: неоткрытые в слабые места не попадают.
-        let open = (try? reader.openLetters(language: language, course: library.courses[language],
-                                            legacy: library.legacyCourses[language]))
+        let opened = (try? reader.openLetters(language: language, course: library.courses[language],
+                                              legacy: library.legacyCourses[language]))
             ?? Set(trainer.unlockedLetters(count: AdaptiveTrainer.initialLetters))
+        // Настройка «Буквы в тренировках»: открытые в курсе или весь алфавит.
+        let open = (TrainingLetters(rawValue: trainingLetters) ?? .open).letters(open: opened, language: language)
         let keys = WeakSpotsFocus.keys((try? reader.keyMastery(language: language)) ?? [:],
                                        letters: open, thresholdMs: thresholdMs, focus: focus)
         let bigrams = WeakSpotsFocus.bigrams((try? reader.bigramMastery(language: language)) ?? [:],

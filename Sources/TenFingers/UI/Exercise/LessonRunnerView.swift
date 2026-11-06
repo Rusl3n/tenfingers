@@ -365,7 +365,8 @@ struct LessonRunnerView: View {
         if isLast { gate = loadGateProgress(passedBefore: passedBefore, attemptStars: checkStars) }
         if isLast {
             let model = LessonReviewModel.make(records: passRecords(), letters: passLetters,
-                                               resumeStart: passResumeStart, passStart: passStart)
+                                               resumeStart: passResumeStart, passStart: passStart,
+                                               errorWordsAvailable: errorWordsAvailable())
             phase = .result(summary, stars: stars, steps: steps, speedup: speedup, review: model)
         } else {
             phase = .interim(index, summary, stepReview(result))
@@ -439,6 +440,16 @@ struct LessonRunnerView: View {
     private func stepReview(_ result: ExerciseResult) -> StepReviewScreen {
         StepReviewScreen.make(text: result.text, result: result, targetCpm: speedTarget,
                               segments: SpeedSegments.split(text: result.text, timings: result.timings))
+    }
+
+    /// В списке языка хватает слов с ошибками (подходящих под настройку букв), чтобы советовать занятие по ним.
+    private func errorWordsAvailable() -> Bool {
+        let reader = StatsReader(context: modelContext)
+        guard let open = try? reader.openLetters(language: run.language, course: library.courses[run.language],
+                                                 legacy: library.legacyCourses[run.language]),
+              let entries = try? reader.errorWords(language: run.language) else { return false }
+        let allowed = TrainingLetters.stored().letters(open: open, language: run.language)
+        return ErrorWordsText.eligible(entries: entries, allowed: allowed).count >= DayPlanner.errorWordsThreshold
     }
 
     /// Записи шагов этого урока для разбора (проход отбирает `LessonReviewModel.make`).

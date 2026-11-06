@@ -281,10 +281,38 @@ import TypingCore
     }
 }
 
+/// Слово или фраза из списка «слов с ошибками» (поколение схемы 9, спецификация 8b §6): один язык, нижний регистр.
+/// Запись живёт, пока слово не набрано чисто три раза подряд; тогда удаляется, а счётчик `fixedWords` растёт.
+@Model final class ErrorWord {
+    var id: UUID = UUID()
+    /// `Language.rawValue`.
+    var language: String = ""
+    var text: String = ""
+    var isPhrase: Bool = false
+    var errors: Int = 0
+    var cleanStreak: Int = 0
+    var firstSeen: Date = Date(timeIntervalSince1970: 0)
+    var lastSeen: Date = Date(timeIntervalSince1970: 0)
+
+    init(language: String, text: String, isPhrase: Bool, errors: Int, cleanStreak: Int, firstSeen: Date,
+         lastSeen: Date) {
+        id = UUID()
+        self.language = language
+        self.text = text
+        self.isPhrase = isPhrase
+        self.errors = errors
+        self.cleanStreak = cleanStreak
+        self.firstSeen = firstSeen
+        self.lastSeen = lastSeen
+    }
+}
+
 enum CounterName {
     static let wrongLayoutStarts = "wrongLayoutStarts"
     static let capsLockPresses = "capsLockPresses"
+    /// Исправленные слова с ошибками (подфаза 8b); ачивки серии «Работа над ошибками» читают его.
+    static let fixedWords = "fixedWords"
 
     /// Все счётчики, которые пишет приложение (на них ссылаются ачивки `counter(name:threshold:)`).
-    static let all = [wrongLayoutStarts, capsLockPresses]
+    static let all = [wrongLayoutStarts, capsLockPresses, fixedWords]
 }

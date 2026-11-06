@@ -40,6 +40,8 @@ enum SettingsKey {
     static let keyboardUnit = "keyboardUnit"
     static let keyboardOffset = "keyboardOffset"
     static let adaptiveTargetCpm = "adaptiveTargetCpm"
+    /// Буквы в «Слабых местах» и «Словах с ошибками» (`TrainingLetters`): open | all. Архивируется (поколение 9).
+    static let trainingLetters = "trainingLetters"
     static let settingsSection = "settingsSection"
     /// Подсказывать, каким большим пальцем жать пробел (противоположным предыдущему символу).
     static let spaceThumbHint = "spaceThumbHint"
@@ -119,12 +121,37 @@ enum SettingsKey {
     static let rhythmMuted = "rhythmMuted"
 }
 
+/// Какие буквы берут «Слабые места» и «Слова с ошибками»: только открытые в курсе или весь алфавит языка.
+/// Если курс пройден или открыт весь алфавит, оба варианта дают одно и то же.
+enum TrainingLetters: String, CaseIterable, Identifiable {
+    case open, all
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .open: "Только открытые в курсе"
+        case .all: "Все"
+        }
+    }
+
+    /// `open` — открытые буквы пользователя; `all` — весь алфавит раскладки языка.
+    func letters(open: Set<Character>, language: Language) -> Set<Character> {
+        self == .all ? language.letters : open
+    }
+
+    static func stored(_ defaults: UserDefaults = .standard) -> TrainingLetters {
+        defaults.string(forKey: SettingsKey.trainingLetters).flatMap(TrainingLetters.init(rawValue:)) ?? .open
+    }
+}
+
 enum SettingsDefault {
     static let dayStartHour = 4
     static let firstWeekday = FirstWeekday.system.rawValue
     static let dailyGoalMinutes = 10
     static let dailyGoalOptions = [5, 10, 15, 20, 30]
     static let adaptiveTargetCpm = 175
+    static let trainingLetters = TrainingLetters.open.rawValue
     static let adaptiveTargetOptions = [100, 150, 175, 200, 250]
     static let darkFromHour = 20
     static let darkToHour = 7

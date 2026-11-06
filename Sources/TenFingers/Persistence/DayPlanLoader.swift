@@ -10,6 +10,8 @@ struct DayPlanSettings {
     var adaptiveTargetCpm: Int
     /// Буква → палец по раскладке — запас к истории клавиш (`StatsReader.fingerLetters`).
     var layoutFingers: @MainActor (Language) -> [Character: Finger]
+    /// Настройка «Буквы в тренировках» (`TrainingLetters.rawValue`): по ней считаются подходящие слова с ошибками.
+    var trainingLetters: String = SettingsDefault.trainingLetters
 
     /// Сохранённые настройки и текущая раскладка.
     @MainActor static func stored(layout: KeyboardLayoutService, defaults: UserDefaults = .standard) -> DayPlanSettings {
@@ -18,7 +20,8 @@ struct DayPlanSettings {
             dayStartHour: StoredSettings.dayStartHour(defaults),
             adaptiveTargetCpm: defaults.object(forKey: SettingsKey.adaptiveTargetCpm) as? Int
                 ?? SettingsDefault.adaptiveTargetCpm,
-            layoutFingers: { [layout] in layout.fingerOf(language: $0) })
+            layoutFingers: { [layout] in layout.fingerOf(language: $0) },
+            trainingLetters: defaults.string(forKey: SettingsKey.trainingLetters) ?? SettingsDefault.trainingLetters)
     }
 }
 
@@ -68,6 +71,9 @@ struct DayPlanLoader {
         let open = OpenLetters.combine(language: language, course: course, legacy: library.legacyCourses[language],
                                        passedLessonIds: passed, adaptiveCount: try reader.unlockedCount(language: language))
         let keys = try reader.keyMastery(language: language)
+        let allowed = (TrainingLetters(rawValue: settings.trainingLetters) ?? .open).letters(open: open, language: language)
+        let errorWordsCount = ErrorWordsText.eligible(entries: try reader.errorWords(language: language),
+                                                      allowed: allowed).count
 
         // Пальцы — как на экране «Тренировка»: занятие только у пальца с открытой буквой. Окно — 14 дней по вчерашний.
         let yesterday = StreakCalculator.dayKey(today, offset: -1)
@@ -100,7 +106,8 @@ struct DayPlanLoader {
             weakFinger: FingerTraining.weakest(reports), strongFinger: FingerTraining.strongest(reports),
             textStageIndex: course?.stages.lastIndex { $0.lessons.contains { passed.contains($0.id) } },
             todaySessions: recent.filter { $0.day == today },
-            lessonStepCounts: Self.stepCounts(course: course, ids: [targetId, lastReviewId, lastSpeedupId]))
+            lessonStepCounts: Self.stepCounts(course: course, ids: [targetId, lastReviewId, lastSpeedupId]),
+            errorWordsCount: errorWordsCount)
     }
 
     /// Запуск пункта плана с его `planSlot` и числом порций; `nil` — запускать нечего: урока пункта нет в курсе
@@ -115,6 +122,8 @@ struct DayPlanLoader {
         case let .review(focus, chars):
             return .practice(PracticeRun(language: language, source: .planReview(focus: focus, chars: chars),
                                          planSlot: slot, portions: 1))
+        case let .errorWords(chars):
+            return .errorWords(TrainingRun(language: language, planSlot: slot, chars: chars))
         case let .lesson(lessonId, _):
             // «Пересдать проверку» — тот же запуск урока проверки, как у «Продолжить курс».
             guard lessonExists(lessonId) else { return nil }

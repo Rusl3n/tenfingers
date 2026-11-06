@@ -15,6 +15,7 @@ enum AchievementStyle {
         case .letters: String(localized: "Буквы")
         case .fun: String(localized: "Шуточные")
         case .rhythm: String(localized: "Ритм")
+        case .trainings: String(localized: "Тренировки")
         }
     }
 
@@ -30,6 +31,7 @@ enum AchievementStyle {
         case .letters: .indigo
         case .fun: .pink
         case .rhythm: .cyan
+        case .trainings: .brown
         }
     }
 

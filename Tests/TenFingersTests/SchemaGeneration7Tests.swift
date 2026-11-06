@@ -327,5 +327,5 @@ enum LegacySchemaGeneration6 {
     #expect(SchemaGeneration.canOpen(stored: 6, current: 7))
     let old = Set(Schema(LegacySchemaGeneration6.models).entities.map(\.name))
     let new = Set(ModelStore.schema.entities.map(\.name))
-    #expect(ModelStore.unknownEntities(store: new, known: old) == ["RhythmResult"])
+    #expect(ModelStore.unknownEntities(store: new, known: old) == ["ErrorWord", "RhythmResult"])
 }

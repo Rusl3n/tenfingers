@@ -74,6 +74,12 @@ enum HelpText {
     static var weakSpots: String {
         String(localized: "Слабые места — клавиши и сочетания, на которых вы чаще ошибаетесь или медленнее печатаете. Упражнение собирает текст из них.")
     }
+    static var errorWords: String {
+        String(localized: "Слова, в которых вы ошибались. Если слово набрано без ошибок три раза подряд, оно считается исправленным и уходит из списка. Занятие собирает текст из этих слов.")
+    }
+    static var trainingLettersSetting: String {
+        String(localized: "Если курс пройден или открыт весь алфавит, настройка ни на что не влияет.")
+    }
     static var fingerWeak: String {
         String(localized: "Слабый палец — точность ниже 97% за последние 14 дней (не меньше 50 нажатий). Кнопка «Точность» запускает 3 порции слов с буквами этого пальца.")
     }
@@ -153,7 +159,7 @@ enum HelpText {
 
     /// Все тексты — для теста длины.
     static var all: [String] {
-        [fireFull, fireHalf, fireNone, freezes, fireRepaired, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots,
+        [fireFull, fireHalf, fireNone, freezes, fireRepaired, weekStrip, dailyGoal, activeTime, trainingLetters, weakSpots, errorWords, trainingLettersSetting,
          speedUnits, dayStart, hintMode, spaceThumb, adaptiveTarget, keyboardSize, keyboardOffset, quitOnClose, interfaceLanguage,
          reminderSchedule, reminderTone, reminderEscalating, reminderEscalatingSummary, keyboardReset, soundsReset, dailyGoalChange, spark, level, challenges, speedRank, repair, goalDays, futureDay, firstWeekday, reminderTest, refresh, hardLesson, fingerWeak, fingerStrong, dayPlan, sparkSummary, fireMode, fireSummary]
     }

@@ -6,6 +6,8 @@ import TypingCore
 @MainActor
 struct StatsReader {
     let context: ModelContext
+    /// Словарь языка для проверки слов с ошибками (по умолчанию — общий кэш).
+    var vocabulary: (Language) -> Set<String> = ErrorWordVocabulary.words
 
     func keyMastery(language: Language) throws -> [Character: KeyMastery] {
         let code = language.rawValue
@@ -33,6 +35,24 @@ struct StatsReader {
                                            presses: presses)
         }
         return result
+    }
+
+    /// Список «слов с ошибками» языка (подфаза 8b).
+    func errorWords(language: Language) throws -> [ErrorWordEntry] {
+        let code = language.rawValue
+        let allowed = vocabulary(language)
+        // Фразы и записи не из словаря не отдаются (их уберёт следующая запись упражнения).
+        return try context.fetch(FetchDescriptor<ErrorWord>(predicate: #Predicate { $0.language == code }))
+            .filter { allowed.isEmpty || ErrorWordFilter.isAllowed(text: $0.text, isPhrase: $0.isPhrase, vocabulary: allowed) }.map {
+            ErrorWordEntry(text: $0.text, isPhrase: $0.isPhrase, errors: $0.errors, cleanStreak: $0.cleanStreak,
+                           firstSeen: $0.firstSeen, lastSeen: $0.lastSeen)
+        }
+    }
+
+    /// Сколько слов с ошибками исправлено за всё время (счётчик `fixedWords`).
+    func fixedWords() throws -> Int {
+        let name = CounterName.fixedWords
+        return try context.fetch(FetchDescriptor<CounterRecord>(predicate: #Predicate { $0.name == name })).first?.value ?? 0
     }
 
     func bigramMastery(language: Language) throws -> [String: KeyMastery] {

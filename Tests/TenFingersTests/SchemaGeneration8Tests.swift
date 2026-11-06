@@ -289,7 +289,7 @@ enum LegacySchemaGeneration7 {
 /// Поколение 8: база поколения 7 (маркер «7») открывается, данные на месте, старые сессии — без отрезков, число
 /// сессий не меняется; новое поле пишется и читается после повторного открытия; маркер становится 8.
 @MainActor @Test func generationSevenStoreOpensAndBecomesGenerationEight() async throws {
-    #expect(SchemaGeneration.current == 8)
+    #expect(SchemaGeneration.current >= 8)
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TenFingersGen7-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -329,7 +329,7 @@ enum LegacySchemaGeneration7 {
     let stored = Data(#"[{"start":0,"end":40,"cpm":120}]"#.utf8)
     do {
         let container = try ModelStore.makeContainer(at: url)
-        #expect(try SchemaGeneration.read(at: url) == 8)
+        #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
         let context = container.mainContext
         let sessions = try context.fetch(FetchDescriptor<SessionRecord>())
         #expect(sessions.count == 3)
@@ -348,7 +348,7 @@ enum LegacySchemaGeneration7 {
     #expect(sessions.count == 3)
     #expect(sessions.filter { $0.speedSegments != nil }.count == 1)
     #expect(sessions.compactMap(\.decodedSpeedSegments).first == [SpeedSegment(start: 0, end: 40, cpm: 120)])
-    #expect(try SchemaGeneration.read(at: url) == 8)
+    #expect(try SchemaGeneration.read(at: url) == SchemaGeneration.current)
 }
 
 /// Сборка поколения 7 базу поколения 8 не откроет по маркеру (новых сущностей нет: новое поле видит только маркер).
@@ -357,5 +357,5 @@ enum LegacySchemaGeneration7 {
     #expect(SchemaGeneration.canOpen(stored: 7, current: 8))
     let old = Set(Schema(LegacySchemaGeneration7.models).entities.map(\.name))
     let new = Set(ModelStore.schema.entities.map(\.name))
-    #expect(old == new)
+    #expect(old.isSubset(of: new))   // с поколения 9 добавлена `ErrorWord`
 }

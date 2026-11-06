@@ -15,6 +15,8 @@ struct ResultRecorder {
     /// Шов для тестов: вызывается перед сохранением внутри `commit` и может бросить ошибку,
     /// чтобы проверить откат и алерт «Повторить» / «Отмена» (в приложении не задаётся).
     var beforeSave: (() throws -> Void)?
+    /// Словарь языка для списка слов с ошибками (по умолчанию — общий кэш; в тестах можно подменить).
+    var vocabulary: (Language) -> Set<String> = ErrorWordVocabulary.words
 
     /// Цель по умолчанию — исходная из настроек (`SettingsDefault.dailyGoalMinutes`), не из `UserDefaults`.
     init(context: ModelContext, dayStartHour: @escaping () -> Int,
@@ -81,6 +83,8 @@ struct ResultRecorder {
 
         try updateDay(day, activeSeconds: result.activeSeconds, completed: result.completed,
                       language: result.language)
+
+        if result.completed && result.mode != .rhythm { try recordErrorWords(result) }
 
         for (character, sample) in KeyStats.samples(from: result) {
             let stat = try fetchOrCreateKeyStat(language: result.language.rawValue, character: String(character))
@@ -178,6 +182,52 @@ struct ResultRecorder {
         progress.bestAccuracy = max(progress.bestAccuracy, result.accuracy)
         if stars > 0 && progress.passedAt == nil { progress.passedAt = result.endedAt }
     }
+
+    /// Обновляет список «слов с ошибками» языка по целевому тексту (позиции ошибок — `timings[i].hadError`):
+    /// вставляет, обновляет и удаляет записи, а исправленные слова добавляет к счётчику `fixedWords`.
+    private func recordErrorWords(_ result: ExerciseResult) throws {
+        var positions = Set<Int>()
+        for (index, timing) in result.timings.enumerated() where timing.hadError { positions.insert(index) }
+        let allowed = vocabulary(result.language)
+        // Словарь не загрузился — ничего не трогаем, иначе уборка удалила бы весь список.
+        guard !allowed.isEmpty else { return }
+        let hits = ErrorWordTracker.hits(text: result.text, errorPositions: positions, vocabulary: allowed)
+        let code = result.language.rawValue
+        var stored: [ErrorWord] = []
+        var byKey: [String: ErrorWord] = [:]
+        for word in try context.fetch(FetchDescriptor<ErrorWord>(predicate: #Predicate { $0.language == code })) {
+            // Уборка: фразы и записи не из словаря удаляются (исправленными не считаются).
+            guard ErrorWordFilter.isAllowed(text: word.text, isPhrase: word.isPhrase, vocabulary: allowed) else {
+                context.delete(word); continue
+            }
+            let key = Self.errorWordKey(word.text, word.isPhrase)
+            // Дубликаты (например, из архива): остаётся первая запись, лишние удаляются.
+            if byKey[key] == nil { byKey[key] = word; stored.append(word) } else { context.delete(word) }
+        }
+        let before = stored.map {
+            ErrorWordEntry(text: $0.text, isPhrase: $0.isPhrase, errors: $0.errors, cleanStreak: $0.cleanStreak,
+                           firstSeen: $0.firstSeen, lastSeen: $0.lastSeen)
+        }
+        guard !hits.isEmpty else { return }
+        let (after, fixed) = ErrorWordBook.apply(hits, to: before, now: result.endedAt)
+        var kept = Set<String>()
+        for entry in after {
+            let key = Self.errorWordKey(entry.text, entry.isPhrase)
+            kept.insert(key)
+            if let word = byKey[key] {
+                word.errors = entry.errors; word.cleanStreak = entry.cleanStreak
+                word.firstSeen = entry.firstSeen; word.lastSeen = entry.lastSeen
+            } else {
+                context.insert(ErrorWord(language: code, text: entry.text, isPhrase: entry.isPhrase,
+                                         errors: entry.errors, cleanStreak: entry.cleanStreak,
+                                         firstSeen: entry.firstSeen, lastSeen: entry.lastSeen))
+            }
+        }
+        for word in stored where !kept.contains(Self.errorWordKey(word.text, word.isPhrase)) { context.delete(word) }
+        if fixed > 0 { try increment(CounterName.fixedWords, by: fixed) }
+    }
+
+    private static func errorWordKey(_ text: String, _ isPhrase: Bool) -> String { (isPhrase ? "p:" : "w:") + text }
 
     func increment(_ name: String, by amount: Int = 1) throws {
         let descriptor = FetchDescriptor<CounterRecord>(predicate: #Predicate { $0.name == name })

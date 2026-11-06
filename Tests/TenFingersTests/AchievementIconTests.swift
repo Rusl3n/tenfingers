@@ -98,3 +98,14 @@ import TypingCore
         #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "нет символа «\(name)»")
     }
 }
+
+/// Значки ачивок «Работа над ошибками» (8b) существуют как SF Symbols и не повторяются.
+@Test func errorWordsAchievementIconsExist() {
+    let items = AchievementCatalog.all.filter { $0.id.hasPrefix("errorwords.") }
+    #expect(items.map(\.id) == ["errorwords.fixed10", "errorwords.fixed50", "errorwords.fixed200", "errorwords.fixed1000"])
+    #expect(items.allSatisfy { $0.category == .trainings })
+    for item in items {
+        #expect(NSImage(systemSymbolName: item.icon, accessibilityDescription: nil) != nil, "нет символа «\(item.icon)»")
+        #expect(AchievementCatalog.all.filter { $0.icon == item.icon }.count == 1, "значок «\(item.icon)» занят")
+    }
+}

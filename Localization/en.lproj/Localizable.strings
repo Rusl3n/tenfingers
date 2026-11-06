@@ -450,6 +450,7 @@
 "Повторные получения ачивок" = "Repeated achievement grants";
 "Ритм" = "Rhythm";
 "Результаты игры «Ритм»" = "Rhythm game results";
+"Слова с ошибками" = "Words with errors";
 "резервная копия записалась не полностью." = "the backup was not written completely.";
 "Не удалось прочитать прогресс" = "Couldn’t read your progress";
 "Данные не изменены. Попробуйте ещё раз." = "Nothing was changed. Please try again.";
@@ -474,6 +475,7 @@
 "Все" = "All";
 "Серия" = "Streak";
 "Вехи" = "Milestones";
+"Тренировки" = "Training";
 "Объём" = "Volume";
 "Особые" = "Special";
 "Буквы" = "Letters";
@@ -955,3 +957,14 @@
 "Проходы" = "Attempts";
 "Шаги: первый → последний проход" = "Steps: first → last attempt";
 "Проверку урока ещё не проходили" = "The lesson check has not been taken yet";
+"Слова с ошибками идут" = "Words with errors in progress";
+"Слова с ошибками будут завершены. Начать новое занятие?" = "The words-with-errors session will be ended. Start something new?";
+"Пока мало слов: %lld" = "Not enough words yet: %lld";
+"Пока мало слов" = "Not enough words yet";
+"В списке" = "In the list";
+"В списке: %lld" = "In the list: %lld";
+"Исправлено всего" = "Fixed in total";
+"Только открытые в курсе" = "Only letters opened in the course";
+"Буквы в тренировках" = "Letters in training";
+"Слова, в которых вы ошибались. Если слово набрано без ошибок три раза подряд, оно считается исправленным и уходит из списка. Занятие собирает текст из этих слов." = "Words you made mistakes in. Type a word without errors three times in a row and it counts as fixed and leaves the list. The exercise builds its text from these words.";
+"Если курс пройден или открыт весь алфавит, настройка ни на что не влияет." = "If the course is finished or the whole alphabet is open, this setting has no effect.";

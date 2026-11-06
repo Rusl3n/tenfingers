@@ -34,7 +34,7 @@
 "Предложения" = "Sentences";
 "Текст" = "Text";
 "Трудные буквы" = "Tricky letters";
-"Слова с ошибками" = "Error words";
+"Слова с ошибками" = "Words with errors";
 "Спринт" = "Sprint";
 "Числа" = "Numbers";
 "Освежить" = "Refresh";
@@ -557,6 +557,7 @@
 "achievement.condition.wrongLayout" = "Times you started typing in the wrong layout: %lld";
 "achievement.condition.capsLock" = "Caps Lock presses during an exercise: %lld";
 "achievement.condition.counter" = "App events: %lld";
+"achievement.condition.fixedWords" = "Words with errors fixed: %lld";
 "achievement.condition.errorStreak" = "Errors in a row in one exercise: %lld";
 "achievement.condition.errorsInExercise" = "Errors in one exercise: %lld";
 "achievement.condition.lessonReplays" = "Attempts at one lesson: %lld";
@@ -695,3 +696,12 @@
 "Серия {streak} дн. лежит в гипсе. Двойная цель сегодня его снимет" = "Your {streak}-day streak is in a cast. A double goal today will take it off";
 "Подкиньте ещё {minutes} мин — и серия вернётся из больницы" = "Add {minutes} more min and your streak will be back from the hospital";
 "Пальцы, на починку серии в {streak} дн.! Нужна двойная цель" = "Fingers, to the repair shop for your {streak}-day streak! A double goal is needed";
+
+"achievement.errorwords.fixed10.title" = "Proofreader";
+"achievement.errorwords.fixed10.detail" = "Ten words that used to trip you up now come out clean";
+"achievement.errorwords.fixed50.title" = "Mistake Mender";
+"achievement.errorwords.fixed50.detail" = "Fifty tricky words fixed: three clean runs in a row each";
+"achievement.errorwords.fixed200.title" = "No More Stumbles";
+"achievement.errorwords.fixed200.detail" = "Two hundred words that used to let you down no longer do";
+"achievement.errorwords.fixed1000.title" = "Clean Hands";
+"achievement.errorwords.fixed1000.detail" = "A thousand words fixed. Mistakes are now just material to work on";

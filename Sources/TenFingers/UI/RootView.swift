@@ -46,6 +46,8 @@ struct TrainingRun: Identifiable, Equatable {
     /// Буквы для слабых мест из игры «Ритм»: ключи тренировки — те из них, что открыты; `nil` или ни одной
     /// открытой — обычный расчёт.
     var focus: [Character]? = nil
+    /// Длина текста «Слов с ошибками» из плана; `nil` — по умолчанию (200 знаков).
+    var chars: Int? = nil
 }
 
 /// Запуск занятия по пальцу («Тренировка → Пальцы»): новый `id` на каждый запуск.
@@ -65,6 +67,7 @@ enum RunKind: Identifiable, Equatable {
     case lesson(LessonRun)
     case adaptive(TrainingRun)
     case weakSpots(TrainingRun)
+    case errorWords(TrainingRun)
     case finger(FingerRun)
     case practice(PracticeRun)
     case rhythm(RhythmRun)
@@ -73,7 +76,7 @@ enum RunKind: Identifiable, Equatable {
     var id: UUID {
         switch self {
         case .lesson(let run): run.id
-        case .adaptive(let run), .weakSpots(let run): run.id
+        case .adaptive(let run), .weakSpots(let run), .errorWords(let run): run.id
         case .finger(let run): run.id
         case .practice(let run): run.id
         case .rhythm(let run): run.id
@@ -83,7 +86,7 @@ enum RunKind: Identifiable, Equatable {
     var language: Language {
         switch self {
         case .lesson(let run): run.language
-        case .adaptive(let run), .weakSpots(let run): run.language
+        case .adaptive(let run), .weakSpots(let run), .errorWords(let run): run.language
         case .finger(let run): run.language
         case .practice(let run): run.language
         case .rhythm(let run): run.language
@@ -94,7 +97,7 @@ enum RunKind: Identifiable, Equatable {
     var planSlot: PlanSlot? {
         switch self {
         case .lesson(let run): run.planSlot
-        case .adaptive(let run), .weakSpots(let run): run.planSlot
+        case .adaptive(let run), .weakSpots(let run), .errorWords(let run): run.planSlot
         case .finger(let run): run.planSlot
         case .practice(let run): run.planSlot
         case .rhythm: nil
@@ -107,6 +110,7 @@ enum RunKind: Identifiable, Equatable {
         case .lesson: String(localized: "Текущий урок")
         case .adaptive: String(localized: "Тренировка идёт")
         case .weakSpots: String(localized: "Слабые места идут")
+        case .errorWords: String(localized: "Слова с ошибками идут")
         case .finger: String(localized: "Пальцы идут")
         case .practice: String(localized: "Практика идёт")
         case .rhythm: String(localized: "Ритм идёт")
@@ -119,6 +123,7 @@ enum RunKind: Identifiable, Equatable {
         case .lesson: String(localized: "Текущий урок будет завершён. Начать новое занятие?")
         case .adaptive: String(localized: "Тренировка будет завершена. Начать новое занятие?")
         case .weakSpots: String(localized: "Слабые места будут завершены. Начать новое занятие?")
+        case .errorWords: String(localized: "Слова с ошибками будут завершены. Начать новое занятие?")
         case .finger: String(localized: "Занятие по пальцу будет завершено. Начать новое занятие?")
         case .practice: String(localized: "Практика будет завершена. Начать новое занятие?")
         case .rhythm: String(localized: "Игра будет завершена. Начать новое занятие?")
@@ -388,6 +393,9 @@ struct RootView: View {
         case .weakSpots(let training):
             WeakSpotsRunnerView(language: training.language, planSlot: training.planSlot, focus: training.focus,
                                 onExit: end)
+        case .errorWords(let training):
+            ErrorWordsRunnerView(language: training.language, planSlot: training.planSlot,
+                                 chars: training.chars ?? ErrorWordsRunnerView.targetChars, onExit: end)
         case .finger(let finger):
             FingerRunnerView(run: finger, onExit: end)
         case .practice(let practice):
