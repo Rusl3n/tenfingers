@@ -131,21 +131,23 @@ private func courseStep(_ lessonId: String, kind: ExerciseKind, language: Langua
     #expect(try snapshot.sessionSummaries(language: .en).map(\.language) == [.en])
 }
 
-/// Ориентир «Ускорения» русского курса не зависит от проверок английского: без «Ускорения» это средняя
-/// последних проверок курса, и быстрые английские проверки её не сдвигают.
-@MainActor @Test func englishChecksDoNotChangeTheRussianSpeedupReference() throws {
+/// Ориентир «Ускорения» русского курса — средняя последних шагов русского курса: быстрые английские шаги её
+/// не сдвигают.
+@MainActor @Test func englishStepsDoNotChangeTheRussianSpeedupReference() throws {
     let container = try makeContainer()
     defer { withExtendedLifetime(container) {} }
     let context = container.mainContext
     let course = try CourseFixtureApp.ruMini()
     let snapshot = ProgressSnapshot(context: context)
     #expect(try snapshot.speedupReference(course: course) == nil)
-    context.insert(courseStep("ru2.s1.check", kind: .check, cpm: 100, endedAt: noon))
-    context.insert(courseStep("ru2.s1.01", kind: .check, cpm: 120, endedAt: noon.addingTimeInterval(60)))
+    for minute in 0..<10 {
+        context.insert(courseStep("ru2.s1.01", kind: .words, cpm: minute < 5 ? 100 : 120,
+                                  endedAt: noon.addingTimeInterval(Double(minute) * 60)))
+    }
     let before = try snapshot.speedupReference(course: course)
     #expect(before == 110)
-    context.insert(courseStep("en2.s1.check", kind: .check, language: .en, cpm: 400, endedAt: noon.addingTimeInterval(120)))
-    context.insert(courseStep("en2.s2.02", kind: .check, language: .en, cpm: 500, endedAt: noon.addingTimeInterval(180)))
+    context.insert(courseStep("en2.s1.check", kind: .check, language: .en, cpm: 400, endedAt: noon.addingTimeInterval(720)))
+    context.insert(courseStep("en2.s2.02", kind: .words, language: .en, cpm: 500, endedAt: noon.addingTimeInterval(780)))
     #expect(try snapshot.speedupReference(course: course) == before)
 }
 

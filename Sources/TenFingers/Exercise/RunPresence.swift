@@ -107,6 +107,23 @@ enum SidebarPolicy {
         return visibility(afterPause: event.paused, reason: event.reason, current: current)
     }
 
+    /// Панель свёрнута (своей кнопкой, перетаскиванием края или на время упражнения): кнопка панели в заголовке
+    /// окна называется «Показать панель», иначе — «Скрыть панель».
+    static func isCollapsed(_ visibility: NavigationSplitViewVisibility) -> Bool {
+        visibility == .detailOnly
+    }
+
+    /// Видимость после нажатия кнопки панели: свёрнутая разворачивается, иначе сворачивается.
+    static func toggled(_ visibility: NavigationSplitViewVisibility) -> NavigationSplitViewVisibility {
+        isCollapsed(visibility) ? .all : .detailOnly
+    }
+
+    /// Сворачивание панели анимируется только в обычном окне: в полноэкранном режиме верх панели (он в отдельном
+    /// окне тулбара) двигался отдельно от неё и выглядел срезанным.
+    static func animatesSidebar(isFullScreen: Bool) -> Bool {
+        !isFullScreen
+    }
+
     /// Новый запуск из раздела при скрытом запуске (кнопка или Return) сначала спрашивает подтверждение:
     /// иначе приостановленный урок молча завершился бы. Запуск с экрана самого запуска не спрашивает.
     static func confirmsReplacingRun(hasRun: Bool, isRunVisible: Bool) -> Bool {

@@ -235,3 +235,18 @@ private let mainWindow = EscapeTarget(isEditingText: false, isMainWindow: true, 
     #expect(!SidebarPolicy.confirmsReplacingRun(hasRun: true, isRunVisible: true))
     #expect(!SidebarPolicy.confirmsReplacingRun(hasRun: false, isRunVisible: false))
 }
+
+@Test func sidebarButtonShowsCollapsedSidebarAndHidesOtherwise() {
+    #expect(SidebarPolicy.isCollapsed(.detailOnly))
+    #expect(!SidebarPolicy.isCollapsed(.all))
+    #expect(!SidebarPolicy.isCollapsed(.doubleColumn))
+    #expect(!SidebarPolicy.isCollapsed(.automatic))
+    #expect(SidebarPolicy.toggled(.detailOnly) == .all)
+    #expect(SidebarPolicy.toggled(.all) == .detailOnly)
+    #expect(SidebarPolicy.toggled(.automatic) == .detailOnly)
+}
+
+@Test func sidebarAnimatesOnlyOutsideFullScreen() {
+    #expect(SidebarPolicy.animatesSidebar(isFullScreen: false))
+    #expect(!SidebarPolicy.animatesSidebar(isFullScreen: true))
+}

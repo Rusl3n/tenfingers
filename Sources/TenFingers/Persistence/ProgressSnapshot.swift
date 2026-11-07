@@ -53,7 +53,7 @@ struct ProgressSnapshot {
                                            sessions: try context.fetch(descriptor).compactMap(Self.summary))
     }
 
-    /// Ориентир «Ускорения» языка курса по его истории (`SpeedupReference.reference`); `nil` — проверок ещё нет.
+    /// Ориентир «Ускорения» языка курса — средняя последних шагов (`SpeedupReference.reference`); `nil` — шагов мало.
     func speedupReference(course: Course) throws -> Double? {
         SpeedupReference.reference(course: course, sessions: try sessionSummaries(language: course.language))
     }

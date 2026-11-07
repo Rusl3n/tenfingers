@@ -1,47 +1,46 @@
 import Foundation
 
-/// Ориентир урока «Ускорение» (§6.2, решение 16): с чем сравнивается скорость проверки и что показать на итоге.
+/// Ориентир урока «Ускорение» (§6.2): от какой скорости считается цель и что показать на итоге проверки.
+/// Ориентир — средняя скорость ученика, а не рекорд: одна удачная попытка не задирает цель всех следующих «Ускорений».
 public enum SpeedupReference {
-    /// Цель обгона на экране — ориентир × 1,05, округление до 1 (§6.2).
-    public static let overtakeFactor = 1.05
-    /// Столько последних проверок курса усредняется, если «Ускорение» ещё не проходили.
-    static let fallbackChecks = 5
-    /// Допуск сравнения: ровно +5% из-за двоичной арифметики не становится +6%.
+    /// Цель на экране — средняя × 1,10, округление до 1.
+    public static let goalFactor = 1.10
+    /// Столько последних завершённых шагов курса усредняется.
+    static let recentSteps = 30
+    /// Меньше шагов — средней нет, у «Ускорения» обычная цель урока.
+    static let minimumSteps = 10
+    /// Допуск сравнения: нехватка ровно в 7 зн/мин не становится 8 из-за двоичной арифметики.
     private static let tolerance = 1e-9
 
-    /// Ориентир «Ускорения» языка: лучшая скорость засчитанной проверки (`check`) уроков `speedup` курса;
-    /// нет — средняя скорость последних 5 засчитанных проверок курса (`mode == .course`, `check`, любое издание);
-    /// `nil` — проверок нет. `sessions` — сессии этого языка. Засчитанная — завершённая с точностью зачёта
-    /// (`LessonScoring.passAccuracy`): быстрая проверка с ошибками цель обгона не поднимает.
+    /// Средняя скорость последних 30 завершённых шагов курса языка (`mode == .course`, любой вид шага, любое издание)
+    /// без шагов уроков `speedup`: там сильные буквы и спринты, они быстрее обычных и тянули бы цель вверх.
+    /// `nil` — таких шагов меньше 10. `sessions` — сессии этого языка.
     public static func reference(course: Course, sessions: [SessionSummary]) -> Double? {
-        let checks = sessions.filter {
-            $0.mode == .course && $0.completed && ($0.exerciseKind?.isLessonCheck ?? false)
-                && $0.accuracy + LessonScoring.accuracyTolerance >= LessonScoring.passAccuracy
-        }
         let speedupIds = Set(course.lessons.filter { $0.resolvedKind == .speedup }.map(\.id))
-        if let best = checks.filter({ speedupIds.contains($0.lessonId ?? "") }).map(\.speed).max() { return best }
-        let recent = checks.sorted { $0.endedAt < $1.endedAt }.suffix(fallbackChecks)
-        guard !recent.isEmpty else { return nil }
+        let recent = sessions
+            .filter { $0.mode == .course && $0.completed && $0.exerciseKind != nil
+                && !speedupIds.contains($0.lessonId ?? "") }
+            .sorted { $0.endedAt < $1.endedAt }
+            .suffix(recentSteps)
+        guard recent.count >= minimumSteps else { return nil }
         return recent.reduce(0) { $0 + $1.speed } / Double(recent.count)
     }
 
     public static func goal(reference: Double) -> Int {
-        Int((reference * overtakeFactor).rounded())
+        Int((reference * goalFactor).rounded())
     }
 
     public enum Outcome: Equatable, Sendable {
-        /// «Рекорд побит: +N%» (N ≥ 1).
-        case beaten(percent: Int)
-        /// «До рекорда не хватило M» (M ≥ 1, зн/мин).
+        /// «Цель взята».
+        case reached
+        /// «До цели не хватило M» (M ≥ 1, зн/мин).
         case short(cpm: Int)
     }
 
-    /// Выше ориентира — N = ⌈(скорость / ориентир − 1) · 100⌉; иначе M = max(1, ⌈ориентир − скорость⌉) (решение 16).
-    public static func outcome(cpm: Double, reference: Double) -> Outcome {
-        if cpm > reference, reference > 0 {
-            let percent = ((cpm - reference) / reference * 100 - tolerance).rounded(.up)
-            return .beaten(percent: max(1, Int(percent)))
-        }
-        return .short(cpm: max(1, Int((reference - cpm - tolerance).rounded(.up))))
+    /// Скорость проверки против цели: не ниже — взята; иначе M = max(1, ⌈цель − скорость⌉).
+    public static func outcome(cpm: Double, goal: Int) -> Outcome {
+        let gap = Double(goal) - cpm
+        guard gap > tolerance else { return .reached }
+        return .short(cpm: max(1, Int((gap - tolerance).rounded(.up))))
     }
 }

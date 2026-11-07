@@ -622,9 +622,9 @@
 "Первый день недели" = "First day of the week";
 "Понедельник" = "Monday";
 "Воскресенье" = "Sunday";
-"Обгоните себя: %@ → цель %@" = "Beat yourself: %@ → goal %@";
-"Рекорд побит: +%lld%%" = "Record beaten: +%lld%%";
-"До рекорда не хватило %@" = "%@ short of the record";
+"Ваша средняя: %@ → цель %@" = "Your average: %@ → goal %@";
+"Цель взята" = "Goal reached";
+"До цели не хватило %@" = "%@ short of the goal";
 "%lld. %@" = "%lld. %@";
 "Новый курс" = "A new course";
 "Курс стал длиннее: 98 уроков вместо 30. Прогресс курса начинается заново, история, серия и ачивки сохранены." = "The course got longer: 98 lessons instead of 30. Course progress starts over; your history, streak and achievements are kept.";
@@ -1035,3 +1035,5 @@
 "Файл сохранён в другом профиле («%@»), а загружается в профиль «%@». Прогресс этого профиля будет заменён." = "The file was saved in another profile (“%@”), but is being loaded into the profile “%@”. This profile’s progress will be replaced.";
 
 "Язык курса" = "Course language";
+"Скрыть панель" = "Hide Sidebar";
+"Показать панель" = "Show Sidebar";

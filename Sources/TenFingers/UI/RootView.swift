@@ -210,10 +210,6 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: sidebarSelection) {
-                // Язык курса — первой строкой списка: панель сворачивается вместе с ним, как обычная строка.
-                Section {
-                    SidebarLanguagePicker(activeLanguage: $activeLanguage)
-                }
                 if let run = activeRun {
                     Section {
                         Label(run.sidebarTitle, systemImage: presence.showsPauseIcon ? "pause.circle" : "play.circle")
@@ -228,8 +224,21 @@ struct RootView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                SidebarHeader(activeLanguage: $activeLanguage)
+            }
             .safeAreaInset(edge: .bottom) {
                 SidebarFooter(coordinator: profiles)
+            }
+            // При показе панели SwiftUI начинал её раскладку с верхним отступом меньше настоящего и доращивал его
+            // в анимации: верх панели на это время уходил под заголовок окна. Раскладка панели не анимируется —
+            // панель въезжает и уезжает целиком, уже разложенной.
+            .transaction { $0.animation = nil }
+            // Системная кнопка заменена своей (на том же месте, в заголовке окна над панелью).
+            .toolbar(removing: .sidebarToggle)
+            .toolbar {
+                SidebarToggleItem(isSidebarHidden: SidebarPolicy.isCollapsed(columnVisibility),
+                                  toggle: { setSidebar(SidebarPolicy.toggled(columnVisibility)) })
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } detail: {
@@ -249,10 +258,10 @@ struct RootView: View {
             ReminderPresenter.shared.setRunActive(runId != nil)
             if runId != nil {
                 if visibilityBeforeLesson == nil { visibilityBeforeLesson = columnVisibility }
-                withAnimation { columnVisibility = .detailOnly }
+                animateSidebar { columnVisibility = .detailOnly }
             } else if let previous = visibilityBeforeLesson {
                 visibilityBeforeLesson = nil
-                withAnimation { columnVisibility = previous }
+                animateSidebar { columnVisibility = previous }
             }
         }
         .onChange(of: presence.lastEvent) { _, event in
@@ -260,13 +269,13 @@ struct RootView: View {
                   let next = SidebarPolicy.visibility(after: event, hasRun: activeRun != nil,
                                                       isRunVisible: isRunVisible, current: columnVisibility)
             else { return }
-            withAnimation { columnVisibility = next }
+            animateSidebar { columnVisibility = next }
         }
         .onChange(of: presence.showsResult) { _, shown in
             guard let next = SidebarPolicy.visibility(afterResult: shown, hasRun: activeRun != nil,
                                                       isRunVisible: isRunVisible, current: columnVisibility)
             else { return }
-            withAnimation { columnVisibility = next }
+            animateSidebar { columnVisibility = next }
         }
         .onChange(of: isRunHidden, initial: true) { _, hidden in
             if hidden { installEscapeMonitor() } else { removeEscapeMonitor() }
@@ -345,6 +354,24 @@ struct RootView: View {
                 case nil: break
                 }
             })
+    }
+
+    /// Кнопка «Скрыть панель» / «Показать панель». Во время упражнения панель тоже можно открыть, как раньше
+    /// системной кнопкой; восстановление после выхода (`visibilityBeforeLesson`) от этого не меняется.
+    private func setSidebar(_ visibility: NavigationSplitViewVisibility) {
+        animateSidebar { columnVisibility = visibility }
+    }
+
+    /// Сворачивание и разворачивание панели. В полноэкранном режиме заголовок окна с тулбаром macOS выносит в отдельное
+    /// окно, и верх панели анимируется отдельно от неё — выглядит срезанным. Там панель меняется сразу, в обычном
+    /// окне — с анимацией.
+    private func animateSidebar(_ change: () -> Void) {
+        let isFullScreen = NSApp.windows.contains { $0.isVisible && $0.styleMask.contains(.fullScreen) }
+        if SidebarPolicy.animatesSidebar(isFullScreen: isFullScreen) {
+            withAnimation(.default, change)
+        } else {
+            change()
+        }
     }
 
     @ViewBuilder private var detail: some View {

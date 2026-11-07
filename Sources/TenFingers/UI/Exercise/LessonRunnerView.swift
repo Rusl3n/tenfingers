@@ -216,7 +216,7 @@ struct LessonRunnerView: View {
         return StepTolerance.limit(length: exercises[index].text.count)
     }
 
-    /// Цель индикатора скорости: у «Ускорения» с ориентиром — цель обгона, иначе цель урока.
+    /// Цель индикатора скорости: у «Ускорения» со средней — средняя + 10%, иначе цель урока.
     private var speedTarget: Double? {
         if let speedupReference { return Double(SpeedupReference.goal(reference: speedupReference)) }
         return context.flatMap { $0.targetCpm > 0 ? Double($0.targetCpm) : nil }
@@ -500,17 +500,17 @@ enum LessonRunPlan {
         introducesSomething && resumeStart == 0 && !singleStep && !restart
     }
 
-    /// Итог проверки «Ускорения» против ориентира до попытки; `nil` — не проверка или ориентира нет (урок не «Ускорение»,
-    /// проверок ещё не было). Одинаков для итога урока и для итога повтора одной проверки.
+    /// Итог проверки «Ускорения» против цели от средней до попытки; `nil` — не проверка или средней нет (урок не
+    /// «Ускорение», шагов курса ещё мало). Одинаков для итога урока и для итога повтора одной проверки.
     static func speedupOutcome(kind: ExerciseKind, cpm: Double, reference: Double?) -> SpeedupReference.Outcome? {
         guard kind.isLessonCheck, let reference else { return nil }
-        return SpeedupReference.outcome(cpm: cpm, reference: reference)
+        return SpeedupReference.outcome(cpm: cpm, goal: SpeedupReference.goal(reference: reference))
     }
 
-    /// «Обгоните себя: 142 зн/мин → цель 149 зн/мин» — плашка над текстом шагов «Ускорения» (§6.2).
+    /// «Ваша средняя: 196 зн/мин → цель 216 зн/мин» — плашка над текстом шагов «Ускорения» (§6.2).
     static func speedupBanner(reference: Double, unit: SpeedUnit) -> String {
-        let record = unit.format(reference)
+        let average = unit.format(reference)
         let goal = unit.format(Double(SpeedupReference.goal(reference: reference)))
-        return String(localized: "Обгоните себя: \(record) → цель \(goal)")
+        return String(localized: "Ваша средняя: \(average) → цель \(goal)")
     }
 }

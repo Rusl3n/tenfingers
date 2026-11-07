@@ -117,14 +117,14 @@ struct LessonResultView: View {
         .sheet(item: $stats) { LessonStatsView(request: $0) }
     }
 
-    /// «Рекорд побит: +6%» или «До рекорда не хватило 4 зн/мин»; нехватка в выбранной единице округляется вверх.
+    /// «Цель взята» или «До цели не хватило 4 зн/мин»; нехватка в выбранной единице округляется вверх.
     nonisolated static func speedupText(_ outcome: SpeedupReference.Outcome, unit: SpeedUnit) -> String {
         switch outcome {
-        case .beaten(let percent):
-            return String(localized: "Рекорд побит: +\(percent)%")
+        case .reached:
+            return String(localized: "Цель взята")
         case .short(let cpm):
             let gap = unit.format(Double(cpm), rounding: .up)
-            return String(localized: "До рекорда не хватило \(gap)")
+            return String(localized: "До цели не хватило \(gap)")
         }
     }
 
@@ -136,7 +136,7 @@ struct LessonResultView: View {
     }
 }
 
-/// Строка итога «Ускорения» против ориентира: «Рекорд побит: +6%» (зелёная) или «До рекорда не хватило 4 зн/мин».
+/// Строка итога «Ускорения» против цели: «Цель взята» (зелёная) или «До цели не хватило 4 зн/мин».
 /// Одна на итоге урока и на итоге повтора его проверки.
 struct SpeedupOutcomeLine: View {
     let outcome: SpeedupReference.Outcome
@@ -145,11 +145,6 @@ struct SpeedupOutcomeLine: View {
     var body: some View {
         Text(LessonResultView.speedupText(outcome, unit: unit))
             .font(.title3.weight(.semibold))
-            .foregroundStyle(isBeaten ? Color.green : Color.secondary)
-    }
-
-    private var isBeaten: Bool {
-        if case .beaten = outcome { return true }
-        return false
+            .foregroundStyle(outcome == .reached ? Color.green : Color.secondary)
     }
 }

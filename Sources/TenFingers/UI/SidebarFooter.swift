@@ -58,7 +58,47 @@ private struct ProfileRowButton: View {
     }
 }
 
-/// Язык курса — первой строкой боковой панели, в стиле строки профиля: «Курс: Русский» и шевроны,
+/// Верх боковой панели — язык курса. Стоит над списком, а не строкой в нём: так шапка не уезжает под заголовок
+/// окна, когда панель сворачивается и разворачивается.
+struct SidebarHeader: View {
+    @Binding var activeLanguage: String
+
+    var body: some View {
+        SidebarLanguagePicker(activeLanguage: $activeLanguage)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 12)
+    }
+}
+
+/// Кнопка панели в заголовке окна, на месте системной: у правого края развёрнутой панели — «Скрыть панель», рядом
+/// с кнопками окна при свёрнутой — «Показать панель». Пункт тулбара панели виден в обоих состояниях, поэтому тулбар
+/// не появляется и не пропадает, а заголовок окна не меняет высоту.
+struct SidebarToggleItem: ToolbarContent {
+    let isSidebarHidden: Bool
+    let toggle: () -> Void
+
+    var body: some ToolbarContent {
+        if #available(macOS 26, *) {
+            // Гибкий отступ прижимает кнопку к правому краю панели, как системную.
+            ToolbarSpacer(.flexible)
+        }
+        ToolbarItem { button }
+    }
+
+    private var title: String {
+        isSidebarHidden ? String(localized: "Показать панель") : String(localized: "Скрыть панель")
+    }
+
+    private var button: some View {
+        Button(action: toggle) {
+            Image(systemName: "sidebar.left")
+        }
+        .help(title)
+        .accessibilityLabel(title)
+    }
+}
+
+/// Язык курса — в шапке боковой панели, в стиле строки профиля: «Курс: Русский» и шевроны,
 /// по нажатию — меню языков (не путать с языком интерфейса).
 struct SidebarLanguagePicker: View {
     @Binding var activeLanguage: String
