@@ -92,15 +92,17 @@ xcrun appintentsmetadataprocessor --output "$APPEX/Contents/Resources" \
 
 # Версия подставляется в копию Info.plist внутри .app (исходный scripts/Info.plist не меняется) и обязательно до codesign:
 #   CFBundleShortVersionString — файл VERSION (семантическая версия, например 0.3.0-dev);
-#   CFBundleVersion            — число коммитов (git rev-list --count HEAD);
+#   CFBundleVersion            — число коммитов плюс BUILD_OFFSET (git rev-list --count HEAD + 500): в публичном
+#                                репозитории по коммиту на версию, а сдвиг продолжает ряд сборок до публикации (до 500);
 #   TFGitCommit                — короткий хэш коммита, с суффиксом -dirty при незакоммиченных изменениях;
 #   TFSchemaGeneration         — поколение схемы базы (SchemaGeneration.current), число: по нему обновление
 #                                проверяет, что новая версия откроет базу.
 # Вне git-репозитория (например, из архива исходников) — сборка 0 и коммит unknown, без проверки изменений.
+BUILD_OFFSET=500
 VERSION=$(tr -d '[:space:]' < VERSION)
 [ -n "$VERSION" ] || { echo "Файл VERSION пуст" >&2; exit 1; }
 if command -v git >/dev/null 2>&1 && git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
-    BUILD=$(git rev-list --count HEAD)
+    BUILD=$(( $(git rev-list --count HEAD) + BUILD_OFFSET ))
     COMMIT=$(git rev-parse --short HEAD)
     if [ -n "$(git status --porcelain)" ]; then COMMIT="$COMMIT-dirty"; fi
 else

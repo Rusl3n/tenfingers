@@ -5,8 +5,11 @@
 <p align="center">Тренажёр слепой десятипальцевой печати для macOS — русская и английская раскладки.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F-3.0.1-blue" alt="Версия 3.0.1">
-  <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
+  <a href="https://github.com/Rusl3n/tenfingers/releases/latest"><img src="https://img.shields.io/github/v/release/Rusl3n/tenfingers?label=%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F&color=blue" alt="Последняя версия"></a>
+  <img src="https://img.shields.io/badge/macOS-15%2B-black?logo=apple" alt="macOS 15+">
+  <a href="https://github.com/Rusl3n/tenfingers/releases"><img src="https://img.shields.io/github/downloads/Rusl3n/tenfingers/total?label=%D0%B7%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8" alt="Загрузки"></a>
+  <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="Тесты"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-green" alt="Лицензия MIT"></a>
 </p>
 
 <p align="center"><a href="README.en.md">English version</a> · <a href="CHANGELOG.md">История изменений</a></p>
@@ -147,9 +150,7 @@ RENDER_DOCS=1 swift test --filter renderWidgetImage         # виджет
 RENDER_DOCS=1 swift test --filter renderSettingsImage       # настройки
 ```
 
-Версии и история изменений: [`CHANGELOG.md`](CHANGELOG.md), правила разработки: [`CONTRIBUTING.md`](CONTRIBUTING.md). Версия приложения видна в «О программе» и внизу настроек.
-
-Дизайн и планы работ лежат в [`docs/superpowers`](docs/superpowers): [спецификация](docs/superpowers/specs/2026-10-23-typing-tutor-design.md) и [планы](docs/superpowers/plans).
+Версии и история изменений: [`CHANGELOG.md`](CHANGELOG.md), как участвовать в разработке: [`CONTRIBUTING.md`](CONTRIBUTING.md). Версия приложения видна в «О программе» и внизу настроек.
 
 ## Лицензии
 

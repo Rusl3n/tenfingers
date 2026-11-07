@@ -1,7 +1,7 @@
 import SwiftUI
 import TypingCore
 
-/// Низ боковой панели: разделитель, профиль строкой во всю ширину, ниже — компактный RU/EN и версия.
+/// Низ боковой панели: разделитель, профиль строкой во всю ширину, ниже — версия по центру.
 struct SidebarFooter: View {
     let coordinator: ProfileCoordinator
 
@@ -13,8 +13,7 @@ struct SidebarFooter: View {
                 Text(AppVersion.short(info: AppVersion.current))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 10)

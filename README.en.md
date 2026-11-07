@@ -5,8 +5,11 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.0.0-blue" alt="Version 3.0.0">
-  <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
+  <a href="https://github.com/Rusl3n/tenfingers/releases/latest"><img src="https://img.shields.io/github/v/release/Rusl3n/tenfingers?label=version&color=blue" alt="Latest version"></a>
+  <img src="https://img.shields.io/badge/macOS-15%2B-black?logo=apple" alt="macOS 15+">
+  <a href="https://github.com/Rusl3n/tenfingers/releases"><img src="https://img.shields.io/github/downloads/Rusl3n/tenfingers/total?label=downloads" alt="Downloads"></a>
+  <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
 </p>
 
 <p align="center"><a href="README.md">Русская версия</a> · <a href="CHANGELOG.md">Changelog</a> (in Russian)</p>
@@ -147,9 +150,7 @@ RENDER_DOCS=1 swift test --filter renderWidgetImage         # widget
 RENDER_DOCS=1 swift test --filter renderSettingsImage       # settings
 ```
 
-Versions and history: [`CHANGELOG.md`](CHANGELOG.md), development rules: [`CONTRIBUTING.md`](CONTRIBUTING.md) (both in Russian). The app version is shown in About and at the bottom of Settings.
-
-Design and work plans live in [`docs/superpowers`](docs/superpowers): the [specification](docs/superpowers/specs/2026-10-23-typing-tutor-design.md) and the [plans](docs/superpowers/plans). They are written in Russian.
+Versions and history: [`CHANGELOG.md`](CHANGELOG.md), how to contribute: [`CONTRIBUTING.en.md`](CONTRIBUTING.en.md) (the changelog is in Russian). The app version is shown in About and at the bottom of Settings.
 
 ## Licenses
 

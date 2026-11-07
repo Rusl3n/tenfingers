@@ -23,8 +23,11 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: '26.6'
-      # Названия чужих продуктов в репозитории не допускаются (стоп-лист — scripts/forbidden-names.txt).
+      # Названия чужих продуктов в репозитории не допускаются. Стоп-лист — секрет FORBIDDEN_NAMES
+      # (в PR из форков секретов нет, и проверка пропускается).
       - name: Названия
+        env:
+          FORBIDDEN_NAMES: ${{ secrets.FORBIDDEN_NAMES }}
         run: ./scripts/check-names.sh
       - name: Версия Swift
         run: swift --version
