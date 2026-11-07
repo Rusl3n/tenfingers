@@ -258,3 +258,17 @@ private func keyRun(_ offsetsMs: [UInt32]) -> [ReplayKey] {
     #expect(MeasureSpeed.cpm(chars: 1, keys: keyRun([0]), limit: 60, stoppedByTimer: true) == 0)
     #expect(MeasureSpeed.cpm(chars: 5, keys: [], limit: nil, stoppedByTimer: false) == 0)
 }
+
+@Test func allKeysGiveTextWithLettersOfEveryFinger() {
+    for language in [Language.ru, .en] {
+        let keys = MeasureText.allKeys(language: language)
+        let gen = TextGenerator(wordList: (try? WordList.load(language)) ?? WordList(words: []))
+        let v = MeasureVariant(duration: .seconds(300), kind: .plain, language: language)
+        let text = MeasureText.make(variant: v, open: keys.open, capitalsLearned: keys.capitalsLearned,
+                                    generator: gen, seed: 4)
+        let used = Set((text ?? "").lowercased().filter { $0 != " " })
+        // Слова из частотного словаря: используется почти весь алфавит, а не только «домашний ряд».
+        #expect(used.count > language.letters.count * 2 / 3)
+        #expect(used.isSubset(of: language.letters))
+    }
+}

@@ -6,8 +6,8 @@ import TypingCore
 struct KeyboardSettingsView: View {
     @Binding var preview: KeyboardPreviewState
     let miniature: KeyboardMiniatureFrame
-    @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
-    @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
+    @AppStorage(SettingsKey.keyboardUnit, store: .standard) private var keyboardUnit = KeyboardSizing.defaultUnit
+    @AppStorage(SettingsKey.keyboardOffset, store: .standard) private var keyboardOffset = KeyboardSizing.defaultOffset
     @AppStorage(SettingsKey.fingerAnimation) private var fingerAnimation = SettingsDefault.fingerAnimation
     @Environment(KeyboardLayoutService.self) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -59,7 +59,7 @@ struct KeyboardSettingsView: View {
         .scrollContentBackground(.hidden)
         // Запись в те же ключи, что у ползунков: `@AppStorage` обновляется, миниатюра меняется той же пружиной.
         .confirmationDialog("Вернуть клавиатуру по умолчанию?", isPresented: $confirmReset) {
-            Button("Вернуть") { KeyboardSettingsDefaults.reset(in: .standard) }
+            Button("Вернуть") { KeyboardSettingsDefaults.reset(in: ProfileDefaults.device) }
             Button("Отмена", role: .cancel) {}
         }
     }

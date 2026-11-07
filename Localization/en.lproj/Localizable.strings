@@ -1011,3 +1011,27 @@
 "Одна минута набора без Backspace. Этот замер станет точкой отсчёта: дальше приложение покажет, во сколько раз вы стали быстрее." = "One minute of typing without Backspace. This test becomes your starting point: later the app will show how many times faster you have become.";
 "Новое: замер скорости" = "New: speed test";
 "Измерьте скорость за минуту — и сравнивайте с первым замером по мере тренировок." = "Measure your speed in a minute and compare it with your first test as you train.";
+
+/* Профили (8d) */
+"Профиль 1" = "Profile 1";
+"Новый профиль…" = "New Profile…";
+"Управлять профилями…" = "Manage Profiles…";
+"Новый профиль" = "New Profile";
+"У профиля свои данные и настройки. Приложение перезапустится и начнёт с знакомства." = "A profile has its own data and settings. The app will restart and begin with the introduction.";
+"Имя профиля" = "Profile name";
+"Создать" = "Create";
+"Профили" = "Profiles";
+"Удалённый профиль переносится в Корзину вместе с данными." = "A deleted profile is moved to the Trash together with its data.";
+"Основной" = "Primary";
+"Сохранить имя" = "Save Name";
+"Удалить профиль «%@»?" = "Delete profile “%@”?";
+"Данные профиля уйдут в Корзину, его настройки будут стёрты. Чтобы подтвердить, введите имя профиля." = "The profile data goes to the Trash and its settings are erased. To confirm, type the profile name.";
+"Не удалось перенести в Корзину: %@" = "Could not move to the Trash: %@";
+"Незаконченное упражнение пропадёт. Сменить профиль?" = "The unfinished exercise will be lost. Switch profile?";
+"Сменить профиль" = "Switch Profile";
+"Профиль откроется при следующем запуске" = "The profile will open at next launch";
+"Перезапуск из этой сборки недоступен: закройте приложение и запустите его снова." = "Restart is not available in this build: quit the app and launch it again.";
+"Понятно" = "Got it";
+"Файл сохранён в другом профиле («%@»), а загружается в профиль «%@». Прогресс этого профиля будет заменён." = "The file was saved in another profile (“%@”), but is being loaded into the profile “%@”. This profile’s progress will be replaced.";
+
+"Язык курса" = "Course language";

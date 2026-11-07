@@ -37,7 +37,7 @@ enum YearAnnouncer {
     }
 
     /// Запуск приложения: уровень и выполненные испытания запоминаются как показанные, тостов нет.
-    static func launch(state: YearState, defaults: UserDefaults = .standard) {
+    static func launch(state: YearState, defaults: UserDefaults = ProfileDefaults.current) {
         defaults.set(state.level, forKey: SettingsKey.yearAnnouncedLevel)
         defaults.set(completed(state).map(\.key), forKey: SettingsKey.yearAnnouncedChallenges)
     }
@@ -56,7 +56,7 @@ enum YearAnnouncer {
     /// Возвращает число показанных тостов; звук ачивки — один раз, если хоть один тост показан.
     @discardableResult
     static func afterSave(state: YearState, toasts: ToastCenter, sound: SoundPlayer?,
-                          defaults: UserDefaults = .standard) -> Int {
+                          defaults: UserDefaults = ProfileDefaults.current) -> Int {
         var queue: [Toast] = []
         if let announced = defaults.object(forKey: SettingsKey.yearAnnouncedLevel) as? Int, state.level > announced {
             queue.append(ToastCenter.levelToast(level: state.level, title: state.title))

@@ -14,7 +14,7 @@ struct DayPlanSettings {
     var trainingLetters: String = SettingsDefault.trainingLetters
 
     /// Сохранённые настройки и текущая раскладка.
-    @MainActor static func stored(layout: KeyboardLayoutService, defaults: UserDefaults = .standard) -> DayPlanSettings {
+    @MainActor static func stored(layout: KeyboardLayoutService, defaults: UserDefaults = ProfileDefaults.current) -> DayPlanSettings {
         DayPlanSettings(
             goalMinutes: Int(StoredSettings.dailyGoalSeconds(defaults) / 60),
             dayStartHour: StoredSettings.dayStartHour(defaults),

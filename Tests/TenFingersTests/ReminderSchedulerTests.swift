@@ -1129,3 +1129,25 @@ private func localization(_ language: String) -> Bundle {
     #expect(store.isDirty)
     #expect(ReminderDraft.rebase(store.current, from: store.saved, onto: store.saved) == store.current)
 }
+
+/// Запуск: чужие запланированные уведомления (от другого профиля) снимаются, ставятся напоминания активного.
+@MainActor @Test func launchReplacesAllPendingWithActiveProfileReminders() async {
+    let center = FakeCenter()
+    let (scheduler, defaultsName) = makeScheduler(center: center, enabled: true)
+    defer { removeTestDefaults(defaultsName) }
+    center.pending["foreign.1"] = ReminderNotification(id: "foreign.1", title: "T", body: "B", date: noon.addingTimeInterval(500))
+    center.pending["foreign.2"] = ReminderNotification(id: "foreign.2", title: "T", body: "B", date: noon.addingTimeInterval(900))
+    await scheduler.replaceAllForLaunchedProfile().value
+    #expect(center.pending["foreign.1"] == nil && center.pending["foreign.2"] == nil)
+    #expect(Set(center.pending.keys) == sevenEvenings)
+}
+
+/// Напоминания профиля выключены: после запуска ничего не запланировано.
+@MainActor @Test func launchWithRemindersOffLeavesNothingPending() async {
+    let center = FakeCenter()
+    let (scheduler, defaultsName) = makeScheduler(center: center, enabled: false)
+    defer { removeTestDefaults(defaultsName) }
+    center.pending["foreign.1"] = ReminderNotification(id: "foreign.1", title: "T", body: "B", date: noon.addingTimeInterval(500))
+    await scheduler.replaceAllForLaunchedProfile().value
+    #expect(center.pending.isEmpty)
+}

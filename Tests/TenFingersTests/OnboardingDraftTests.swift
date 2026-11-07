@@ -90,3 +90,16 @@ import Testing
     #expect(OnboardingDraft.isCompleted(defaults))
     #expect(defaults.string(forKey: SettingsKey.measureChoice) == nil)
 }
+
+/// Язык знакомства — ключ уровня Mac: в домен профиля не попадает ни один ключ из `deviceKeys` (§10.1).
+@Test func finishInProfileDomainWritesLanguageToDeviceDomainOnly() {
+    let (profile, profileName) = makeTestDefaults("onboarding.profile")
+    let (mac, macName) = makeTestDefaults("onboarding.mac")
+    defer { removeTestDefaults(profileName); removeTestDefaults(macName) }
+    OnboardingDraft(nickname: "Анна", fullName: "", isAdult: true, language: .en).finish(profile, device: mac)
+    let keys = Set(profile.persistentDomain(forName: profileName)?.keys.map { $0 } ?? [])
+    #expect(keys.isDisjoint(with: ProfileDefaults.deviceKeys))
+    #expect(InterfaceLanguage.stored(mac) == .en)
+    #expect(mac.stringArray(forKey: InterfaceLanguage.appleLanguagesKey) == ["en"])
+    #expect(OnboardingDraft.load(profile, device: mac).language == .en)
+}

@@ -190,7 +190,7 @@ struct ShareProfile: Equatable {
         self.fullName = fullName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    static func stored(_ defaults: UserDefaults = .standard) -> ShareProfile {
+    static func stored(_ defaults: UserDefaults = ProfileDefaults.current) -> ShareProfile {
         ShareProfile(nickname: defaults.string(forKey: SettingsKey.profileNickname) ?? "",
                      fullName: defaults.string(forKey: SettingsKey.profileFullName) ?? "")
     }
@@ -276,7 +276,7 @@ struct ShareOptions: Equatable {
     }
 
     /// Сохранённые опции; подпись, для которой в профиле больше нет данных, — подпись по умолчанию.
-    static func load(_ defaults: UserDefaults = .standard, profile: ShareProfile) -> ShareOptions {
+    static func load(_ defaults: UserDefaults = ProfileDefaults.current, profile: ShareProfile) -> ShareOptions {
         func value<T: RawRepresentable>(_ key: String, _ fallback: T) -> T where T.RawValue == String {
             defaults.string(forKey: key).flatMap(T.init(rawValue:)) ?? fallback
         }
@@ -291,7 +291,7 @@ struct ShareOptions: Equatable {
                             achievementContent: AchievementCardContent.load(from: defaults))
     }
 
-    func save(_ defaults: UserDefaults = .standard) {
+    func save(_ defaults: UserDefaults = ProfileDefaults.current) {
         defaults.set(signature.rawValue, forKey: SettingsKey.shareSignature)
         defaults.set(theme.rawValue, forKey: SettingsKey.shareTheme)
         defaults.set(background.rawValue, forKey: SettingsKey.shareBackground)

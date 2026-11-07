@@ -174,7 +174,7 @@ enum ProgressCardLoader {
     /// `firstWeekday` — явное значение (1 — воскресенье, 2 — понедельник); без него — настройка из `defaults`.
     /// `service` — источник уровня (приложение передаёт `.live`, тесты — свой, без стандартного домена).
     static func load(context: ModelContext, now: Date = .now, goalSeconds: Double, dayStartHour: Int,
-                     firstWeekday: Int? = nil, defaults: UserDefaults = .standard,
+                     firstWeekday: Int? = nil, defaults: UserDefaults = ProfileDefaults.current,
                      service: AchievementService) throws -> ProgressCardData {
         let firstWeekday = firstWeekday ?? StoredSettings.firstWeekday(defaults)
         let snapshot = ProgressSnapshot(context: context)

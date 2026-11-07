@@ -55,6 +55,28 @@ final class WidgetRefreshWatcher {
         }
     }
 
+    /// Запись сразу (после запуска): снимок принадлежит активному профилю, прежний мог быть чужим.
+    func refreshNow(now: Date = .now) {
+        WidgetSnapshotWriter.refresh(context: context, now: now)
+    }
+
+    /// Паузы повторной записи после запуска. Перезагрузка таймлайнов из `App.init` (до конца запуска) и пока старый
+    /// процесс ещё жив при смене профиля легко теряется: виджет остаётся со старым снимком, пока приложение
+    /// не активируют. Повтор в `applicationDidFinishLaunching` и с задержкой это исправляет; защиту от старого
+    /// процесса (`mayWriteSharedState`) пишущая часть проверяет сама.
+    static let launchRefreshDelays: [Duration] = [.seconds(2), .seconds(8)]
+
+    /// Запись после окончания запуска: сразу и затем с задержками.
+    func refreshAfterLaunch() {
+        refreshNow()
+        Task { @MainActor [weak self] in
+            for delay in Self.launchRefreshDelays {
+                try? await Task.sleep(for: delay)
+                self?.refreshNow()
+            }
+        }
+    }
+
     private func tick() {
         let now = Date.now
         if WidgetRefreshPolicy.shouldRefreshOnTick(lastWrittenDay: WidgetSnapshotWriter.lastWrittenDay,

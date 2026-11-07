@@ -3,8 +3,8 @@ import TypingCore
 
 /// Раздел «Звуки»: по строке на каждое событие.
 struct SoundSettingsView: View {
-    @AppStorage(SettingsKey.rhythmSoundOffsetMs) private var soundOffsetMs = RhythmSoundOffset.defaultMs
-    @State private var isDefault = SoundSettingsDefaults.isDefault(in: .standard)
+    @AppStorage(SettingsKey.rhythmSoundOffsetMs, store: .standard) private var soundOffsetMs = RhythmSoundOffset.defaultMs
+    @State private var isDefault = SoundSettingsDefaults.isDefault(in: ProfileDefaults.current)
     @State private var confirmReset = false
 
     var body: some View {
@@ -31,11 +31,11 @@ struct SoundSettingsView: View {
         }
         // Строки пишут в `UserDefaults` сами (`@AppStorage`), поэтому «всё по умолчанию» перечитываем по уведомлению.
         .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: RunLoop.main)) { _ in
-            let value = SoundSettingsDefaults.isDefault(in: .standard)
+            let value = SoundSettingsDefaults.isDefault(in: ProfileDefaults.current)
             if value != isDefault { isDefault = value }
         }
         .confirmationDialog("Вернуть звуки по умолчанию?", isPresented: $confirmReset) {
-            Button("Вернуть") { SoundSettingsDefaults.reset(in: .standard) }
+            Button("Вернуть") { SoundSettingsDefaults.reset(in: ProfileDefaults.current) }
             Button("Отмена", role: .cancel) {}
         }
         .formStyle(.grouped)

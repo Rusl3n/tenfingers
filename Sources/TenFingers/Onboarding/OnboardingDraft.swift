@@ -8,11 +8,12 @@ struct OnboardingDraft: Equatable {
     var isAdult: Bool
     var language: InterfaceLanguage
 
-    static func load(_ defaults: UserDefaults = .standard) -> OnboardingDraft {
+    static func load(_ defaults: UserDefaults = ProfileDefaults.current,
+                     device: UserDefaults? = nil) -> OnboardingDraft {
         OnboardingDraft(nickname: defaults.string(forKey: SettingsKey.profileNickname) ?? "",
                         fullName: defaults.string(forKey: SettingsKey.profileFullName) ?? "",
                         isAdult: StoredSettings.adultHumor(defaults),
-                        language: InterfaceLanguage.stored(defaults))
+                        language: InterfaceLanguage.stored(device ?? ProfileDefaults.deviceStore(pairedWith: defaults)))
     }
 
     /// Нужно ли перезапускаться: язык отличается от языка запуска.
@@ -21,19 +22,20 @@ struct OnboardingDraft: Equatable {
     }
 
     /// «Готово»: профиль (пустая строка — ключ удаляется), «Взрослый юмор», язык, знакомство пройдено.
-    func finish(_ defaults: UserDefaults = .standard) {
+    /// Язык — ключи уровня Mac: пишутся в `device` (по умолчанию домен Mac, если `defaults` — домен профиля).
+    func finish(_ defaults: UserDefaults = ProfileDefaults.current, device: UserDefaults? = nil) {
         ProgressArchive.ProfileDTO(nickname: nickname, fullName: fullName).apply(to: defaults)
         defaults.set(isAdult, forKey: SettingsKey.adultHumor)
-        language.apply(to: defaults)
+        language.apply(to: device ?? ProfileDefaults.deviceStore(pairedWith: defaults))
         defaults.set(true, forKey: SettingsKey.onboardingCompleted)
     }
 
     /// «Пропустить знакомство»: только флаг, введённое не сохраняется.
-    static func skip(_ defaults: UserDefaults = .standard) {
+    static func skip(_ defaults: UserDefaults = ProfileDefaults.current) {
         defaults.set(true, forKey: SettingsKey.onboardingCompleted)
     }
 
-    static func isCompleted(_ defaults: UserDefaults = .standard) -> Bool {
+    static func isCompleted(_ defaults: UserDefaults = ProfileDefaults.current) -> Bool {
         defaults.bool(forKey: SettingsKey.onboardingCompleted)
     }
 }

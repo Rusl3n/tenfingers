@@ -13,7 +13,7 @@ struct LessonResumeState: Codable, Equatable {
 struct LessonResume {
     let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = ProfileDefaults.current) {
         self.defaults = defaults
     }
 

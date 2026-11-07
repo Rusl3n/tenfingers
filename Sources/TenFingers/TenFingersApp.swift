@@ -3,6 +3,9 @@ import SwiftUI
 
 @main
 struct TenFingersApp: App {
+    /// Первым из свойств: выбор профиля (домен настроек и база) делается до остального, в том числе до инициализаторов ниже.
+    private let profile = ProfileLaunch.prepare()
+    @State private var profiles = ProfileCoordinator()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var layout = KeyboardLayoutService()
     @State private var library = ContentLibrary()
@@ -21,15 +24,16 @@ struct TenFingersApp: App {
 
     init() {
         // Язык интерфейса фиксируется до всего остального: дальше настройка может меняться, а язык сессии — нет.
+        let selected = ProfileLaunch.launched
         _ = InterfaceLanguage.atLaunch
-        let defaults = UserDefaults.standard
+        let defaults = ProfileDefaults.current
         if defaults.string(forKey: SettingsKey.themeMode) == nil,
            let old = defaults.string(forKey: SettingsKey.legacyTheme),
            ThemeMode(rawValue: old) != nil {
             defaults.set(old, forKey: SettingsKey.themeMode)
         }
         // Открытие базы; после успеха новая версия убирает `.previous` и временные папки обновления (7b, §5.3 шаг 8).
-        switch StoreLaunch.open({ try ModelStore.makeContainer() }, bundleURL: Bundle.main.bundleURL) {
+        switch StoreLaunch.open({ try ProfileLaunch.openStore(selected) }, bundleURL: Bundle.main.bundleURL) {
         case .opened(let opened):
             container = opened
             storeError = nil
@@ -42,13 +46,22 @@ struct TenFingersApp: App {
         if let container {
             widgetWatcher = WidgetRefreshWatcher(context: container.mainContext)
             widgetWatcher?.start()
+            // Виджет показывает активный профиль: снимок переписывается сразу после запуска (в корень папки приложения).
+            widgetWatcher?.refreshAfterLaunch()
             let context = container.mainContext
             _updateChecker = State(initialValue: UpdateChecker(
-                defaults: .standard, fetch: UpdateFeed.fetch,
+                defaults: ProfileDefaults.device, fetch: UpdateFeed.fetch,
                 installer: {
                     UpdateInstaller(
                         bundleURL: Bundle.main.bundleURL, storeURL: ModelStore.defaultStoreURL,
-                        backupsDirectory: ProgressArchive.backupsDirectory, downloader: URLSessionDownloader(),
+                        backupsDirectory: ProgressArchive.backupsDirectory,
+                        profileStores: {
+                            ProfilePaths.profileStoreURLs(
+                                registry: ProfileRegistry(device: ProfileDefaults.device),
+                                root: ModelStore.defaultStoreURL.deletingLastPathComponent())
+                        },
+                        archiveNameSuffix: ProgressArchive.backupNameSuffix(for: ProfileLaunch.launched.profile),
+                        downloader: URLSessionDownloader(),
                         now: { .now }, saveContext: { try context.save() },
                         makeArchive: { try ProgressArchive.export(context: context) })
                 },
@@ -64,7 +77,8 @@ struct TenFingersApp: App {
         // Запуск: один раз (1.2.1) очистка хвостов прошлых версий в очереди уведомлений, затем пересчёт напоминаний.
         // Разрешение здесь не запрашивается, только читается.
         scheduler.resetOnceIfNeeded()
-        scheduler.rescheduleSoon()
+        // Профиль мог смениться: снимаем все запланированные уведомления и ставим напоминания активного профиля.
+        scheduler.replaceAllForLaunchedProfile()
     }
 
     var body: some Scene {
@@ -78,6 +92,7 @@ struct TenFingersApp: App {
                         .environment(sound)
                         .environment(reminders)
                         .environment(updateChecker)
+                        .environment(profiles)
                         .modelContainer(container)
                         .task { updateChecker?.startSchedule() }
                 } else {
@@ -85,8 +100,11 @@ struct TenFingersApp: App {
                 }
             }
         }
+        // Настройки профиля для всех `@AppStorage` окна (в том числе в `ThemedRoot`); ключи Mac — `store: .standard`.
+        .defaultAppStorage(ProfileDefaults.current)
         .windowResizability(.contentMinSize)
         .commands {
+            ProfileCommands(coordinator: profiles)
             CommandGroup(replacing: .appInfo) {
                 Button("О программе «Десять пальцев»") { AboutPanel.show() }
             }
@@ -152,7 +170,7 @@ private struct ThemedRoot<Content: View>: View {
     @AppStorage(SettingsKey.darkPalette) private var darkPalette = DarkPalette.graphite.rawValue
     @AppStorage(SettingsKey.darkFromHour) private var darkFrom = SettingsDefault.darkFromHour
     @AppStorage(SettingsKey.darkToHour) private var darkTo = SettingsDefault.darkToHour
-    @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
+    @AppStorage(SettingsKey.uiScale, store: .standard) private var uiScale = UIScale.defaultValue
     @ViewBuilder let content: Content
 
     /// Минимальный размер окна растёт с масштабом интерфейса (в пределах видимой области экрана).

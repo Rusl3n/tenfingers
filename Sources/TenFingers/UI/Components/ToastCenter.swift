@@ -101,14 +101,14 @@ final class ToastCenter {
     }
 
     /// Тост «План выполнен» за логический день `today` уже показан: план можно не собирать.
-    static func isPlanDoneAnnounced(today: String, defaults: UserDefaults = .standard) -> Bool {
+    static func isPlanDoneAnnounced(today: String, defaults: UserDefaults = ProfileDefaults.current) -> Bool {
         defaults.string(forKey: SettingsKey.dayPlanAnnouncedDay) == today
     }
 
     /// «План выполнен» один раз за логический день `today` (решение 14): флаг `dayPlanAnnouncedDay` — состояние
     /// устройства. `true` — тост показан сейчас.
     @discardableResult
-    func announcePlanDone(today: String, defaults: UserDefaults = .standard) -> Bool {
+    func announcePlanDone(today: String, defaults: UserDefaults = ProfileDefaults.current) -> Bool {
         guard !Self.isPlanDoneAnnounced(today: today, defaults: defaults) else { return false }
         defaults.set(today, forKey: SettingsKey.dayPlanAnnouncedDay)
         showPlanDone()

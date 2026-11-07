@@ -162,3 +162,27 @@ private func addDay(_ context: ModelContext, _ key: String, seconds: Double, goa
     #expect(result.map(\.id) == [first.id, second.id])
     #expect(result[0].date == makeNow().addingTimeInterval(500))
 }
+
+/// Снимок строится из базы и настроек активного профиля, а файл всегда пишется в переданную корневую папку.
+@MainActor @Test func snapshotOfSecondProfileUsesItsOwnDataAndWritesToRoot() throws {
+    let first = try ModelStore.makeContainer(inMemory: true)
+    let second = try ModelStore.makeContainer(inMemory: true)
+    let (firstDefaults, firstName) = makeTestDefaults("widget-p1")
+    let (secondDefaults, secondName) = makeTestDefaults("widget-p2")
+    defer { removeTestDefaults(firstName); removeTestDefaults(secondName) }
+    firstDefaults.set(10, forKey: SettingsKey.dailyGoalMinutes)
+    secondDefaults.set(30, forKey: SettingsKey.dailyGoalMinutes)
+    let today = LogicalDay.key(for: makeNow(), dayStartHour: SettingsDefault.dayStartHour)
+    addDay(first.mainContext, StreakCalculator.dayKey(today, offset: -1), seconds: 700)
+    let one = try snapshot(first.mainContext, firstDefaults)
+    let two = try snapshot(second.mainContext, secondDefaults)
+    #expect(one.goal.goalMinutes == 10 && two.goal.goalMinutes == 30)
+    #expect(one.fire.days != two.fire.days)
+    let root = FileManager.default.temporaryDirectory.appending(path: "widget-root-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try WidgetSnapshotWriter.write(one, to: root)
+    try WidgetSnapshotWriter.write(two, to: root)
+    let written = try WidgetSnapshot.decode(Data(contentsOf: root.appending(path: WidgetSnapshot.fileName)))
+    #expect(written.goal.goalMinutes == 30)
+    #expect(WidgetSnapshotWriter.defaultDirectory == ModelStore.defaultStoreURL.deletingLastPathComponent())
+}

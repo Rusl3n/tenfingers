@@ -102,7 +102,7 @@ struct ShareCardView: View {
     /// Карточка по настройкам приложения: единица скорости и палитры тем — из `defaults`.
     @MainActor
     static func make(card: ShareCard, options: ShareOptions, profile: ShareProfile,
-                     defaults: UserDefaults = .standard, bundle: Bundle = .main, locale: Locale? = nil,
+                     defaults: UserDefaults = ProfileDefaults.current, bundle: Bundle = .main, locale: Locale? = nil,
                      appIcon: NSImage? = ShareCardView.bundledAppIcon) -> ShareCardView {
         let unit = defaults.string(forKey: SettingsKey.speedUnit).flatMap(SpeedUnit.init(rawValue:)) ?? .cpm
         let light = (defaults.string(forKey: SettingsKey.lightPalette).flatMap(LightPalette.init(rawValue:)) ?? .white).palette

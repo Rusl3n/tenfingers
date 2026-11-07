@@ -95,8 +95,8 @@ private struct KeyboardPreviewOverlay: View {
     let miniature: KeyboardMiniatureFrame
     let isPresented: Bool
     let onDismissed: () -> Void
-    @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
-    @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
+    @AppStorage(SettingsKey.keyboardUnit, store: .standard) private var keyboardUnit = KeyboardSizing.defaultUnit
+    @AppStorage(SettingsKey.keyboardOffset, store: .standard) private var keyboardOffset = KeyboardSizing.defaultOffset
     @Environment(KeyboardLayoutService.self) private var layout
 
     var body: some View {

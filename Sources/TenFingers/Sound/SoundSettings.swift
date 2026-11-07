@@ -17,11 +17,11 @@ enum SoundSettings {
         }
     }
 
-    static func isEnabled(_ event: SoundEvent, defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(_ event: SoundEvent, defaults: UserDefaults = ProfileDefaults.current) -> Bool {
         defaults.object(forKey: enabledKey(event)) as? Bool ?? true
     }
 
-    static func volume(_ event: SoundEvent, defaults: UserDefaults = .standard) -> Double {
+    static func volume(_ event: SoundEvent, defaults: UserDefaults = ProfileDefaults.current) -> Double {
         defaults.object(forKey: volumeKey(event)) as? Double ?? defaultVolume(event)
     }
 
@@ -44,7 +44,8 @@ enum SoundSettingsDefaults {
     private static let volumeTolerance = 0.001
 
     static func isDefault(in defaults: UserDefaults) -> Bool {
-        RhythmSoundOffset.milliseconds(in: defaults) == RhythmSoundOffset.defaultMs
+        // Сдвиг звука — ключ уровня Mac, остальное у профиля.
+        RhythmSoundOffset.milliseconds(in: ProfileDefaults.deviceStore(pairedWith: defaults)) == RhythmSoundOffset.defaultMs
             && !defaults.bool(forKey: SettingsKey.rhythmMuted)
             && SoundSettings.activeEvents.allSatisfy { event in
             SoundSettings.isEnabled(event, defaults: defaults)
@@ -54,7 +55,7 @@ enum SoundSettingsDefaults {
 
     /// Вместе со звуками возвращаются «Сдвиг звука» игры «Ритм» (0 мс) и звук самой игры (включён).
     static func reset(in defaults: UserDefaults) {
-        defaults.set(RhythmSoundOffset.defaultMs, forKey: SettingsKey.rhythmSoundOffsetMs)
+        ProfileDefaults.deviceStore(pairedWith: defaults).set(RhythmSoundOffset.defaultMs, forKey: SettingsKey.rhythmSoundOffsetMs)
         defaults.set(false, forKey: SettingsKey.rhythmMuted)
         for event in SoundSettings.activeEvents {
             defaults.set(true, forKey: SoundSettings.enabledKey(event))

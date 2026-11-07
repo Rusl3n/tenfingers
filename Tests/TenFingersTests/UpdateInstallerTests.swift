@@ -120,11 +120,13 @@ private func makeFakeApp(at url: URL, version: String, generation: Int, identifi
 
     func installer(zip: URL? = nil, downloadError: (any Error)? = nil, fileSystem: UpdateFileSystem = LiveUpdateFileSystem(),
                    saveContext: (() throws -> Void)? = nil, makeArchive: (() throws -> Data)? = nil,
-                   bundleURL: URL? = nil, relauncher: @escaping UpdateInstaller.Relauncher = { _ in }) -> UpdateInstaller {
+                   bundleURL: URL? = nil, profileStores: [URL] = [],
+                   relauncher: @escaping UpdateInstaller.Relauncher = { _ in }) -> UpdateInstaller {
         let context = container.mainContext
         let defaults = defaults
         return UpdateInstaller(
             bundleURL: bundleURL ?? bundle, storeURL: storeURL, backupsDirectory: backups,
+            profileStores: { profileStores },
             downloader: StubDownloader(file: zip, error: downloadError),
             now: { Date(timeIntervalSinceReferenceDate: 800_000_000) },
             saveContext: saveContext ?? { try context.save() },
@@ -482,4 +484,37 @@ private struct WaitsForCancelDownloader: UpdateDownloading {
     #expect(FileManager.default.fileExists(atPath: file.path, isDirectory: &isDirectory) && !isDirectory.boolValue)
     try FileManager.default.removeItem(at: file)
     #expect(leftovers() == before)
+}
+
+/// Хоть одна база профиля новее обновления — отказ, даже если корневая подходит.
+@MainActor @Test func newerProfileStoreRefusesInstall() throws {
+    let env = try Env(storeGeneration: 5)
+    defer { env.cleanUp() }
+    let profile = Profile(id: UUID(), name: "Второй", createdAt: .now, isPrimary: false)
+    let profileStore = ProfilePaths.storeURL(for: profile, root: env.storeDirectory)
+    try FileManager.default.createDirectory(at: profileStore.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let (manifest, _) = try env.release()
+    try SchemaGeneration.write(SchemaGeneration.current, at: profileStore)
+    try env.installer(profileStores: [profileStore]).preflight(manifest: manifest)
+    try SchemaGeneration.write(SchemaGeneration.current + 1, at: profileStore)
+    #expect(throws: UpdateError.olderGeneration(stored: SchemaGeneration.current + 1, update: SchemaGeneration.current)) {
+        try env.installer(profileStores: [profileStore]).preflight(manifest: manifest)
+    }
+    // Без профилей в списке отказа нет, несуществующая папка профиля не мешает.
+    try env.installer().preflight(manifest: manifest)
+    let none = ProfilePaths.storeURL(for: Profile(id: UUID(), name: "x", createdAt: .now, isPrimary: false), root: env.storeDirectory)
+    try env.installer(profileStores: [none]).preflight(manifest: manifest)
+}
+
+@MainActor @Test func installerBackupIncludesProfileStores() throws {
+    let env = try Env()
+    defer { env.cleanUp() }
+    let profile = Profile(id: UUID(), name: "Второй", createdAt: .now, isPrimary: false)
+    let profileStore = ProfilePaths.storeURL(for: profile, root: env.storeDirectory)
+    try FileManager.default.createDirectory(at: profileStore.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let profileContainer = try ModelStore.makeContainer(at: profileStore)
+    let folder = try env.installer(profileStores: [profileStore]).backup(version: "3.0.0")
+    #expect(FileManager.default.fileExists(
+        atPath: folder.appending(path: "Profiles/\(profile.id.uuidString)/TenFingers.store").path))
+    withExtendedLifetime(profileContainer) {}
 }

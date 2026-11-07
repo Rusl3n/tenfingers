@@ -20,12 +20,12 @@ enum InterfaceLanguage: String, CaseIterable, Identifiable {
     static let appleLanguagesKey = "AppleLanguages"
 
     /// Нет ключа или мусор — `.system`.
-    static func stored(_ defaults: UserDefaults = .standard) -> InterfaceLanguage {
+    static func stored(_ defaults: UserDefaults = ProfileDefaults.device) -> InterfaceLanguage {
         defaults.string(forKey: SettingsKey.interfaceLanguage).flatMap(InterfaceLanguage.init(rawValue:)) ?? .system
     }
 
     /// Пишет `interfaceLanguage` и `AppleLanguages` (["ru"] / ["en"]); для `.system` удаляет `AppleLanguages`.
-    func apply(to defaults: UserDefaults = .standard) {
+    func apply(to defaults: UserDefaults = ProfileDefaults.device) {
         defaults.set(rawValue, forKey: SettingsKey.interfaceLanguage)
         switch self {
         case .system: defaults.removeObject(forKey: Self.appleLanguagesKey)

@@ -54,8 +54,8 @@ struct MeasureReplayView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(KeyboardLayoutService.self) private var layout
     @Environment(RunPresence.self) private var presence: RunPresence?
-    @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
-    @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
+    @AppStorage(SettingsKey.keyboardUnit, store: .standard) private var keyboardUnit = KeyboardSizing.defaultUnit
+    @AppStorage(SettingsKey.keyboardOffset, store: .standard) private var keyboardOffset = KeyboardSizing.defaultOffset
     @AppStorage(SettingsKey.fingerAnimation) private var fingerAnimation = SettingsDefault.fingerAnimation
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

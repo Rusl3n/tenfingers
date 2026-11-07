@@ -143,9 +143,7 @@ struct TrainingView: View {
     }
 
     private func loadMeasure(_ reader: StatsReader) {
-        let keys = (try? reader.measureKeys(language: language, course: library.courses[language],
-                                            legacy: library.legacyCourses[language]))
-            ?? MeasureKeys(open: [], capitalsLearned: false)
+        let keys = MeasureKeys.all(language: language)
         let stored = MeasureChoice(rawValue: measureChoice)
         let model = MeasureCardModel.make(stored: stored, language: language, keys: keys, entries: [])
         let entries = (try? reader.measurements(variant: model.choice.variant(language: language))) ?? []

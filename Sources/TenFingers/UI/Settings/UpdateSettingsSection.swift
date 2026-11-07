@@ -4,7 +4,7 @@ import SwiftUI
 /// действия, что на плашке.
 struct UpdateSettingsSection: View {
     @Environment(UpdateChecker.self) private var checker: UpdateChecker?
-    @AppStorage(SettingsKey.updateAutoCheck) private var autoCheck = SettingsDefault.updateAutoCheck
+    @AppStorage(SettingsKey.updateAutoCheck, store: .standard) private var autoCheck = SettingsDefault.updateAutoCheck
 
     var body: some View {
         if let checker {

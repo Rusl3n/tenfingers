@@ -16,13 +16,13 @@ enum RhythmSoundOffset {
     }
 
     /// Сохранённый сдвиг, мс; нет значения или значение не того вида — 0.
-    static func milliseconds(in defaults: UserDefaults = .standard) -> Int {
+    static func milliseconds(in defaults: UserDefaults = ProfileDefaults.device) -> Int {
         guard let stored = defaults.object(forKey: SettingsKey.rhythmSoundOffsetMs) as? Int else { return defaultMs }
         return clamped(stored)
     }
 
     /// Сдвиг для часов игры, секунды.
-    static func seconds(in defaults: UserDefaults = .standard) -> TimeInterval {
+    static func seconds(in defaults: UserDefaults = ProfileDefaults.device) -> TimeInterval {
         Double(milliseconds(in: defaults)) / 1000
     }
 

@@ -119,8 +119,10 @@ enum WidgetSnapshotWriter {
 
     /// Собрать, записать и попросить виджеты перечитать файл. Ошибка только в журнал: приложению она не мешает.
     /// В тестах не вызывается с реальной папкой.
-    static func refresh(context: ModelContext, defaults: UserDefaults = .standard, now: Date = .now,
+    static func refresh(context: ModelContext, defaults: UserDefaults = ProfileDefaults.current, now: Date = .now,
                         directory: URL = WidgetSnapshotWriter.defaultDirectory) {
+        // Старый процесс при смене профиля не затирает снимок нового (§10.3).
+        guard ProfileLaunch.mayWriteSharedState(defaults: defaults) else { return }
         do {
             let snapshot = try makeSnapshot(context: context, defaults: defaults, now: now)
             try write(snapshot, to: directory)

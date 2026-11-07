@@ -124,6 +124,13 @@ enum SettingsKey {
     /// Звук игры «Ритм» выключен кнопкой на поле (бит, щелчки попаданий и промахов), Bool, по умолчанию `false`.
     /// Звуки приложения не трогает. Не архивируется: состояние окна.
     static let rhythmMuted = "rhythmMuted"
+    /// Список профилей (`ProfileRegistry`): JSON `[Profile]`. Уровень Mac, всегда `UserDefaults.standard`. Не архивируется.
+    static let profiles = "profiles"
+    /// Id активного профиля (`ProfileRegistry.activeId`), String (UUID). Уровень Mac. Не архивируется.
+    static let activeProfileId = "activeProfileId"
+    /// Окно было во весь экран перед перезапуском (`AppRelauncher`): новый экземпляр читает флаг один раз и удаляет.
+    /// Bool, уровень Mac. Не архивируется.
+    static let restoreFullScreen = "restoreFullScreen"
 }
 
 /// Какие буквы берут «Слабые места» и «Слова с ошибками»: только открытые в курсе или весь алфавит языка.
@@ -145,7 +152,7 @@ enum TrainingLetters: String, CaseIterable, Identifiable {
         self == .all ? language.letters : open
     }
 
-    static func stored(_ defaults: UserDefaults = .standard) -> TrainingLetters {
+    static func stored(_ defaults: UserDefaults = ProfileDefaults.current) -> TrainingLetters {
         defaults.string(forKey: SettingsKey.trainingLetters).flatMap(TrainingLetters.init(rawValue:)) ?? .open
     }
 }
@@ -182,29 +189,29 @@ enum SettingsDefault {
 
 /// Настройки, которые читаются вне SwiftUI (`@AppStorage` здесь не подходит: значение нужно в момент вызова).
 enum StoredSettings {
-    static func dayStartHour(_ defaults: UserDefaults = .standard) -> Int {
+    static func dayStartHour(_ defaults: UserDefaults = ProfileDefaults.current) -> Int {
         defaults.object(forKey: SettingsKey.dayStartHour) as? Int ?? SettingsDefault.dayStartHour
     }
 
     /// Первый день недели как у `Calendar.firstWeekday`: 1 — воскресенье, 2 — понедельник. «Как в системе» и любое
     /// непонятное значение — регион системы. Единственное место, откуда все экраны берут первый день недели.
-    static func firstWeekday(_ defaults: UserDefaults = .standard) -> Int {
+    static func firstWeekday(_ defaults: UserDefaults = ProfileDefaults.current) -> Int {
         (defaults.string(forKey: SettingsKey.firstWeekday).flatMap(FirstWeekday.init(rawValue:)) ?? .system).value
     }
 
     /// Дневная цель в секундах.
-    static func dailyGoalSeconds(_ defaults: UserDefaults = .standard) -> Double {
+    static func dailyGoalSeconds(_ defaults: UserDefaults = ProfileDefaults.current) -> Double {
         Double(defaults.object(forKey: SettingsKey.dailyGoalMinutes) as? Int ?? SettingsDefault.dailyGoalMinutes) * 60
     }
 
-    static func adultHumor(_ defaults: UserDefaults = .standard) -> Bool {
+    static func adultHumor(_ defaults: UserDefaults = ProfileDefaults.current) -> Bool {
         defaults.object(forKey: SettingsKey.adultHumor) as? Bool ?? SettingsDefault.adultHumor
     }
 
     /// Напоминания; значения вне допустимого диапазона приводятся к нему, неизвестные строки — к умолчанию.
     /// «Один раз в день» читает прежние ключи `reminderHour` / `reminderMinute`, поэтому время и включённость,
     /// выбранные до появления расписания, сохраняются. «Взрослый юмор» берётся из общей настройки.
-    static func reminders(_ defaults: UserDefaults = .standard) -> ReminderSettings {
+    static func reminders(_ defaults: UserDefaults = ProfileDefaults.current) -> ReminderSettings {
         func int(_ key: String, _ fallback: Int, _ range: ClosedRange<Int>) -> Int {
             min(range.upperBound, max(range.lowerBound, defaults.object(forKey: key) as? Int ?? fallback))
         }

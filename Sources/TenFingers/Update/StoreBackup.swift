@@ -14,6 +14,13 @@ enum StoreBackup {
 
     static let storeFileName = "TenFingers.store"
     static let archiveFileName = "progress.tenfingers"
+    /// `progress<суффикс>.tenfingers`: архив профиля, не основного, не лежит под именем корневого.
+    static func archiveName(suffix: String) -> String {
+        guard !suffix.isEmpty else { return archiveFileName }
+        let url = URL(filePath: archiveFileName)
+        return url.deletingPathExtension().lastPathComponent + suffix + "." + url.pathExtension
+    }
+
     static let folderPrefix = "before-update-"
     static let keptFolders = 3
 
@@ -84,7 +91,11 @@ enum StoreBackup {
     /// (кроме `TenFingers.store`, `-wal`, `-shm`) и архивом прогресса. Архив перечитывается; совпасть должны
     /// байты, число записей по каждой модели и сводка. Ошибка любой части удаляет неполную папку и бросает.
     /// После успеха остаются три последние папки `before-update-*`.
+    /// `profileStores` — базы неосновных профилей (`<storeDirectory>/Profiles/<uuid>/TenFingers.store`): каждая
+    /// копируется так же, через Online Backup, в ту же относительную папку копии; несуществующие пропускаются.
+    /// Сырой `Profiles/` в копию не попадает (там живые базы с `-wal`/`-shm`).
     static func backupBeforeUpdate(storeDirectory: URL, backupsDirectory: URL, version: String, now: Date,
+                                   profileStores: [URL] = [], archiveNameSuffix: String = "",
                                    archive: () throws -> Data) throws -> URL {
         let fileManager = FileManager.default
         let store = storeDirectory.appending(path: storeFileName)
@@ -111,12 +122,16 @@ enum StoreBackup {
 
             for name in try fileManager.contentsOfDirectory(atPath: storeDirectory.path) {
                 if name == storeFileName || name.hasSuffix("-wal") || name.hasSuffix("-shm") { continue }
+                if name == profilesFolderName { continue }
                 try fileManager.copyItem(at: storeDirectory.appending(path: name), to: folder.appending(path: name))
+            }
+            for profileStore in profileStores {
+                try backupProfile(store: profileStore, storeDirectory: storeDirectory, into: folder)
             }
 
             let data = try archive()
             let expected = try ProgressArchive.decodeStructure(data)
-            let archiveURL = folder.appending(path: archiveFileName)
+            let archiveURL = folder.appending(path: archiveName(suffix: archiveNameSuffix))
             try data.write(to: archiveURL, options: .atomic)
             let written = try Data(contentsOf: archiveURL)
             let reread = try ProgressArchive.decodeStructure(written)
@@ -131,6 +146,33 @@ enum StoreBackup {
         }
         rotate(backupsDirectory: backupsDirectory, keeping: folder)
         return folder
+    }
+
+    static let profilesFolderName = "Profiles"
+
+    /// Копия одной базы профиля и остальных файлов её папки (по образцу корня). Нет папки или базы — пропуск.
+    private static func backupProfile(store: URL, storeDirectory: URL, into folder: URL) throws {
+        let fileManager = FileManager.default
+        let source = store.deletingLastPathComponent()
+        guard fileManager.fileExists(atPath: store.path) else { return }
+        let rootPath = storeDirectory.standardizedFileURL.path + "/"
+        let sourcePath = source.standardizedFileURL.path
+        let relative = sourcePath.hasPrefix(rootPath)
+            ? String(sourcePath.dropFirst(rootPath.count))
+            : "\(profilesFolderName)/\(source.lastPathComponent)"
+        let target = folder.appending(path: relative, directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: target, withIntermediateDirectories: true)
+        let copy = target.appending(path: store.lastPathComponent)
+        try copyDatabase(from: store, to: copy)
+        try integrityCheck(copy)
+        for suffix in ["-wal", "-shm"] {
+            let side = URL(filePath: copy.path + suffix)
+            if fileManager.fileExists(atPath: side.path) { try fileManager.removeItem(at: side) }
+        }
+        for name in try fileManager.contentsOfDirectory(atPath: source.path) {
+            if name == store.lastPathComponent || name.hasSuffix("-wal") || name.hasSuffix("-shm") { continue }
+            try fileManager.copyItem(at: source.appending(path: name), to: target.appending(path: name))
+        }
     }
 
     /// Оставляет `keptFolders` последних папок `before-update-*` (по дате изменения), текущая остаётся всегда.

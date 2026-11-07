@@ -482,6 +482,8 @@ private func archiveJSON(_ fields: String) -> Data {
 
     // В целевом — другие значения, ключ, которого нет в архиве, и чужое продолжение урока.
     target.set("light", forKey: SettingsKey.themeMode)
+    target.set(33.0, forKey: SettingsKey.keyboardUnit)
+    target.set(1.1, forKey: SettingsKey.uiScale)
     target.set(7, forKey: SettingsKey.dayStartHour)
     target.set("Старое имя", forKey: SettingsKey.profileFullName)
     target.set("keyboard", forKey: SettingsKey.settingsSection)
@@ -495,9 +497,11 @@ private func archiveJSON(_ fields: String) -> Data {
     ProgressArchive.applyPreferences(of: archive, to: target)
     #expect(target.string(forKey: SettingsKey.themeMode) == "dark")
     #expect(target.object(forKey: SettingsKey.dailyGoalMinutes) as? Int == 15)
-    #expect(target.object(forKey: SettingsKey.keyboardUnit) as? Double == 40)
-    #expect(target.object(forKey: SettingsKey.keyboardOffset) as? Double == -12.5)
-    #expect(target.object(forKey: SettingsKey.uiScale) as? Double == 1.25)
+    // Ключи уровня Mac загрузка не трогает: ни записывает, ни стирает (профиль 2 не меняет общие настройки).
+    #expect(archive.settings[SettingsKey.keyboardUnit] != nil)
+    #expect(target.object(forKey: SettingsKey.keyboardUnit) as? Double == 33)
+    #expect(target.object(forKey: SettingsKey.keyboardOffset) == nil)
+    #expect(target.object(forKey: SettingsKey.uiScale) as? Double == 1.1)
     #expect(target.object(forKey: SettingsKey.remindersEnabled) as? Bool == true)
     #expect(SoundSettings.isEnabled(.keyClick, defaults: target) == false)
     #expect(SoundSettings.volume(.error, defaults: target) == 0.45)
@@ -521,7 +525,7 @@ private func archiveJSON(_ fields: String) -> Data {
         """#))
     ProgressArchive.applyPreferences(of: archive, to: defaults)
     #expect(defaults.object(forKey: SettingsKey.dailyGoalMinutes) as? Int == 5)
-    #expect(defaults.object(forKey: SettingsKey.uiScale) as? Double == 1)
+    #expect(defaults.object(forKey: SettingsKey.uiScale) == nil)   // ключ Mac: не трогается
     #expect(defaults.object(forKey: "unknownKey") == nil)
     #expect(defaults.object(forKey: SettingsKey.dayStartHour) == nil)
 }
@@ -747,9 +751,6 @@ private let reminderScheduleKeys = [
     #expect(defaults.object(forKey: SettingsKey.dayStartHour) as? Int == 6)
     #expect(defaults.object(forKey: SettingsKey.dailyGoalMinutes) as? Int == 10) // ближайшее из списка
     #expect(defaults.object(forKey: SettingsKey.adaptiveTargetCpm) as? Int == 250)
-    #expect(defaults.object(forKey: SettingsKey.keyboardUnit) as? Double == KeyboardSizing.unitRange.upperBound)
-    #expect(defaults.object(forKey: SettingsKey.keyboardOffset) as? Double == KeyboardSizing.offsetRange.lowerBound)
-    #expect(defaults.object(forKey: SettingsKey.uiScale) as? Double == 1.5)
     #expect(defaults.object(forKey: SettingsKey.darkFromHour) as? Int == 0)
     #expect(defaults.object(forKey: SettingsKey.darkToHour) as? Int == 23)
     #expect(defaults.object(forKey: SettingsKey.reminderHour) as? Int == 23)
@@ -778,9 +779,6 @@ private let reminderScheduleKeys = [
     #expect(defaults.object(forKey: SettingsKey.dayStartHour) as? Int == 0)
     #expect(defaults.object(forKey: SettingsKey.dailyGoalMinutes) as? Int == 30)
     #expect(defaults.object(forKey: SettingsKey.adaptiveTargetCpm) as? Int == 150)
-    #expect(defaults.object(forKey: SettingsKey.keyboardUnit) as? Double == 44)
-    #expect(defaults.object(forKey: SettingsKey.keyboardOffset) as? Double == 20.5)
-    #expect(defaults.object(forKey: SettingsKey.uiScale) as? Double == 1.1)
     #expect(defaults.object(forKey: SettingsKey.darkFromHour) as? Int == 21)
     #expect(defaults.object(forKey: SettingsKey.darkToHour) as? Int == 6)
     #expect(defaults.object(forKey: SettingsKey.reminderHour) as? Int == 7)
@@ -971,6 +969,8 @@ private func fillPreferences(_ defaults: UserDefaults) {
     let target = targetContainer.mainContext
     try ProgressArchive.replaceAll(with: archive, context: target)
     ProgressArchive.applyPreferences(of: archive, to: targetDefaults)
+    // Ключи уровня Mac загрузка не переносит: в целевом Mac они свои, здесь выровнены вручную ради сравнения.
+    for key in ProfileDefaults.deviceKeys { targetDefaults.set(sourceDefaults.object(forKey: key), forKey: key) }
     let second = try ProgressArchive.export(context: target, defaults: targetDefaults, now: base)
     #expect(try ProgressArchive.decode(second) == archive)
     #expect(first == second, "\(String(decoding: first, as: UTF8.self))\n≠\n\(String(decoding: second, as: UTF8.self))")
@@ -1023,7 +1023,8 @@ private func fillPreferences(_ defaults: UserDefaults) {
                                  SettingsKey.updateSkippedVersion, SettingsKey.updateFeedURL,
                                  SettingsKey.homeTab, SettingsKey.homeTabSeen, SettingsKey.rhythmLastMode,
                                  SettingsKey.rhythmLastLevel, SettingsKey.rhythmLastStyle,
-                                 SettingsKey.rhythmSoundOffsetMs, SettingsKey.rhythmMuted]
+                                 SettingsKey.rhythmSoundOffsetMs, SettingsKey.rhythmMuted,
+                                 SettingsKey.profiles, SettingsKey.activeProfileId, SettingsKey.restoreFullScreen]
     let archived = Set(ArchivedSettings.entries.map(\.key))
     #expect(keys.subtracting(excluded).subtracting(archived).isEmpty,
             "не в архиве: \(keys.subtracting(excluded).subtracting(archived).sorted())")
@@ -1531,4 +1532,51 @@ private func fillPreferences(_ defaults: UserDefaults) {
     var archive = try ProgressArchive.decode(ProgressArchive.export(context: source, defaults: defaults, now: base))
     archive.measurements[0].duration = "999"
     #expect(throws: ArchiveError.invalidRecord("SpeedMeasurement", 0)) { try ProgressArchive.validate(archive) }
+}
+
+// MARK: - Профили (8d): предупреждение, ключи Mac, имена копий
+
+@Test func importWarnsOnlyWhenNicknameDiffersFromActiveProfile() {
+    #expect(!ProgressArchive.shouldWarnProfileMismatch(archiveNickname: "Аня", activeProfileName: "Аня"))
+    #expect(!ProgressArchive.shouldWarnProfileMismatch(archiveNickname: " Аня ", activeProfileName: "Аня"))
+    #expect(ProgressArchive.shouldWarnProfileMismatch(archiveNickname: "Аня", activeProfileName: "Боря"))
+    #expect(!ProgressArchive.shouldWarnProfileMismatch(archiveNickname: "", activeProfileName: "Боря"))
+}
+
+/// Загрузка не пишет и не стирает ключи уровня Mac, даже если в архиве их нет.
+@Test func importLeavesDeviceKeysUntouched() throws {
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    for key in ProfileDefaults.deviceKeys where ArchivedSettings.entries.contains(where: { $0.key == key }) {
+        defaults.set("keep", forKey: key)
+    }
+    let withKeys = try ProgressArchive.decode(archiveJSON(#"""
+        "format": "tenfingers-progress", "version": 6, "schemaGeneration": 10,
+        "settings": { "uiScale": 1.5, "keyboardUnit": 50, "dailyGoalMinutes": 15 }
+        """#))
+    ProgressArchive.applyPreferences(of: withKeys, to: defaults)
+    let without = try ProgressArchive.decode(archiveJSON(#""format": "tenfingers-progress", "version": 6, "schemaGeneration": 10"#))
+    ProgressArchive.applyPreferences(of: without, to: defaults)
+    for key in ProfileDefaults.deviceKeys where ArchivedSettings.entries.contains(where: { $0.key == key }) {
+        #expect(defaults.string(forKey: key) == "keep", "\(key)")
+    }
+}
+
+@MainActor @Test func preImportBackupNamesDistinguishProfiles() throws {
+    let container = try ModelStore.makeContainer(inMemory: true)
+    let (defaults, name) = makeDefaults()
+    defer { removeTestDefaults(name) }
+    let directory = try temporaryDirectory("TenFingersImportNames")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let primary = Profile(id: UUID(), name: "A", createdAt: .now, isPrimary: true)
+    let other = Profile(id: UUID(), name: "B", createdAt: .now, isPrimary: false)
+    #expect(ProgressArchive.backupNameSuffix(for: primary) == "")
+    let suffix = ProgressArchive.backupNameSuffix(for: other)
+    #expect(suffix.count == 9 && suffix.hasPrefix("-"))
+    let one = try ProgressImporter(context: container.mainContext, defaults: defaults, backupDirectory: directory)
+        .writeBackup(now: base)
+    let two = try ProgressImporter(context: container.mainContext, defaults: defaults, backupDirectory: directory,
+                                   backupNameSuffix: suffix).writeBackup(now: base)
+    #expect(one != two)
+    #expect(two.lastPathComponent == "pre-import-\(ProgressArchive.timestamp(base))\(suffix).tenfingers")
 }

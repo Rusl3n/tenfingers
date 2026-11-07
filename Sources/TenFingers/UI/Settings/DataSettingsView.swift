@@ -8,6 +8,7 @@ struct DataSettingsView: View {
     @Environment(\.modelContext) private var context
     @Environment(ReminderScheduler.self) private var scheduler
     @Environment(RunPresence.self) private var presence
+    @Environment(ProfileCoordinator.self) private var profiles
     @Environment(ToastCenter.self) private var toasts
     @State private var pending: PendingImport?
     @State private var failure: String?
@@ -105,9 +106,12 @@ struct DataSettingsView: View {
             return
         }
         do {
-            importedBackup = try ProgressImporter(context: context).importArchive(item.archive)
+            importedBackup = try ProgressImporter(
+                context: context,
+                backupNameSuffix: ProgressArchive.backupNameSuffix(for: ProfileLaunch.launched.profile)).importArchive(item.archive)
             // Цель, начало дня и время напоминаний могли поменяться вместе с настройками.
             scheduler.rescheduleSoon()
+            profiles.syncNameFromNickname()
         } catch let error as ProgressImportError {
             failure = error.localizedDescription
         } catch {
@@ -140,6 +144,12 @@ private struct ImportPreview: View {
 
     private var summary: ProgressArchive.ArchiveSummary { item.summary }
 
+    @Environment(ProfileCoordinator.self) private var profiles
+    private var profileName: String { profiles.active.name }
+    private var mismatch: Bool {
+        ProgressArchive.shouldWarnProfileMismatch(archiveNickname: summary.nickname, activeProfileName: profileName)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
@@ -162,6 +172,12 @@ private struct ImportPreview: View {
                 row("Дней с занятиями", Text(verbatim: "\(summary.dayCount)"))
                 if !summary.nickname.isEmpty { row("Никнейм", Text(verbatim: summary.nickname)) }
                 if !summary.fullName.isEmpty { row("Имя", Text(verbatim: summary.fullName)) }
+            }
+            if mismatch {
+                Label("Файл сохранён в другом профиле («\(summary.nickname)»), а загружается в профиль «\(profileName)». Прогресс этого профиля будет заменён.",
+                      systemImage: "person.crop.circle.badge.exclamationmark")
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Label("Весь текущий прогресс, профиль и настройки будут заменены данными из файла. Перед заменой текущий прогресс сохранится в резервную копию.",
                   systemImage: "exclamationmark.triangle")

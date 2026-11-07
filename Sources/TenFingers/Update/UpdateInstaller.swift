@@ -57,6 +57,10 @@ enum UpdateError: Error, Equatable {
     let bundleURL: URL
     let storeURL: URL
     let backupsDirectory: URL
+    /// Базы неосновных профилей (список читается при каждом обращении: профиль мог появиться за время работы).
+    private let profileStores: () -> [URL]
+    /// Суффикс имени архива в копии (`ProgressArchive.backupNameSuffix`): у основного профиля пустой.
+    private let archiveNameSuffix: String
     private let downloader: UpdateDownloading
     private let fileSystem: UpdateFileSystem
     private let now: () -> Date
@@ -64,13 +68,17 @@ enum UpdateError: Error, Equatable {
     private let makeArchive: () throws -> Data
     private let relauncher: Relauncher
 
-    init(bundleURL: URL, storeURL: URL, backupsDirectory: URL, downloader: UpdateDownloading,
+    init(bundleURL: URL, storeURL: URL, backupsDirectory: URL, profileStores: @escaping () -> [URL] = { [] },
+         archiveNameSuffix: String = "",
+         downloader: UpdateDownloading,
          now: @escaping () -> Date, saveContext: @escaping () throws -> Void,
          makeArchive: @escaping () throws -> Data, fileSystem: UpdateFileSystem = LiveUpdateFileSystem(),
          relauncher: @escaping Relauncher = UpdateInstaller.launchHelperAndTerminate) {
         self.bundleURL = bundleURL
         self.storeURL = storeURL
         self.backupsDirectory = backupsDirectory
+        self.profileStores = profileStores
+        self.archiveNameSuffix = archiveNameSuffix
         self.downloader = downloader
         self.fileSystem = fileSystem
         self.now = now
@@ -91,8 +99,11 @@ enum UpdateError: Error, Equatable {
     func preflight(manifest: ReleaseManifest) throws {
         if bundleURL.pathComponents.contains("AppTranslocation") { throw UpdateError.translocated }
         guard FileManager.default.isWritableFile(atPath: parentDirectory.path) else { throw UpdateError.notWritable }
-        if let stored = try SchemaGeneration.read(at: storeURL), stored > manifest.schemaGeneration {
-            throw UpdateError.olderGeneration(stored: stored, update: manifest.schemaGeneration)
+        // Поколение проверяется у каждой базы (корневой и профилей): хоть одна новее обновления — отказ.
+        for store in [storeURL] + profileStores() {
+            if let stored = try SchemaGeneration.read(at: store), stored > manifest.schemaGeneration {
+                throw UpdateError.olderGeneration(stored: stored, update: manifest.schemaGeneration)
+            }
         }
     }
 
@@ -194,7 +205,8 @@ enum UpdateError: Error, Equatable {
             try saveContext()
             return try StoreBackup.backupBeforeUpdate(
                 storeDirectory: storeURL.deletingLastPathComponent(), backupsDirectory: backupsDirectory,
-                version: version, now: now(), archive: makeArchive)
+                version: version, now: now(), profileStores: profileStores(),
+                archiveNameSuffix: archiveNameSuffix, archive: makeArchive)
         } catch {
             throw UpdateError.backupFailed(String(describing: error))
         }

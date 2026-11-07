@@ -154,11 +154,12 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.palette) private var palette
     @Environment(KeyboardLayoutService.self) private var layout
+    @Environment(ProfileCoordinator.self) private var profiles
     @AppStorage(SettingsKey.activeLanguage) private var activeLanguage = Language.ru.rawValue
-    @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
+    @AppStorage(SettingsKey.uiScale, store: .standard) private var uiScale = UIScale.defaultValue
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
     // Настройки, от которых зависит снимок для виджета (`widgetSettingsKey`).
-    @AppStorage(SettingsKey.interfaceLanguage) private var interfaceLanguage = InterfaceLanguage.system.rawValue
+    @AppStorage(SettingsKey.interfaceLanguage, store: .standard) private var interfaceLanguage = InterfaceLanguage.system.rawValue
     @AppStorage(SettingsKey.dailyGoalMinutes) private var dailyGoal = SettingsDefault.dailyGoalMinutes
     @AppStorage(SettingsKey.dayStartHour) private var dayStartHour = SettingsDefault.dayStartHour
     @AppStorage(SettingsKey.onboardingCompleted) private var onboardingCompleted = false
@@ -201,7 +202,7 @@ struct RootView: View {
     /// Лист «Новый курс»: после знакомства, один раз, если был прогресс прежнего курса.
     private var showsNewCourseIntro: Bool {
         onboardingCompleted && !newCourseIntroShown
-            && NewCourseIntro.shouldShow(lessonIds: lessonProgress.map(\.lessonId), defaults: .standard)
+            && NewCourseIntro.shouldShow(lessonIds: lessonProgress.map(\.lessonId), defaults: ProfileDefaults.current)
     }
     /// Запуск есть, но пользователь ушёл в другой раздел.
     private var isRunHidden: Bool { activeRun != nil && !presence.isVisible }
@@ -209,6 +210,10 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: sidebarSelection) {
+                // Язык курса — первой строкой списка: панель сворачивается вместе с ним, как обычная строка.
+                Section {
+                    SidebarLanguagePicker(activeLanguage: $activeLanguage)
+                }
                 if let run = activeRun {
                     Section {
                         Label(run.sidebarTitle, systemImage: presence.showsPauseIcon ? "pause.circle" : "play.circle")
@@ -224,18 +229,7 @@ struct RootView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 6) {
-                    Picker("Курс", selection: $activeLanguage) {
-                        ForEach(Language.allCases) { Text($0.shortName).tag($0.rawValue) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    Text(AppVersion.short(info: AppVersion.current))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                }
-                .padding(12)
+                SidebarFooter(coordinator: profiles)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } detail: {
@@ -251,6 +245,7 @@ struct RootView: View {
         .overlay { ToastOverlay(toasts: toasts) }
         .onChange(of: activeRun?.id) { _, runId in
             presence.hasRun = runId != nil
+            profiles.hasRun = runId != nil
             ReminderPresenter.shared.setRunActive(runId != nil)
             if runId != nil {
                 if visibilityBeforeLesson == nil { visibilityBeforeLesson = columnVisibility }
@@ -278,6 +273,7 @@ struct RootView: View {
         }
         .onDisappear(perform: removeEscapeMonitor)
         .shareSheet($shareCard)
+        .modifier(ProfilePresentations(coordinator: profiles))
         .sheet(item: $replayRequest) { request in
             MeasureReplayView(measurementId: request.measurementId, onClose: { replayRequest = nil })
         }
@@ -286,9 +282,9 @@ struct RootView: View {
         .interactiveDismissDisabled()
         // «Новый курс»: любое закрытие листа ставит флаг, «Начать» ещё и открывает «Курс».
         .sheet(isPresented: Binding(get: { showsNewCourseIntro },
-                                    set: { if !$0 { NewCourseIntro.markShown(.standard) } })) {
+                                    set: { if !$0 { NewCourseIntro.markShown(ProfileDefaults.current) } })) {
             NewCourseSheet(start: {
-                NewCourseIntro.markShown(.standard)
+                NewCourseIntro.markShown(ProfileDefaults.current)
                 selection = .course
                 planStep = nil
                 if activeRun != nil { presence.isVisible = false }

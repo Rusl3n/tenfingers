@@ -72,7 +72,7 @@ final class RhythmCoordinator {
             },
             words: { library.planners[$0]?.generator.wordList.words ?? [] },
             targetCpm: {
-                Double(UserDefaults.standard.object(forKey: SettingsKey.adaptiveTargetCpm) as? Int
+                Double(ProfileDefaults.current.object(forKey: SettingsKey.adaptiveTargetCpm) as? Int
                     ?? SettingsDefault.adaptiveTargetCpm)
             },
             keyCode: { layout.snapshot.keyPress(for: $0)?.keyCode })

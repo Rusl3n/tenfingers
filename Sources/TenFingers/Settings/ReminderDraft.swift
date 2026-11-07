@@ -91,7 +91,7 @@ final class ReminderDraftStore {
     /// `nil` — изменений нет.
     private(set) var draft: ReminderDraft?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = ProfileDefaults.current) {
         self.defaults = defaults
         saved = .load(defaults)
     }

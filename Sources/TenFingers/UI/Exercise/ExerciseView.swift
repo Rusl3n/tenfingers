@@ -26,8 +26,8 @@ struct ExerciseView: View {
     /// Нет в окружении (превью, тесты) — экран считается видимым.
     @Environment(RunPresence.self) private var presence: RunPresence?
     @AppStorage(SettingsKey.speedUnit) private var speedUnit = SpeedUnit.cpm.rawValue
-    @AppStorage(SettingsKey.keyboardUnit) private var keyboardUnit = KeyboardSizing.defaultUnit
-    @AppStorage(SettingsKey.keyboardOffset) private var keyboardOffset = KeyboardSizing.defaultOffset
+    @AppStorage(SettingsKey.keyboardUnit, store: .standard) private var keyboardUnit = KeyboardSizing.defaultUnit
+    @AppStorage(SettingsKey.keyboardOffset, store: .standard) private var keyboardOffset = KeyboardSizing.defaultOffset
     @AppStorage(SettingsKey.spaceThumbHint) private var spaceThumbHint = SettingsDefault.spaceThumbHint
     @State private var monitor: Any?
 

@@ -244,7 +244,7 @@ enum ProgressArchive {
     // MARK: Экспорт
 
     /// Записи каждого раздела отсортированы по устойчивому ключу: порядок не зависит от порядка выборки из базы.
-    @MainActor static func makeArchive(context: ModelContext, defaults: UserDefaults = .standard,
+    @MainActor static func makeArchive(context: ModelContext, defaults: UserDefaults = ProfileDefaults.current,
                                        now: Date = .now) throws -> Archive {
         func all<T: PersistentModel>(_ type: T.Type) throws -> [T] { try context.fetch(FetchDescriptor<T>()) }
         return Archive(
@@ -281,7 +281,7 @@ enum ProgressArchive {
     }
 
     /// Весь прогресс (с несохранёнными изменениями контекста) в JSON.
-    @MainActor static func export(context: ModelContext, defaults: UserDefaults = .standard,
+    @MainActor static func export(context: ModelContext, defaults: UserDefaults = ProfileDefaults.current,
                                   now: Date = .now) throws -> Data {
         try encode(makeArchive(context: context, defaults: defaults, now: now))
     }
@@ -453,7 +453,7 @@ enum ProgressArchive {
     }
 
     /// Настройки, профиль и продолжения уроков из архива (после успешной замены базы).
-    static func applyPreferences(of archive: Archive, to defaults: UserDefaults = .standard) {
+    static func applyPreferences(of archive: Archive, to defaults: UserDefaults = ProfileDefaults.current) {
         // Сначала продолжение уроков: оно перечисляет ключи через `dictionaryRepresentation()`, а это может
         // перечитать домен у cfprefsd. Записи профиля и настроек идут после, чтобы перечитывание их не откатило.
         ArchivedSettings.applyLessonResume(archive.lessonResume, to: defaults)
@@ -473,6 +473,19 @@ enum ProgressArchive {
     /// Имя по умолчанию в окне сохранения: «TenFingers-progress-2026-10-24.tenfingers».
     static func defaultFileName(now: Date) -> String {
         "TenFingers-progress-\(timestamp(now).prefix(10)).\(fileExtension)"
+    }
+
+    /// Нужно ли предупредить при загрузке: никнейм в файле не совпадает с именем активного профиля.
+    /// Пустой никнейм в файле (старый архив, имя не задано) ничего не говорит о владельце — не предупреждаем.
+    static func shouldWarnProfileMismatch(archiveNickname: String, activeProfileName: String) -> Bool {
+        let archived = archiveNickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !archived.isEmpty else { return false }
+        return archived != activeProfileName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Суффикс имени резервной копии, различающий профили: у основного пустой, у остальных «-<8 символов id>».
+    static func backupNameSuffix(for profile: Profile) -> String {
+        profile.isPrimary ? "" : "-" + String(profile.id.uuidString.lowercased().prefix(8))
     }
 
     /// Папка резервных копий (та же, куда `build-app.sh` кладёт копии базы).
@@ -505,16 +518,19 @@ struct ProgressImporter {
     let context: ModelContext
     let defaults: UserDefaults
     let backupDirectory: URL
+    /// Суффикс имени копии (`ProgressArchive.backupNameSuffix`): копии разных профилей не путаются.
+    let backupNameSuffix: String
     /// Шов для тестов (см. `ProgressArchive.replaceAll`).
     var beforeSave: (() throws -> Void)?
     /// Куда сообщить о замене прогресса (`.progressReplaced`).
     var notifications: NotificationCenter = .default
 
-    init(context: ModelContext, defaults: UserDefaults = .standard,
-         backupDirectory: URL = ProgressArchive.backupsDirectory) {
+    init(context: ModelContext, defaults: UserDefaults = ProfileDefaults.current,
+         backupDirectory: URL = ProgressArchive.backupsDirectory, backupNameSuffix: String = "") {
         self.context = context
         self.defaults = defaults
         self.backupDirectory = backupDirectory
+        self.backupNameSuffix = backupNameSuffix
     }
 
     /// Возвращает адрес резервной копии прежнего прогресса. Если копию записать не удалось — бросает
@@ -534,7 +550,7 @@ struct ProgressImporter {
         return backup
     }
 
-    /// `pre-import-<дата_время>.tenfingers` в папке копий; существующие файлы не перезаписываются.
+    /// `pre-import-<дата_время>[-<id профиля>].tenfingers` в папке копий; существующие файлы не перезаписываются.
     /// Копия перечитывается, прежде чем что-то менять: проверяется устройство файла и число записей
     /// в каждом разделе. Строгая проверка записей (`validate`) здесь не нужна: странная запись в текущей
     /// базе не должна запрещать любую загрузку, а в копию она попадает как есть.
@@ -542,7 +558,7 @@ struct ProgressImporter {
         let archive = try ProgressArchive.makeArchive(context: context, defaults: defaults, now: now)
         let data = try ProgressArchive.encode(archive)
         try FileManager.default.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
-        let stem = "pre-import-\(ProgressArchive.timestamp(now))"
+        let stem = "pre-import-\(ProgressArchive.timestamp(now))\(backupNameSuffix)"
         var url = backupDirectory.appending(path: "\(stem).\(ProgressArchive.fileExtension)")
         var suffix = 2
         while FileManager.default.fileExists(atPath: url.path) {
@@ -1223,9 +1239,10 @@ enum ArchivedSettings {
 
     /// Только заданные пользователем значения (не заданные — значения по умолчанию, их не пишем).
     static func read(_ defaults: UserDefaults) -> [String: SettingValue] {
+        let device = ProfileDefaults.deviceStore(pairedWith: defaults)
         var result: [String: SettingValue] = [:]
         for (key, kind) in entries {
-            guard let object = defaults.object(forKey: key) else { continue }
+            guard let object = (ProfileDefaults.deviceKeys.contains(key) ? device : defaults).object(forKey: key) else { continue }
             let value: SettingValue? = switch kind {
             case .bool: (object as? Bool).map(SettingValue.bool)
             case .int: (object as? Int).map(SettingValue.int)
@@ -1264,8 +1281,12 @@ enum ArchivedSettings {
     /// Числа приводятся к допустимым пределам (`bounded`): файл можно править руками, а значение вне диапазона
     /// ломало бы экраны (клавиатура за пределами окна, час 99, цель вне списка).
     static func apply(_ values: [String: SettingValue], generation: Int = SchemaGeneration.current,
-                      to defaults: UserDefaults) {
+                      to profile: UserDefaults) {
         for (key, kind) in entries {
+            // Ключи уровня Mac (масштаб, клавиатура, закрытие окна) архив не трогает вовсе: загрузка в одном профиле
+            // не должна менять общие настройки других. Экспорт их по-прежнему пишет (совместимость формата).
+            if ProfileDefaults.deviceKeys.contains(key) { continue }
+            let defaults = profile
             guard let value = values[key] else {
                 if generation >= introducedIn[key, default: 0] { defaults.removeObject(forKey: key) }
                 continue

@@ -53,11 +53,11 @@ enum HomeTabs {
         return available.first ?? .quick
     }
 
-    static func selected(available: [HomeTab], _ defaults: UserDefaults = .standard) -> HomeTab {
+    static func selected(available: [HomeTab], _ defaults: UserDefaults = ProfileDefaults.current) -> HomeTab {
         resolved(stored: defaults.string(forKey: SettingsKey.homeTab), available: available)
     }
 
-    static func store(_ tab: HomeTab, _ defaults: UserDefaults = .standard) {
+    static func store(_ tab: HomeTab, _ defaults: UserDefaults = ProfileDefaults.current) {
         defaults.set(tab.rawValue, forKey: SettingsKey.homeTab)
     }
 }

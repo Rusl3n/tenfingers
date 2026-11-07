@@ -12,6 +12,14 @@ struct OnboardingView: View {
     @State private var step = 1
     @State private var draft = OnboardingDraft.load()
 
+    @Environment(ProfileCoordinator.self) private var profiles
+
+    /// «Готово»: настройки профиля и имя профиля в списке (никнейм мог измениться).
+    private func finishDraft() {
+        draft.finish()
+        profiles.syncNameFromNickname()
+    }
+
     private var isLastStep: Bool { step == Self.stepCount }
 
     var body: some View {
@@ -96,7 +104,7 @@ struct OnboardingView: View {
             // Перезапуск для смены языка: замер при этом не открывается.
             if draft.needsRestart(atLaunch: InterfaceLanguage.atLaunch) {
                 LanguageRestartBanner(relaunch: {
-                    draft.finish()
+                    finishDraft()
                     AppRelauncher.relaunch()
                 })
             }
@@ -115,11 +123,11 @@ struct OnboardingView: View {
                 Button("Далее") { step += 1 }
                     .keyboardShortcut(.defaultAction)
             } else {
-                Button("Позже") { draft.finish() }
+                Button("Позже") { finishDraft() }
                 Button("Замерить (1 минута)") {
                     // Сначала просьба о замере, потом закрытие знакомства: лист закрывается уже с ней.
                     onMeasure()
-                    draft.finish()
+                    finishDraft()
                 }
                 .keyboardShortcut(.defaultAction)
             }

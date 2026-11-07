@@ -2,14 +2,14 @@ import SwiftUI
 
 /// Раздел «Общие»: язык интерфейса, тема, палитры, расписание, поведение окна и «Взрослый юмор» ачивок.
 struct GeneralSettingsView: View {
-    @AppStorage(SettingsKey.interfaceLanguage) private var interfaceLanguage = InterfaceLanguage.system.rawValue
+    @AppStorage(SettingsKey.interfaceLanguage, store: .standard) private var interfaceLanguage = InterfaceLanguage.system.rawValue
     @AppStorage(SettingsKey.themeMode) private var themeMode = ThemeMode.system.rawValue
     @AppStorage(SettingsKey.lightPalette) private var lightPalette = LightPalette.white.rawValue
     @AppStorage(SettingsKey.darkPalette) private var darkPalette = DarkPalette.graphite.rawValue
     @AppStorage(SettingsKey.darkFromHour) private var darkFrom = SettingsDefault.darkFromHour
     @AppStorage(SettingsKey.darkToHour) private var darkTo = SettingsDefault.darkToHour
-    @AppStorage(SettingsKey.quitOnWindowClose) private var quitOnWindowClose = false
-    @AppStorage(SettingsKey.uiScale) private var uiScale = UIScale.defaultValue
+    @AppStorage(SettingsKey.quitOnWindowClose, store: .standard) private var quitOnWindowClose = false
+    @AppStorage(SettingsKey.uiScale, store: .standard) private var uiScale = UIScale.defaultValue
     @AppStorage(SettingsKey.adultHumor) private var adultHumor = SettingsDefault.adultHumor
     @Environment(ReminderScheduler.self) private var reminders
 
@@ -21,7 +21,7 @@ struct GeneralSettingsView: View {
     /// Выбор языка пишет и `interfaceLanguage`, и `AppleLanguages`; сам язык меняется после перезапуска.
     private var interfaceLanguageSelection: Binding<InterfaceLanguage> {
         Binding(get: { InterfaceLanguage(rawValue: interfaceLanguage) ?? .system },
-                set: { $0.apply(to: .standard) })
+                set: { $0.apply(to: ProfileDefaults.device) })
     }
 
     var body: some View {

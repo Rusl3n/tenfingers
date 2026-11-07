@@ -41,7 +41,7 @@ enum DayGoals {
 
     /// При запуске и после загрузки прогресса из файла: цель и час начала дня — из настроек. Ошибка только
     /// пишется в журнал: незаполненный день считается по текущей цели, как и раньше.
-    static func backfillLogging(context: ModelContext, defaults: UserDefaults = .standard, now: Date = .now,
+    static func backfillLogging(context: ModelContext, defaults: UserDefaults = ProfileDefaults.current, now: Date = .now,
                                 calendar: Calendar = .current) {
         let today = today(defaults: defaults, now: now, calendar: calendar)
         do {
@@ -54,7 +54,7 @@ enum DayGoals {
 
     /// Смена «Дневной цели» в настройках: прежняя цель — из `onChange`, новая и час начала дня — из настроек.
     static func goalChangedLogging(context: ModelContext, previousGoalSeconds: Double,
-                                   defaults: UserDefaults = .standard, now: Date = .now, calendar: Calendar = .current) {
+                                   defaults: UserDefaults = ProfileDefaults.current, now: Date = .now, calendar: Calendar = .current) {
         do {
             try goalChanged(context: context, from: previousGoalSeconds, to: StoredSettings.dailyGoalSeconds(defaults),
                             today: today(defaults: defaults, now: now, calendar: calendar))

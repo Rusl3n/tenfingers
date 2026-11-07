@@ -93,6 +93,8 @@ final class ReminderScheduler {
 
     @ObservationIgnored private let center: ReminderCenter
     @ObservationIgnored private let defaults: UserDefaults
+    /// Служебные ключи этого Mac (предел очереди, одноразовая очистка).
+    @ObservationIgnored private let device: UserDefaults
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let inputs: (Date) throws -> ReminderInputs
     @ObservationIgnored private let title: String
@@ -128,13 +130,14 @@ final class ReminderScheduler {
         testFollowUp?.cancel()
     }
 
-    init(center: ReminderCenter, defaults: UserDefaults = .standard, calendar: Calendar = .current,
+    init(center: ReminderCenter, defaults: UserDefaults = ProfileDefaults.current, calendar: Calendar = .current,
          inputs: @escaping (Date) throws -> ReminderInputs, title: String,
          text: @escaping (ReminderLine) -> String = { ReminderCatalog.render($0) },
          timing: ReminderTiming = .standard, clock: @escaping () -> Date = { .now },
          testBody: String = String(localized: "Так будут выглядеть напоминания")) {
         self.center = center
         self.defaults = defaults
+        device = ProfileDefaults.deviceStore(pairedWith: defaults)
         self.calendar = calendar
         self.inputs = inputs
         self.title = title
@@ -142,15 +145,15 @@ final class ReminderScheduler {
         self.timing = timing
         self.clock = clock
         self.testBody = testBody
-        capacity = (defaults.object(forKey: SettingsKey.reminderSystemLimit) as? Int).flatMap { $0 >= 1 ? $0 : nil }
-        probedAt = (defaults.object(forKey: SettingsKey.reminderSystemLimitProbedAt) as? Double)
+        capacity = (device.object(forKey: SettingsKey.reminderSystemLimit) as? Int).flatMap { $0 >= 1 ? $0 : nil }
+        probedAt = (device.object(forKey: SettingsKey.reminderSystemLimitProbedAt) as? Double)
             .map(Date.init(timeIntervalSince1970:))
     }
 
     /// Планировщик приложения. `context` — основной контекст базы (`nil`, если базу открыть нельзя).
     /// При активации приложения напоминания пересчитываются, чтобы не «протухали», пока приложение долго запущено,
     /// но не чаще раза в `activationInterval`; смена разрешения учитывается сразу (`rescheduleOnActivation`).
-    static func live(context: ModelContext?, defaults: UserDefaults = .standard) -> ReminderScheduler {
+    static func live(context: ModelContext?, defaults: UserDefaults = ProfileDefaults.current) -> ReminderScheduler {
         let scheduler = ReminderScheduler(
             center: LiveReminderCenter(), defaults: defaults,
             inputs: { now in
@@ -176,10 +179,21 @@ final class ReminderScheduler {
     /// Первый запуск 1.2.1: один раз очищает все ожидающие и доставленные уведомления приложения — хвосты прошлых
     /// версий, которые могли занимать место в очереди системы. Флаг — `SettingsKey.remindersResetDone` (не в архиве).
     func resetOnceIfNeeded() {
-        guard !defaults.bool(forKey: SettingsKey.remindersResetDone) else { return }
+        guard !device.bool(forKey: SettingsKey.remindersResetDone) else { return }
         center.removeAll()
-        defaults.set(true, forKey: SettingsKey.remindersResetDone)
+        device.set(true, forKey: SettingsKey.remindersResetDone)
         log.notice("One-time reminder reset: removed all pending and delivered notifications")
+    }
+
+    /// Запуск (§10.3): снимает ВСЕ запланированные уведомления приложения (они могли остаться от другого профиля) и
+    /// ставит напоминания активного профиля с его настройками. Возвращает задачу (тесты дожидаются её).
+    @discardableResult
+    func replaceAllForLaunchedProfile() -> Task<Void, Never> {
+        Task {
+            let ids = await center.pending().map(\.id)
+            if !ids.isEmpty { center.removePending(ids: ids) }
+            await reschedule()
+        }
     }
 
     /// Перечитывает разрешение (пользователь мог изменить его в системных настройках) и поставленные напоминания
@@ -254,6 +268,8 @@ final class ReminderScheduler {
     }
 
     private func reschedule(now: Date?, trigger: Trigger) async {
+        // Старый процесс при смене профиля не ставит напоминания своего профиля поверх нового.
+        guard ProfileLaunch.mayWriteSharedState(defaults: defaults) else { return }
         let now = now ?? clock()
         generation += 1
         let mine = generation
@@ -361,14 +377,14 @@ final class ReminderScheduler {
         capacity = value
         probedAt = date
         if let value {
-            defaults.set(value, forKey: SettingsKey.reminderSystemLimit)
+            device.set(value, forKey: SettingsKey.reminderSystemLimit)
         } else {
-            defaults.removeObject(forKey: SettingsKey.reminderSystemLimit)
+            device.removeObject(forKey: SettingsKey.reminderSystemLimit)
         }
         if let date {
-            defaults.set(date.timeIntervalSince1970, forKey: SettingsKey.reminderSystemLimitProbedAt)
+            device.set(date.timeIntervalSince1970, forKey: SettingsKey.reminderSystemLimitProbedAt)
         } else {
-            defaults.removeObject(forKey: SettingsKey.reminderSystemLimitProbedAt)
+            device.removeObject(forKey: SettingsKey.reminderSystemLimitProbedAt)
         }
     }
 

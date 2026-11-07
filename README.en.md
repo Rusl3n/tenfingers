@@ -5,7 +5,7 @@
 <p align="center">A touch-typing tutor for macOS — Russian and English layouts.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.9.1-blue" alt="Version 2.9.1">
+  <img src="https://img.shields.io/badge/version-3.0.0-blue" alt="Version 3.0.0">
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
 </p>
 
@@ -52,6 +52,7 @@
 - Words with errors: the app remembers the real dictionary words you get wrong (up to 200 per language) and marks them fixed after three clean runs in a row. The "Words with errors" session is in "Training" and on the home screen; in the daily plan it replaces "Review" with 20 or more words; the "Letters in training" setting picks the letters open in the course or all of them. A "Fixed words" series of achievements for 10, 50, 200 and 1000 fixed words.
 - Speed test in "Training": 1, 2 or 5 minutes or a 300-character text, kinds "Simple", "Capitals and punctuation" and "With digits", no Backspace; the result compares with your first and previous test, and the history keeps the first and the last 5. "Watch replay" shows your typing with fingertips: "As recorded", ×1.5, ×2, ×3 and "Master" (1000 chars/min). The test is also offered after the first-launch introduction. Two speed-test achievements ("First Speed Test", "Twice the First Test").
 - Fingertips above the keyboard on the key introduction (the "Key introduction" button on a lesson row, including passed lessons); a "Finger animation" setting.
+- Profiles: several students on one Mac, each with their own progress, flame, achievements and settings. Switch with the profile row at the bottom of the sidebar or the "Profile" menu (the app restarts); no passwords.
 - A desktop widget, small and medium: the streak, the daily goal and the latest achievements (see "Widget").
 - All data stays local: no accounts and no telemetry. The only network request is the update check; turn it off and the app never touches the network.
 

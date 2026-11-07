@@ -89,7 +89,7 @@ extension ThemeResolver {
 
     /// Применяет сохранённый внешний вид к приложению. Возвращает `false`, если `NSApp` ещё не создан.
     @MainActor @discardableResult
-    static func applyStoredAppearance(defaults: UserDefaults = .standard, now: Date = .now) -> Bool {
+    static func applyStoredAppearance(defaults: UserDefaults = ProfileDefaults.current, now: Date = .now) -> Bool {
         guard let app = NSApp else { return false }
         let hour = Calendar.current.component(.hour, from: now)
         app.appearance = storedAppearanceName(defaults: defaults, hour: hour).flatMap { NSAppearance(named: $0) }

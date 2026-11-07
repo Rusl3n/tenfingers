@@ -214,16 +214,14 @@ private func makeSession(_ text: String, limit: Double?, clock: @escaping () -> 
     #expect(!none.canStart && none.availability[.plain] == .needsLetters)
 }
 
-@Test func keysFromCourseIncludeLettersDigitsAndCapitals() throws {
-    let course = try CourseCatalog.load(.ru)
-    let none = MeasureKeys.combine(language: .ru, courses: [course], passedLessonIds: [], adaptiveLetters: ["о", "е"])
-    #expect(none.open == ["о", "е"] && !none.capitalsLearned)
-    let all = MeasureKeys.combine(language: .ru, courses: [course], passedLessonIds: Set(course.lessons.map(\.id)),
-                                  adaptiveLetters: [])
+@Test func keysDoNotDependOnCourseProgress() {
+    let all = MeasureKeys.all(language: .ru)
     #expect(all.capitalsLearned)
     #expect(Language.ru.letters.isSubset(of: all.open))
     #expect(all.open.contains(where: \.isNumber) && !all.open.contains(" "))
-    #expect(MeasureText.availability(kind: .digits, language: .ru, open: all.open, capitalsLearned: true) == .available)
+    for kind in MeasureTextKind.allCases {
+        #expect(MeasureText.availability(kind: kind, language: .ru, open: all.open, capitalsLearned: true) == .available)
+    }
 }
 
 // MARK: - Сохранение

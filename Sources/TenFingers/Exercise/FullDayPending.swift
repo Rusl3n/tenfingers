@@ -16,7 +16,7 @@ extension Notification.Name {
 struct FullDayPending {
     static let key = "pendingFullDayAnnouncement"
 
-    var defaults: UserDefaults = .standard
+    var defaults: UserDefaults = ProfileDefaults.current
 
     /// Запоминает логический день, ставший полным.
     func mark(day: String) {

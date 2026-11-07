@@ -39,7 +39,7 @@ enum HomeTabNews {
         })
     }
 
-    static func seen(_ defaults: UserDefaults = .standard) -> [String: String]? {
+    static func seen(_ defaults: UserDefaults = ProfileDefaults.current) -> [String: String]? {
         defaults.dictionary(forKey: SettingsKey.homeTabSeen) as? [String: String]
     }
 
@@ -47,7 +47,7 @@ enum HomeTabNews {
     /// увиденное после записи.
     @discardableResult
     static func markSeen(selected: HomeTab, fingerprints: [HomeTab: String],
-                         _ defaults: UserDefaults = .standard) -> [String: String] {
+                         _ defaults: UserDefaults = ProfileDefaults.current) -> [String: String] {
         let stored = seen(defaults)
         // Данных ещё нет: пустой словарь не записываем, иначе появившиеся позже вкладки сразу загорятся.
         if stored == nil, fingerprints.isEmpty { return [:] }

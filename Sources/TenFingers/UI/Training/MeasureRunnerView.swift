@@ -117,12 +117,7 @@ struct MeasureRunnerView: View {
         guard let coordinator else { return }
         let variant = run.variant
         let language = variant.language
-        let reader = StatsReader(context: modelContext)
-        let keys = (try? reader.measureKeys(language: language, course: library.courses[language],
-                                            legacy: library.legacyCourses[language]))
-            ?? MeasureKeys(open: Set(AdaptiveTrainer(language: language)
-                                        .unlockedLetters(count: AdaptiveTrainer.initialLetters)),
-                           capitalsLearned: false)
+        let keys = MeasureKeys.all(language: language)
         var rng = SystemRandomNumberGenerator()
         guard let generator = library.planners[language]?.generator,
               let text = MeasureText.make(variant: variant, open: keys.open, capitalsLearned: keys.capitalsLearned,

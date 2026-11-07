@@ -28,7 +28,7 @@ struct AnalyticsLoader {
 
     /// `firstWeekday` — явное значение (1 — воскресенье, 2 — понедельник); без него — настройка из `defaults`.
     func summary(language: Language, courses: [Language: Course], legacyCourses: [Language: Course] = [:],
-                 today: String, goalSeconds: Double, firstWeekday: Int? = nil, defaults: UserDefaults = .standard) throws -> AnalyticsData {
+                 today: String, goalSeconds: Double, firstWeekday: Int? = nil, defaults: UserDefaults = ProfileDefaults.current) throws -> AnalyticsData {
         let firstWeekday = firstWeekday ?? StoredSettings.firstWeekday(defaults)
         let days = try ProgressSnapshot(context: context).dayActivities()
         let streak = StreakCalculator.summarize(days: days, today: today, goalSeconds: goalSeconds)

@@ -32,7 +32,7 @@ extension ToastCenter {
     /// Тосты по карточкам: «Новая ачивка: …», «Повтор ×N: …», у рекорда — «Новый рекорд: 231 зн/мин».
     func showAchievements(_ cards: [EarnedCard], unit: SpeedUnit? = nil, adultHumor: Bool) {
         let share = shareAchievement
-        let unit = unit ?? SpeedUnit(rawValue: UserDefaults.standard.string(forKey: SettingsKey.speedUnit) ?? "") ?? .cpm
+        let unit = unit ?? SpeedUnit(rawValue: ProfileDefaults.current.string(forKey: SettingsKey.speedUnit) ?? "") ?? .cpm
         let toasts = AchievementVisibility.visible(cards, adultHumor: adultHumor).map { card in
             let achievement = card.achievement
             return Toast(icon: achievement.icon, message: Self.message(card, unit: unit),

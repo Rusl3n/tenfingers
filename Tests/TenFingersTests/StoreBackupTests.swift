@@ -140,3 +140,66 @@ func rowCount(_ table: String, in url: URL) throws -> Int {
                                                version: "2.0.0", now: .now) { Data() }
     }
 }
+
+/// Базы профилей копируются через Online Backup в ту же относительную папку; сырого `Profiles/` в копии нет.
+@MainActor @Test func backupBeforeUpdateCopiesProfileStoresConsistently() throws {
+    let root = try makeFolder()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let storeDirectory = root.appending(path: "TenFingers", directoryHint: .isDirectory)
+    let profile = Profile(id: UUID(), name: "Второй", createdAt: .now, isPrimary: false)
+    let profileStore = ProfilePaths.storeURL(for: profile, root: storeDirectory)
+    let missing = ProfilePaths.storeURL(for: Profile(id: UUID(), name: "Нет", createdAt: .now, isPrimary: false),
+                                        root: storeDirectory)
+    try FileManager.default.createDirectory(at: profileStore.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let rootContainer = try ModelStore.makeContainer(at: storeDirectory.appending(path: "TenFingers.store"))
+    let profileContainer = try ModelStore.makeContainer(at: profileStore)   // открыта: WAL
+    try insertSessions(2, into: rootContainer.mainContext)
+    try insertSessions(5, into: profileContainer.mainContext)
+    try "x".write(to: profileStore.deletingLastPathComponent().appending(path: "note.txt"), atomically: true, encoding: .utf8)
+    let (defaults, name) = makeTestDefaults("StoreBackupTests-")
+    defer { removeTestDefaults(name) }
+    let backups = root.appending(path: "backups", directoryHint: .isDirectory)
+
+    let folder = try StoreBackup.backupBeforeUpdate(
+        storeDirectory: storeDirectory, backupsDirectory: backups, version: "3.0.0", now: .now,
+        profileStores: [profileStore, missing]) {
+            try ProgressArchive.export(context: rootContainer.mainContext, defaults: defaults)
+        }
+    let relative = "Profiles/\(profile.id.uuidString)"
+    let copy = folder.appending(path: "\(relative)/TenFingers.store")
+    #expect(try rowCount("ZSESSIONRECORD", in: copy) == 5)
+    try StoreBackup.integrityCheck(copy)
+    #expect(try rowCount("ZSESSIONRECORD", in: folder.appending(path: "TenFingers.store")) == 2)
+    #expect(FileManager.default.fileExists(atPath: folder.appending(path: "\(relative)/TenFingers.store.generation").path))
+    #expect(FileManager.default.fileExists(atPath: folder.appending(path: "\(relative)/note.txt").path))
+    #expect(Set(try FileManager.default.contentsOfDirectory(atPath: folder.appending(path: relative).path))
+            == ["TenFingers.store", "TenFingers.store.generation", "note.txt"])
+    #expect(Set(try FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "Profiles").path))
+            == [profile.id.uuidString])
+    #expect(try rowCount("ZSESSIONRECORD", in: profileStore) == 5)
+    withExtendedLifetime([rootContainer, profileContainer]) {}
+}
+
+/// Архив профиля не лежит в копии под именем корневого.
+@Test func archiveNameCarriesProfileSuffix() {
+    #expect(StoreBackup.archiveName(suffix: "") == "progress.tenfingers")
+    #expect(StoreBackup.archiveName(suffix: "-1a2b3c4d") == "progress-1a2b3c4d.tenfingers")
+}
+
+@MainActor @Test func backupBeforeUpdateNamesArchiveWithSuffix() throws {
+    let root = try makeFolder()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let storeDirectory = root.appending(path: "TenFingers", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
+    let container = try ModelStore.makeContainer(at: storeDirectory.appending(path: "TenFingers.store"))
+    let (defaults, name) = makeTestDefaults("StoreBackupSuffix-")
+    defer { removeTestDefaults(name) }
+    let folder = try StoreBackup.backupBeforeUpdate(
+        storeDirectory: storeDirectory, backupsDirectory: root.appending(path: "b"), version: "3.0.0", now: .now,
+        archiveNameSuffix: "-1a2b3c4d") {
+            try ProgressArchive.export(context: container.mainContext, defaults: defaults)
+        }
+    #expect(FileManager.default.fileExists(atPath: folder.appending(path: "progress-1a2b3c4d.tenfingers").path))
+    #expect(!FileManager.default.fileExists(atPath: folder.appending(path: "progress.tenfingers").path))
+    withExtendedLifetime(container) {}
+}

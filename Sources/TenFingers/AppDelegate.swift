@@ -4,12 +4,13 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = ProfileDefaults.current) {
         self.defaults = defaults
     }
 
     override convenience init() {
-        self.init(defaults: .standard)
+        ProfileLaunch.prepare()
+        self.init(defaults: ProfileDefaults.current)
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -17,7 +18,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ThemeResolver.applyStoredAppearance(defaults: defaults)
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        if FullScreenRestore.take(defaults: ProfileDefaults.device) {
+            Task { @MainActor in await FullScreenRestore.apply() }
+        }
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        defaults.bool(forKey: SettingsKey.quitOnWindowClose)
+        ProfileDefaults.deviceStore(pairedWith: defaults).bool(forKey: SettingsKey.quitOnWindowClose)
     }
 }

@@ -26,6 +26,12 @@ public enum MeasureText {
         }
     }
 
+    /// Все клавиши замера: буквы языка, цифры и основные знаки, заглавные — всегда, независимо от курса
+    /// (решение пользователя: иначе замер не измеряет слепую печать в целом).
+    public static func allKeys(language: Language) -> (open: Set<Character>, capitalsLearned: Bool) {
+        (language.letters.union("0123456789").union(".,!?:;()\""), true)
+    }
+
     private static func isPunctuation(_ c: Character) -> Bool { !c.isLetter && !c.isNumber && c != " " }
 
     public static func availability(kind: MeasureTextKind, language: Language, open: Set<Character>,

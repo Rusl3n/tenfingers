@@ -32,42 +32,19 @@ struct MeasureChoice: Equatable, Sendable {
     }
 }
 
-/// Открытые клавиши и пройденные заглавные: вход `MeasureText` (буквы, знаки, цифры открытых уроков обоих изданий курса).
+/// Клавиши и заглавные: вход `MeasureText` (все буквы языка, цифры и знаки — курс не влияет).
 struct MeasureKeys: Equatable {
     var open: Set<Character>
     var capitalsLearned: Bool
 
-    static func combine(language: Language, courses: [Course], passedLessonIds: Set<String>,
-                        adaptiveLetters: [Character]) -> MeasureKeys {
-        var open = Set(adaptiveLetters)
-        var capitals = false
-        for course in courses {
-            guard let last = course.lessons.last(where: { passedLessonIds.contains($0.id) }),
-                  let lesson = course.context(for: last.id) else { continue }
-            if lesson.capitals { capitals = true }
-            for character in lesson.allowed where character != " " {
-                if character.isLetter {
-                    let lowered = Character(String(character).lowercased())
-                    if language.letters.contains(lowered) { open.insert(lowered) }
-                } else {
-                    open.insert(character)
-                }
-            }
-        }
-        return MeasureKeys(open: open, capitalsLearned: capitals)
+    /// Все буквы языка, цифры и знаки, заглавные — всегда, не зависят от курса.
+    static func all(language: Language) -> MeasureKeys {
+        let keys = MeasureText.allKeys(language: language)
+        return MeasureKeys(open: keys.open, capitalsLearned: keys.capitalsLearned)
     }
 }
 
 extension StatsReader {
-    func measureKeys(language: Language, course: Course?, legacy: Course?) throws -> MeasureKeys {
-        let code = language.rawValue
-        let progress = try context.fetch(FetchDescriptor<LessonProgress>(predicate: #Predicate { $0.language == code }))
-        let passed = Set(progress.filter { $0.passedAt != nil }.map(\.lessonId))
-        return MeasureKeys.combine(
-            language: language, courses: [course, legacy].compactMap { $0 }, passedLessonIds: passed,
-            adaptiveLetters: AdaptiveTrainer(language: language).unlockedLetters(count: try unlockedCount(language: language)))
-    }
-
     /// Замеры варианта от старого к новому: первый и последние 5.
     func measurements(variant: MeasureVariant) throws -> [MeasureHistoryEntry] {
         let language = variant.language.rawValue, duration = variant.duration.rawValue, kind = variant.kind.rawValue

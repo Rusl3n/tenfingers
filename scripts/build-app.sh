@@ -17,18 +17,11 @@ STORE_DIR="$HOME/Library/Application Support/TenFingers"
 # приложения и удаления бандлов, поэтому при отказе ничего не меняется. Маркера нет или он не читается —
 # ставим как раньше: приложение само разберётся при открытии базы.
 BUILD_GENERATION=$(schema_generation) || exit 1
-MARKER="$STORE_DIR/TenFingers.store.generation"
-if [ -f "$MARKER" ] && [ -r "$MARKER" ]; then
-    STORE_GENERATION=$(tr -d '[:space:]' < "$MARKER" || true)
-    if [[ "$STORE_GENERATION" =~ ^[0-9]{1,9}$ ]] && [ "$((10#$STORE_GENERATION))" -gt "$BUILD_GENERATION" ]; then
-        echo "Установка отменена: база прогресса записана более новой версией приложения." >&2
-        echo "  Поколение схемы базы:   $((10#$STORE_GENERATION)) ($MARKER)" >&2
-        echo "  Поколение схемы сборки: $BUILD_GENERATION (SchemaGeneration.current)" >&2
-        echo "Эта сборка не откроет базу. Соберите ветку с поколением не ниже $((10#$STORE_GENERATION))." >&2
-        echo "Установленное приложение и база не тронуты." >&2
-        exit 1
-    fi
-fi
+# Поколение проверяется у каждой базы: корневой и баз профилей (Profiles/<uuid>).
+check_store_generation "$STORE_DIR" "$BUILD_GENERATION" || exit 1
+while IFS= read -r profile_dir; do
+    check_store_generation "$profile_dir" "$BUILD_GENERATION" || exit 1
+done < <(profile_store_dirs "$STORE_DIR")
 
 NAME="TenFingers.app"
 OLD_NAME="Десять пальцев.app"
@@ -66,13 +59,37 @@ if [ -d "$STORE_DIR" ]; then
         for item in "$STORE_DIR"/* "$STORE_DIR"/.[!.]*; do
             [ -e "$item" ] || continue
             case "$(basename "$item")" in
-                TenFingers.store|*-wal|*-shm) ;;
+                TenFingers.store|*-wal|*-shm|Profiles) ;;
                 *) cp -R "$item" "$DEST/" ;;
             esac
         done
     else
-        cp -R "$STORE_DIR"/. "$DEST/"
+        for item in "$STORE_DIR"/* "$STORE_DIR"/.[!.]*; do
+            [ -e "$item" ] || continue
+            [ "$(basename "$item")" = "Profiles" ] || cp -R "$item" "$DEST/"
+        done
     fi
+    # Базы профилей: каждая тоже через `.backup` в ту же относительную папку копии, прочие файлы профиля — как у корня.
+    while IFS= read -r profile_dir; do
+        PROFILE_DEST="$DEST/Profiles/$(basename "$profile_dir")"
+        mkdir -p "$PROFILE_DEST"
+        PROFILE_DB=0
+        if [ -f "$profile_dir/TenFingers.store" ] && command -v sqlite3 >/dev/null 2>&1; then
+            if sqlite3 "file:$profile_dir/TenFingers.store?mode=ro" ".backup '$PROFILE_DEST/TenFingers.store'"; then
+                PROFILE_DB=1
+            else
+                rm -f "$PROFILE_DEST/TenFingers.store"
+                echo "sqlite3 не смог скопировать базу профиля $(basename "$profile_dir"), копирую файлы как есть" >&2
+            fi
+        fi
+        for item in "$profile_dir"/* "$profile_dir"/.[!.]*; do
+            [ -e "$item" ] || continue
+            case "$(basename "$item")" in
+                TenFingers.store|*-wal|*-shm) [ "$PROFILE_DB" = 1 ] || cp -R "$item" "$PROFILE_DEST/" ;;
+                *) cp -R "$item" "$PROFILE_DEST/" ;;
+            esac
+        done
+    done < <(profile_store_dirs "$STORE_DIR")
     echo "Резервная копия прогресса: $DEST"
 
     CUTOFF=$(date -v-30d +%Y-%m-%d)
