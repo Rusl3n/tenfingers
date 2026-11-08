@@ -10,6 +10,7 @@
   <a href="https://github.com/Rusl3n/tenfingers/releases"><img src="https://img.shields.io/github/downloads/Rusl3n/tenfingers/total?label=%D0%B7%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8" alt="Загрузки"></a>
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="Тесты"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-green" alt="Лицензия MIT"></a>
+  <a href="https://pay.cloudtips.ru/p/83c3e4e3"><img src="https://img.shields.io/badge/%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-orange" alt="Поддержать проект"></a>
 </p>
 
 <p align="center"><a href="README.en.md">English version</a> · <a href="CHANGELOG.md">История изменений</a></p>
@@ -151,6 +152,10 @@ RENDER_DOCS=1 swift test --filter renderSettingsImage       # настройки
 ```
 
 Версии и история изменений: [`CHANGELOG.md`](CHANGELOG.md), как участвовать в разработке: [`CONTRIBUTING.md`](CONTRIBUTING.md). Версия приложения видна в «О программе» и внизу настроек.
+
+## Поддержать проект
+
+«Десять пальцев» — бесплатное приложение с открытым кодом. Если оно вам помогает, можно поддержать разработку добровольным донатом через [CloudTips](https://pay.cloudtips.ru/p/83c3e4e3) (банковская карта российского банка). Донат ничего не открывает в приложении — это просто спасибо.
 
 ## Лицензии
 

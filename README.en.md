@@ -10,6 +10,7 @@
   <a href="https://github.com/Rusl3n/tenfingers/releases"><img src="https://img.shields.io/github/downloads/Rusl3n/tenfingers/total?label=downloads" alt="Downloads"></a>
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
+  <a href="https://pay.cloudtips.ru/p/83c3e4e3"><img src="https://img.shields.io/badge/support-CloudTips-orange" alt="Support the project"></a>
 </p>
 
 <p align="center"><a href="README.md">Русская версия</a> · <a href="CHANGELOG.md">Changelog</a> (in Russian)</p>
@@ -151,6 +152,10 @@ RENDER_DOCS=1 swift test --filter renderSettingsImage       # settings
 ```
 
 Versions and history: [`CHANGELOG.md`](CHANGELOG.md), how to contribute: [`CONTRIBUTING.en.md`](CONTRIBUTING.en.md) (the changelog is in Russian). The app version is shown in About and at the bottom of Settings.
+
+## Support the project
+
+TenFingers is free and open source. If it helps you, you can support development with a voluntary donation via [CloudTips](https://pay.cloudtips.ru/p/83c3e4e3). CloudTips currently accepts cards issued by Russian banks only. A donation does not unlock anything in the app; it is simply a thank-you.
 
 ## Licenses
 
