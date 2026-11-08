@@ -125,16 +125,13 @@ func renderReadmeImages() async throws {
         to: "exercise-text.png"
     )
 
-    // Главная с серией, «Искрой», планом дня и плашкой обновления сверху. Рисуется через `NSHostingView`
-    // (`renderHosted`): `ImageRenderer` заменяет кнопки с поповерами жёлтыми заглушками. Прокрутки нет —
-    // берётся `HomeContent.column`; плашка кладётся над ним сама: окружение `HomeContent` у `column` не работает.
-    // Плашка — настоящий `UpdateChecker` с поддельной сетью (вымышленный выпуск 2.6.0). Курс английский: название
-    // языка («English») читается одинаково в любом интерфейсе; остальные строки — исходные русские.
-    let checker = try await updateChecker(offering: "2.6.0")
+    // Главная с серией, «Искрой» и планом дня. Рисуется через `NSHostingView` (`renderHosted`): `ImageRenderer`
+    // заменяет кнопки с поповерами жёлтыми заглушками. Прокрутки нет — берётся `HomeContent.column`.
+    // Курс английский: название языка («English») читается одинаково в любом интерфейсе; остальные строки —
+    // исходные русские.
     let enCourse = try #require(ContentLibrary().courses[.en])
     try renderHosted(
         VStack(spacing: 0) {
-            UpdateBanner(checker: checker).padding(.horizontal, 24).padding(.top, 24)
             HomeContent(data: homeFixture(), continueInfo: ContinueInfo(
                             lessonTitle: "Буквы E и N", stageTitle: "Основной ряд", percent: 23,
                             retakeCheck: false, lessonRun: LessonRun(language: .en, lessonId: "en.1.3")),
@@ -489,4 +486,166 @@ private func challengesFixture() -> ChallengesCardModel? {
     func removePending(ids: [String]) {}
     func removeAll() {}
     func add(_ notification: ReminderNotification) async {}
+}
+
+// MARK: - Новые картинки README: анимация набора, разбор шага, «Ритм», замер
+
+/// Русские переводы строк приложения из Localization/ru.lproj (в тестах `Bundle.main` без переводов приложения).
+private func russianAppStrings() throws -> [String: String] {
+    let url = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Localization/ru.lproj/Localizable.strings")
+    return try #require(
+        try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
+}
+
+/// Кадры анимации набора для hero.gif: текст упражнения и экранная клавиатура с подсказкой следующей клавиши;
+/// на одной букве — ошибка (красная подсветка) на три кадра. Кадры — PNG в `HERO_FRAMES_DIR` (по умолчанию
+/// временная папка); склейка в GIF — ffmpeg (см. README, раздел разработки).
+/// Запуск: RENDER_DOCS=1 swift test --filter renderHeroFrames
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderHeroFrames() throws {
+    let env = ProcessInfo.processInfo.environment
+    let dir = URL(fileURLWithPath: env["HERO_FRAMES_DIR"] ?? NSTemporaryDirectory() + "hero-frames")
+    try? FileManager.default.removeItem(at: dir)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let ru = try #require(KeyboardLayoutService.source(withID: "com.apple.keylayout.RussianWin"))
+    let snapshot = KeyboardLayoutService.snapshot(for: ru, shape: .ansi)
+    let target = Array("пальцы сами находят клавиши")
+    let errorAt = 10                                   // «и» в «сами»: сначала промах, потом верная клавиша
+    // (позиция курсора, ошибка) по кадрам: буква за буквой, на `errorAt` — три кадра ошибки, в конце — пауза.
+    var frames: [(Int, Bool)] = []
+    for position in 0...target.count {
+        if position == errorAt { frames += Array(repeating: (position, true), count: 3) }
+        frames.append((position, false))
+    }
+    frames += Array(repeating: (target.count, false), count: 12)
+    let light = LightPalette.beige.palette
+    for (index, frame) in frames.enumerated() {
+        let (position, error) = frame
+        let expected = position < target.count ? target[position] : nil
+        let highlight = KeyHint.highlight(expected: expected, snapshot: snapshot, hint: .full,
+                                          positionHasError: error, errorFlash: error,
+                                          previous: position > 0 ? target[position - 1] : nil, spaceThumb: true)
+        let view = VStack(spacing: 6) {
+            TypingTextView(target: target, position: position, errorAtCursor: error)
+                .frame(width: 700, height: 44, alignment: .leading)
+            KeyboardView(snapshot: snapshot, marks: KeyboardView.marks(for: highlight))
+            FingerLegend()
+        }
+        .padding(28)
+        .background(light.background)
+        .environment(\.palette, light)
+        .environment(\.colorScheme, .light)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        let image = try #require(renderer.nsImage)
+        let tiff = try #require(image.tiffRepresentation)
+        let png = try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
+        try png.write(to: dir.appendingPathComponent(String(format: "frame_%03d.png", index)))
+    }
+}
+
+/// Разбор шага урока (русский интерфейс): промежуточный экран «Готово: шаг 3 из 7» — скорость и ошибки,
+/// график темпа по отрезкам с медленными местами и строки «что получилось / что мешало». Повторяет вёрстку
+/// `LessonRunnerView` (сам экран живёт внутри раннера урока). Строки разбора — русские переводы приложения.
+/// Запуск: RENDER_DOCS=1 swift test --filter renderLessonReviewImage
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderLessonReviewImage() throws {
+    let strings = try russianAppStrings()
+    let text = "щука ищет щель в целом море, а цапля ждёт на мели и смотрит на щеглов у берега реки"
+    let speeds: [Double] = [246, 258, 138, 251, 262, 146, 249, 268]
+    let step = text.count / speeds.count
+    let segments = speeds.enumerated().map { index, cpm in
+        SpeedSegment(start: index * step, end: index == speeds.count - 1 ? text.count : (index + 1) * step, cpm: cpm)
+    }
+    let lines = [ReviewLine(key: "review.fasterThanTarget"),
+                 ReviewLine(key: "review.slowest", args: ["щель в целом"]),
+                 ReviewLine(key: "review.letters", args: ["щ", "ц"])]
+    let screen = StepReviewScreen(lines: lines, segments: segments, slow: SpeedSegments.slow(segments), text: text)
+    let light = LightPalette.beige.palette
+    try renderHosted(
+        VStack(spacing: 16) {
+            Text("Готово: шаг 3 из 7").font(.largeTitle.bold())
+            Text("\(SpeedUnit.cpm.format(214)) · ошибок: 2").font(.title2).monospacedDigit()
+            StepDotsView(current: 3, total: 7)
+            SpeedSegmentsChart(screen: screen, unit: .cpm).frame(width: 460)
+            VStack(spacing: 4) {
+                ForEach(lines.indices, id: \.self) { index in
+                    Text(ReviewText.text(lines[index], template: strings[lines[index].key]))
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            Text("Дальше: Предложения").foregroundStyle(.secondary)
+            Button("Дальше") {}.buttonStyle(.borderedProminent).controlSize(.large)
+        }
+        .padding(.vertical, 36)
+        .frame(maxWidth: .infinity)
+        .background(light.background)
+        .environment(\.palette, light)
+        .environment(\.colorScheme, .light),
+        width: 760, to: "lesson-review.png"
+    )
+}
+
+/// Кадр «Ритма»: ноты едут по восьми дорожкам пальцев к линии попадания, оценка «Точно», очки, комбо и здоровье.
+/// Запуск: RENDER_DOCS=1 swift test --filter renderRhythmImage
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderRhythmImage() throws {
+    let letters: [Character] = ["ф", "ы", "в", "а", "о", "л", "д", "ж"]
+    let lanes = [3, 4, 2, 5, 8, 1, 6, 0, 7]             // 8 — пробел
+    let now: TimeInterval = 20
+    let notes = lanes.enumerated().map { index, lane in
+        RhythmFieldFrame.Note(index: index, time: now + 0.05 + Double(index) * 0.19, scrollSeconds: 2,
+                              character: lane == 8 ? " " : letters[lane],
+                              lane: lane == 8 ? .space : .finger(lane), missed: false)
+    }
+    var frame = RhythmFieldFrame()
+    frame.trackTime = now
+    frame.notes = notes
+    frame.laneFlash[3] = 0.7
+    frame.label = .init(judgement: .perfect, lane: .finger(3), age: 0.2)
+    frame.score = 12_840
+    frame.combo = 37
+    frame.multiplier = 3
+    frame.health = 82
+    frame.progress = 0.46
+    let light = LightPalette.beige.palette
+    try render(
+        RhythmFieldCanvas(frame: frame)
+            .frame(width: 820, height: 560)
+            .background(light.background)
+            .environment(\.palette, light)
+            .environment(\.colorScheme, .light),
+        to: "rhythm.png"
+    )
+}
+
+/// Итог замера скорости: скорость, точность, сравнение с первым и прошлым замером и график замеров варианта.
+/// Повторяет `MeasureResultView` без прокрутки (`NSHostingView` не меряет высоту `ScrollView`).
+/// Запуск: RENDER_DOCS=1 swift test --filter renderMeasureImage
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderMeasureImage() throws {
+    let base = Date(timeIntervalSince1970: 1_790_000_000)
+    let history = [214.0, 231, 246, 252, 271, 286].enumerated().map { index, cpm in
+        MeasureHistoryEntry(date: base.addingTimeInterval(Double(index) * 5 * 86_400), cpm: cpm, accuracy: 0.98)
+    }
+    let comparison = MeasureComparison(toFirst: 72, toPrevious: 15)
+    let light = LightPalette.beige.palette
+    try renderHosted(
+        VStack(spacing: 16) {
+            RunSummaryView(title: "Замер скорости", leadingMetrics: [.init(title: "Знаков", value: "1240")],
+                           cpm: 286, accuracy: 0.981, errors: 6,
+                           lines: MeasureResultText.lines(comparison, unit: .cpm),
+                           primaryTitle: "Готово", onPrimary: {},
+                           secondaryTitle: "Смотреть запись", onSecondary: {})
+            MeasureHistoryChart(entries: history, unit: .cpm).frame(maxWidth: 420)
+        }
+        .padding(.vertical, 32)
+        .frame(maxWidth: .infinity)
+        .background(light.background)
+        .environment(\.palette, light)
+        .environment(\.colorScheme, .light),
+        width: 760, to: "measure.png"
+    )
 }
