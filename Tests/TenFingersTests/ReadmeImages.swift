@@ -499,9 +499,10 @@ private func russianAppStrings() throws -> [String: String] {
         try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
 }
 
-/// Кадры анимации набора для hero.gif: текст упражнения и экранная клавиатура с подсказкой следующей клавиши;
-/// на одной букве — ошибка (красная подсветка) на три кадра. Кадры — PNG в `HERO_FRAMES_DIR` (по умолчанию
-/// временная папка); склейка в GIF — ffmpeg (см. README, раздел разработки).
+/// Кадры анимации набора для hero.gif: текст упражнения и экранная клавиатура с десятью кончиками пальцев (как на
+/// знакомстве с клавишами и в повторе замера): кончик идёт к нажимаемой клавише и возвращается домой, пробел жмёт
+/// большой палец руки, противоположной предыдущей букве. Пунктирной дуги нет. Кадры — PNG в `HERO_FRAMES_DIR`
+/// (по умолчанию временная папка); склейка в GIF — ffmpeg (12 кадров/с).
 /// Запуск: RENDER_DOCS=1 swift test --filter renderHeroFrames
 @MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
 func renderHeroFrames() throws {
@@ -512,25 +513,50 @@ func renderHeroFrames() throws {
     let ru = try #require(KeyboardLayoutService.source(withID: "com.apple.keylayout.RussianWin"))
     let snapshot = KeyboardLayoutService.snapshot(for: ru, shape: .ansi)
     let target = Array("пальцы сами находят клавиши")
-    let errorAt = 10                                   // «и» в «сами»: сначала промах, потом верная клавиша
-    // (позиция курсора, ошибка) по кадрам: буква за буквой, на `errorAt` — три кадра ошибки, в конце — пауза.
-    var frames: [(Int, Bool)] = []
-    for position in 0...target.count {
-        if position == errorAt { frames += Array(repeating: (position, true), count: 3) }
-        frames.append((position, false))
+    let presses = MeasureReplayModel.presses(keys: target.map { ReplayKey(position: 0, typed: $0, offsetMs: 0) }, snapshot: snapshot)
+    let layout = HandsOverlayModel.layout(shape: snapshot.shape)
+    let keyFrames = HandsOverlayModel.keyFrames(shape: snapshot.shape)
+    // Каждое нажатие — 4 кадра по 100 мс из 400 мс; знак засчитан с третьего кадра (палец уже на клавише).
+    let durationMs = 400.0, framesPerKey = 4
+    var shots: [(position: Int, active: [ActiveHandsPress])] = [(0, [])]
+    for (index, press) in presses.enumerated() {
+        guard let press else { continue }
+        for k in 0..<framesPerKey {
+            let elapsed = Double(k) * durationMs / Double(framesPerKey)
+            shots.append((k >= 2 ? index + 1 : index, [ActiveHandsPress(press: press, elapsedMs: elapsed, durationMs: durationMs)]))
+        }
     }
-    frames += Array(repeating: (target.count, false), count: 12)
+    shots += Array(repeating: (target.count, []), count: 14)
     let light = LightPalette.beige.palette
-    for (index, frame) in frames.enumerated() {
-        let (position, error) = frame
-        let expected = position < target.count ? target[position] : nil
-        let highlight = KeyHint.highlight(expected: expected, snapshot: snapshot, hint: .full,
-                                          positionHasError: error, errorFlash: error,
-                                          previous: position > 0 ? target[position - 1] : nil, spaceThumb: true)
-        let view = VStack(spacing: 6) {
-            TypingTextView(target: target, position: position, errorAtCursor: error)
+    for (index, shot) in shots.enumerated() {
+        let tips = HandsOverlayModel.tips(layout: layout, frames: keyFrames, active: shot.active, moves: true)
+        let pressed = HandsOverlayModel.pressedKeys(active: shot.active)
+        let spaceHalf = HandsOverlayModel.pressedSpaceHalf(active: shot.active)
+        let overlay = Canvas { context, _ in
+            for key in pressed {
+                guard let frame = keyFrames[key] else { continue }
+                var rect = CGRect(x: frame.center.x - frame.width / 2, y: frame.center.y - frame.height / 2,
+                                  width: frame.width, height: frame.height)
+                if key == KeyboardGeometry.space, let spaceHalf {
+                    rect.size.width /= 2
+                    if spaceHalf == .right { rect.origin.x += rect.width }
+                }
+                context.stroke(Path(roundedRect: rect, cornerRadius: 6), with: .color(.accentColor), lineWidth: 3)
+            }
+            for tip in tips {
+                let d = layout.diameter(pressing: tip.isDown)
+                let rect = CGRect(x: tip.point.x - d / 2, y: tip.point.y - d / 2, width: d, height: d)
+                // На светлой теме кружок того же цвета, что клавиша: полная заливка, белое кольцо и тёмный ободок.
+                context.fill(Path(ellipseIn: rect.insetBy(dx: -1.5, dy: -1.5)), with: .color(.black.opacity(0.28)))
+                context.fill(Path(ellipseIn: rect), with: .color(FingerPalette.color(tip.finger)))
+                context.stroke(Path(ellipseIn: rect.insetBy(dx: 1, dy: 1)), with: .color(.white), lineWidth: 2)
+            }
+        }
+        let view = VStack(spacing: 10) {
+            TypingTextView(target: target, position: shot.position, errorAtCursor: false)
                 .frame(width: 700, height: 44, alignment: .leading)
-            KeyboardView(snapshot: snapshot, marks: KeyboardView.marks(for: highlight))
+            KeyboardView(snapshot: snapshot, marks: [:], unit: CGFloat(KeyboardSizing.baseUnit))
+                .overlay(alignment: .topLeading) { overlay }
             FingerLegend()
         }
         .padding(28)
