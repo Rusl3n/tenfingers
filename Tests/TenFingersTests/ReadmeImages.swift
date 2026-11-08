@@ -501,7 +501,7 @@ private func russianAppStrings() throws -> [String: String] {
 
 /// Кадры анимации набора для hero.gif: текст упражнения и экранная клавиатура с десятью кончиками пальцев (как на
 /// знакомстве с клавишами и в повторе замера): кончик идёт к нажимаемой клавише и возвращается домой, пробел жмёт
-/// большой палец руки, противоположной предыдущей букве. Пунктирной дуги нет. Кадры — PNG в `HERO_FRAMES_DIR`
+/// большой палец руки, противоположной предыдущей букве; пунктирная дуга — ко всем клавишам, кроме пробела. Кадры — PNG в `HERO_FRAMES_DIR`
 /// (по умолчанию временная папка); склейка в GIF — ffmpeg (12 кадров/с).
 /// Запуск: RENDER_DOCS=1 swift test --filter renderHeroFrames
 @MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
@@ -542,6 +542,19 @@ func renderHeroFrames() throws {
                     if spaceHalf == .right { rect.origin.x += rect.width }
                 }
                 context.stroke(Path(roundedRect: rect, cornerRadius: 6), with: .color(.accentColor), lineWidth: 3)
+            }
+            // Пунктирная дуга от дома к клавише, как в приложении; к пробелу дуги нет — большой палец жмёт на месте.
+            for item in shot.active where HandsOverlayModel.drawsArc(to: item.press.keyCode) {
+                guard let finger = FingerMap.finger(for: item.press.keyCode),
+                      let target = keyFrames[item.press.keyCode]?.center else { continue }
+                let arc = layout.arc(finger: finger, to: target)
+                guard arc.start != arc.end else { continue }
+                var path = Path()
+                path.move(to: CGPoint(x: arc.start.x, y: arc.start.y))
+                path.addQuadCurve(to: CGPoint(x: arc.end.x, y: arc.end.y),
+                                  control: CGPoint(x: arc.control.x, y: arc.control.y))
+                context.stroke(path, with: .color(FingerPalette.color(finger)),
+                               style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 4]))
             }
             for tip in tips {
                 let d = layout.diameter(pressing: tip.isDown)

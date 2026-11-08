@@ -24,7 +24,7 @@ A free touch-typing tutor for macOS: a full course, training built from your mis
   <a href="CHANGELOG.md">Changelog</a> (in Russian)
 </p>
 
-<p align="center"><img src="docs/images/hero.gif" width="820" alt="Typing: ten fingertips on the keyboard, each reaching for its own key, a thumb pressing the space bar"></p>
+<p align="center"><img src="docs/images/hero.gif" width="820" alt="Typing: ten fingertips on the keyboard, each following a dashed arc to its own key, a thumb pressing the space bar"></p>
 
 ## Why TenFingers
 
