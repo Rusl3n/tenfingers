@@ -37,16 +37,53 @@
 
 ## Как это выглядит
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/home.png" alt="Главная: серия, «Искра» и план на сегодня"><br><sub><b>Главная.</b> Серия дней, уровень и план на сегодня.</sub></td>
-    <td width="50%"><img src="docs/images/lesson-review.png" alt="Разбор шага урока"><br><sub><b>Разбор.</b> Где падала скорость и что подтянуть.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/images/rhythm.png" alt="Ритм-игра"><br><sub><b>«Ритм».</b> Буквы едут по дорожкам пальцев в такт биту.</sub></td>
-    <td width="50%"><img src="docs/images/analytics-heatmap.png" alt="Тепловая карта ошибок"><br><sub><b>Аналитика.</b> Тепловая карта ошибок по клавишам.</sub></td>
-  </tr>
-</table>
+**Главная.** Серия дней, «Искра», уровень и план на сегодня.
+
+<p align="center"><img src="docs/images/home.png" alt="Главная"></p>
+
+**Курс.** 98 уроков в 7 этапах: звёзды, скорость и «Освежить» у слабо сданных уроков.
+
+<p align="center"><img src="docs/images/course.png" alt="Курс"></p>
+
+**Разбор шага.** Где падала скорость, на каких буквах ошибки и что дальше.
+
+<p align="center"><img src="docs/images/lesson-review.png" alt="Разбор шага"></p>
+
+**«Ритм».** Буквы едут по дорожкам пальцев — нажимайте в такт биту.
+
+<p align="center"><img src="docs/images/rhythm.png" alt="«Ритм»"></p>
+
+**Замер скорости.** Сравнение с первым и прошлым замером и рост по графику.
+
+<p align="center"><img src="docs/images/measure.png" alt="Замер скорости"></p>
+
+**Ачивки.** 164 ачивки, у каждой своя шутка; часть — секретные.
+
+<p align="center"><img src="docs/images/achievements.png" alt="Ачивки"></p>
+
+**Карточки «Поделиться».** Серия, рекорд, этап или прогресс — картинкой для сторис и чатов.
+
+<p align="center"><img src="docs/images/share-streak-ru.jpg" width="560" alt="Карточки «Поделиться»"></p>
+
+<p align="center"><img src="docs/images/share-speed-en.jpg" width="720" alt="share-speed-en.jpg"></p>
+
+**Виджет.** Серия, цель дня и последние ачивки на рабочем столе.
+
+<p align="center"><img src="docs/images/widget.png" alt="Виджет"></p>
+
+**Аналитика.** Тепловая карта ошибок по клавишам, графики, рекорды и календарь.
+
+<p align="center"><img src="docs/images/analytics-heatmap.png" alt="Аналитика"></p>
+
+**Настройки.** Темы и палитры, масштаб, звуки, напоминания, профили.
+
+<p align="center"><img src="docs/images/settings.png" alt="Настройки"></p>
+
+**Тёмная тема.** Шесть палитр — светлые и тёмные, по системе или по расписанию.
+
+<p align="center"><img src="docs/images/keyboard-en-dark.png" alt="Тёмная тема"></p>
+
+<sub>Картинки нарисованы тестами приложения на вымышленных данных.</sub>
 
 <p align="center"><b><a href="docs/FEATURES.md">Все возможности и скриншоты →</a></b></p>
 

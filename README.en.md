@@ -37,18 +37,53 @@ A free touch-typing tutor for macOS: a full course, training built from your mis
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/home.png" alt="Home: streak, Spark and today's plan"><br><sub><b>Home.</b> Daily streak, level and today's plan.</sub></td>
-    <td width="50%"><img src="docs/images/lesson-review.png" alt="Lesson step breakdown"><br><sub><b>Breakdown.</b> Where your speed dropped and what to work on.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/images/rhythm.png" alt="Rhythm game"><br><sub><b>Rhythm.</b> Letters travel down the finger lanes to the beat.</sub></td>
-    <td width="50%"><img src="docs/images/analytics-heatmap.png" alt="Error heat map"><br><sub><b>Analytics.</b> A keyboard heat map of your errors.</sub></td>
-  </tr>
-</table>
+**Home.** Daily streak, Spark, level and today's plan.
 
-<sub>Screenshots show the Russian interface; the app is fully available in English.</sub>
+<p align="center"><img src="docs/images/home.png" alt="Home"></p>
+
+**Course.** 98 lessons in 7 stages: stars, speed and Refresh on weakly passed lessons.
+
+<p align="center"><img src="docs/images/course.png" alt="Course"></p>
+
+**Step breakdown.** Where your speed dropped, which letters had errors and what's next.
+
+<p align="center"><img src="docs/images/lesson-review.png" alt="Step breakdown"></p>
+
+**Rhythm.** Letters travel down the finger lanes; hit them to the beat.
+
+<p align="center"><img src="docs/images/rhythm.png" alt="Rhythm"></p>
+
+**Speed test.** Compared with your first and previous test, with progress on a chart.
+
+<p align="center"><img src="docs/images/measure.png" alt="Speed test"></p>
+
+**Achievements.** 164 achievements, each with its own joke; some are secret.
+
+<p align="center"><img src="docs/images/achievements.png" alt="Achievements"></p>
+
+**Share cards.** A streak, record, stage or progress as an image for stories and chats.
+
+<p align="center"><img src="docs/images/share-streak-ru.jpg" width="560" alt="Share cards"></p>
+
+<p align="center"><img src="docs/images/share-speed-en.jpg" width="720" alt="share-speed-en.jpg"></p>
+
+**Widget.** Streak, daily goal and latest achievements on your desktop.
+
+<p align="center"><img src="docs/images/widget.png" alt="Widget"></p>
+
+**Analytics.** A keyboard heat map of errors, charts, records and a calendar.
+
+<p align="center"><img src="docs/images/analytics-heatmap.png" alt="Analytics"></p>
+
+**Settings.** Themes and palettes, scale, sounds, reminders, profiles.
+
+<p align="center"><img src="docs/images/settings.png" alt="Settings"></p>
+
+**Dark theme.** Six palettes, light and dark, following the system or on a schedule.
+
+<p align="center"><img src="docs/images/keyboard-en-dark.png" alt="Dark theme"></p>
+
+<sub>Images are rendered by the app's tests from made-up data, with the Russian interface; the app is fully available in English.</sub>
 
 <p align="center"><b><a href="docs/FEATURES.en.md">All features and screenshots →</a></b></p>
 
