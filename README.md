@@ -65,7 +65,7 @@
 
 <p align="center"><img src="docs/images/share-streak-ru.jpg" width="560" alt="Карточки «Поделиться»"></p>
 
-<p align="center"><img src="docs/images/share-speed-en.jpg" width="720" alt="share-speed-en.jpg"></p>
+<p align="center"><img src="docs/images/share-speed-en.jpg" width="720" alt="Карточка «Поделиться»: рекорд скорости"></p>
 
 **Виджет.** Серия, цель дня и последние ачивки на рабочем столе.
 

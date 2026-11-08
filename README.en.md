@@ -65,7 +65,7 @@ A free touch-typing tutor for macOS: a full course, training built from your mis
 
 <p align="center"><img src="docs/images/share-streak-ru.jpg" width="560" alt="Share cards"></p>
 
-<p align="center"><img src="docs/images/share-speed-en.jpg" width="720" alt="share-speed-en.jpg"></p>
+<p align="center"><img src="docs/images/share-speed-en.jpg" width="720" alt="Share card: speed record"></p>
 
 **Widget.** Streak, daily goal and latest achievements on your desktop.
 
