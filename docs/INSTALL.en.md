@@ -11,6 +11,7 @@
 - [Building from source](#building-from-source)
 - [Uninstalling](#uninstalling)
 - [Troubleshooting](#troubleshooting)
+- [Disclaimer](#disclaimer)
 
 ## Requirements
 
@@ -145,3 +146,9 @@ Project layout and rules: [CONTRIBUTING.en.md](../CONTRIBUTING.en.md).
 - **No reminders.** System Settings → Notifications → TenFingers: allow notifications.
 - **`build-app.sh`: "xcrun: error" or "unable to find utility".** Xcode isn't at `/Applications/Xcode.app` or has never been launched; see step 1 of the build.
 - **Anything else.** Open an [issue](https://github.com/Rusl3n/tenfingers/issues/new/choose) with the app version (shown in About) and your macOS version.
+
+## Disclaimer
+
+TenFingers is a free project made in spare time. The app is distributed under the [MIT License](../LICENSE) **"as is", without warranty of any kind**, express or implied, including fitness for a particular purpose. The author is not liable for any damage, data loss or other consequences of using the app. You install and run it at your own risk; by allowing it to open past the macOS check, you make that decision yourself.
+
+The app backs up your progress regularly, but it's still worth saving important data yourself: Settings → Data → Save Progress to File….

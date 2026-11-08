@@ -133,7 +133,7 @@ swift test               # тесты (нужен export DEVELOPER_DIR=/Applicat
 
 ## Лицензии
 
-- Код — [MIT](LICENSE).
+- Код — [MIT](LICENSE). Приложение предоставляется «как есть», без каких-либо гарантий; автор не несёт ответственности за последствия его использования ([подробнее](docs/INSTALL.md#отказ-от-ответственности)).
 - Списки слов `Sources/TypingCore/Resources/words-*.txt` — адаптации частотных словарей [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (OpenSubtitles 2018), лицензия [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 - Предложения `Sources/TypingCore/Resources/sentences-*.json` — из [Tatoeba](https://tatoeba.org), лицензия [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/).
 - Отрывки для практики — произведения в общественном достоянии ([Project Gutenberg](https://www.gutenberg.org), [Викитека](https://ru.wikisource.org)).

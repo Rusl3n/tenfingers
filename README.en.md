@@ -133,7 +133,7 @@ More: [building from source](docs/INSTALL.en.md#building-from-source), [contribu
 
 ## Licenses
 
-- Code: [MIT](LICENSE).
+- Code: [MIT](LICENSE). The app is provided "as is", without warranty of any kind; the author is not liable for any consequences of using it ([details](docs/INSTALL.en.md#disclaimer)).
 - Word lists `Sources/TypingCore/Resources/words-*.txt`: adapted from [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (OpenSubtitles 2018), [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 - Sentences `Sources/TypingCore/Resources/sentences-*.json`: from [Tatoeba](https://tatoeba.org), [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/).
 - Practice excerpts: public-domain works ([Project Gutenberg](https://www.gutenberg.org), [Wikisource](https://ru.wikisource.org)).
