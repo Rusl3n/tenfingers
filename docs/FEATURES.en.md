@@ -13,11 +13,11 @@
 - [Widget](#widget)
 - [Comfort](#comfort)
 
-The screenshots are rendered by the app's tests from made-up data, with the Russian interface; the app itself is fully available in English.
+The screenshots are rendered by the app's tests from made-up data.
 
 ## Course
 
-![Course map](images/course.png)
+![Course map](images/course-en.png)
 
 - **98 lessons per language** (English and Russian) in 7 stages, from the home row to long texts. Each lesson has 6–8 steps: words from the rows, phrases, sentences, connected text, hard letters, words with your errors, a sprint, numbers.
 - **Review** is built from your errors; **Speed-up** uses your strong letters with a goal 10% above your average speed. Speed tiers start at stage two.
@@ -29,7 +29,7 @@ The screenshots are rendered by the app's tests from made-up data, with the Russ
 
 ### Breakdown after each step and lesson
 
-![Step breakdown: speed by text segment](images/lesson-review.png)
+![Step breakdown: speed by text segment](images/lesson-review-en.png)
 
 After each step: a speed chart by text segment (slow segments are highlighted; hover to see their words) and a couple of lines on what went well and what got in the way. At the end of a lesson: a full breakdown with speed per step, the best step, the letters and finger worth practicing, and a "What next" button.
 
@@ -57,7 +57,7 @@ After each step: a speed chart by text segment (slow segments are highlighted; h
 
 ### Speed test
 
-![Speed test result](images/measure.png)
+![Speed test result](images/measure-en.png)
 
 1, 2 or 5 minutes, or a 300-character text; plain, capitals and punctuation, or with digits; no Backspace. The result compares you with your first and previous test. **Watch replay** shows your typing with fingertips: as it was, ×1.5, ×2, ×3 and "Master" (1000 characters per minute).
 
@@ -67,7 +67,7 @@ Frequent words, 120 excerpts from classic literature (60 per language), digits a
 
 ## Rhythm
 
-![Rhythm game: letters travel down the finger lanes](images/rhythm.png)
+![Rhythm game: letters travel down the finger lanes](images/rhythm-en.png)
 
 A rhythm game with falling notes: letters travel down eight finger lanes and you hit them to the beat.
 
@@ -78,7 +78,7 @@ A rhythm game with falling notes: letters travel down eight finger lanes and you
 
 ## Every day: plan, streak, levels
 
-![Home: streak, Spark and today's plan](images/home.png)
+![Home: streak, Spark and today's plan](images/home-en.png)
 
 - **Today's plan:** warm-up, lesson, training and text, one item at a time; the plan's size depends on your daily goal.
 - **Flame streak:** a full flame for reaching the daily goal (10 minutes of active typing by default), a half flame for any exercise. **Freezes** cover a missed day, and a **repair** saves the streak with a double goal the next day.
@@ -88,32 +88,32 @@ A rhythm game with falling notes: letters travel down eight finger lanes and you
 
 ## Analytics
 
-![Keyboard heat map of errors](images/analytics-heatmap.png)
+![Keyboard heat map of errors](images/analytics-heatmap-en.png)
 
 Speed and accuracy charts with a trend line, a keyboard heat map of errors and slow keys, per-finger statistics, a year-long activity calendar, records, exercise history, course progress and weekly experience.
 
 ## Achievements and Share cards
 
-![Achievements screen](images/achievements.png)
+![Achievements screen](images/achievements-en.png)
 
 - **164 achievements** in eleven categories: streak, speed, accuracy, course, milestones, volume, special, letters, jokes, Rhythm and training. Each comes with a joke; 32 are secret. Repeatable ones can be earned many times ("×N").
 - The "Adult humor" setting hides achievements with strong language.
 - **Share cards:** an achievement, a speed record, a stage or the course, and "My Progress" with a calendar. Light or dark; wide, square or vertical for stories; optionally with a QR code. Copy, save as PNG or send.
 
 <p>
-  <img src="images/share-streak-ru.jpg" width="49%" alt="Card: 30-day streak">
+  <img src="images/share-streak-en.jpg" width="49%" alt="Card: 30-day streak">
   <img src="images/share-speed-en.jpg" width="49%" alt="Card: speed record">
 </p>
 
 ## Widget
 
-![Desktop widget](images/widget.png)
+![Desktop widget](images/widget-en.png)
 
 Small and medium desktop widgets: streak, daily goal and latest achievements. Pages rotate on their own or on click, and a click opens the matching section of the app.
 
 ## Comfort
 
-![Settings](images/settings.png)
+![Settings](images/settings-en.png)
 
 - **Profiles:** several learners on one Mac, each with their own progress, streak, achievements and settings.
 - **Reminders:** once a day, three times a day or every N hours within a time window; plain, playful or mixed tone; the text knows about your streak.

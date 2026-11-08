@@ -14,6 +14,7 @@
   <a href="https://github.com/Rusl3n/tenfingers/releases"><img src="https://img.shields.io/github/downloads/Rusl3n/tenfingers/total?label=%D0%B7%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8" alt="Загрузки"></a>
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="Тесты"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-green" alt="Лицензия MIT"></a>
+  <a href="https://github.com/Rusl3n/tenfingers/stargazers"><img src="https://img.shields.io/github/stars/Rusl3n/tenfingers?style=flat&label=%D0%B7%D0%B2%D1%91%D0%B7%D0%B4%D1%8B" alt="Звёзды"></a>
   <a href="https://pay.cloudtips.ru/p/83c3e4e3"><img src="https://img.shields.io/badge/%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-orange" alt="Поддержать проект"></a>
 </p>
 
@@ -96,6 +97,8 @@
 Нужны macOS 15 или новее и Mac с процессором Apple (M1 и новее). **[Подробная инструкция: установка, первая настройка, перенос прогресса и сборка из исходников →](docs/INSTALL.md)**
 
 ## Поддержать проект
+
+Самая простая поддержка — **поставить звезду ★** репозиторию (кнопка **Star** вверху страницы): так проект легче найти другим.
 
 «Десять пальцев» — бесплатное приложение с открытым кодом. Если оно вам помогает, можно поддержать разработку добровольным донатом через [CloudTips](https://pay.cloudtips.ru/p/83c3e4e3) (банковская карта российского банка). Донат ничего не открывает в приложении — это просто спасибо.
 

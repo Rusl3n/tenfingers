@@ -14,6 +14,7 @@ A free touch-typing tutor for macOS: a full course, training built from your mis
   <a href="https://github.com/Rusl3n/tenfingers/releases"><img src="https://img.shields.io/github/downloads/Rusl3n/tenfingers/total?label=downloads" alt="Downloads"></a>
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
+  <a href="https://github.com/Rusl3n/tenfingers/stargazers"><img src="https://img.shields.io/github/stars/Rusl3n/tenfingers?style=flat&label=stars" alt="Stars"></a>
   <a href="https://pay.cloudtips.ru/p/83c3e4e3"><img src="https://img.shields.io/badge/support-CloudTips-orange" alt="Support the project"></a>
 </p>
 
@@ -24,7 +25,7 @@ A free touch-typing tutor for macOS: a full course, training built from your mis
   <a href="CHANGELOG.md">Changelog</a> (in Russian)
 </p>
 
-<p align="center"><img src="docs/images/hero.gif" width="820" alt="Typing: ten fingertips on the keyboard, each following a dashed arc to its own key, a thumb pressing the space bar"></p>
+<p align="center"><img src="docs/images/hero-en.gif" width="820" alt="Typing: ten fingertips on the keyboard, each following a dashed arc to its own key, a thumb pressing the space bar"></p>
 
 ## Why TenFingers
 
@@ -39,51 +40,51 @@ A free touch-typing tutor for macOS: a full course, training built from your mis
 
 **Home.** Daily streak, Spark, level and today's plan.
 
-<p align="center"><img src="docs/images/home.png" alt="Home"></p>
+<p align="center"><img src="docs/images/home-en.png" alt="Home"></p>
 
 **Course.** 98 lessons in 7 stages: stars, speed and Refresh on weakly passed lessons.
 
-<p align="center"><img src="docs/images/course.png" alt="Course"></p>
+<p align="center"><img src="docs/images/course-en.png" alt="Course"></p>
 
 **Step breakdown.** Where your speed dropped, which letters had errors and what's next.
 
-<p align="center"><img src="docs/images/lesson-review.png" alt="Step breakdown"></p>
+<p align="center"><img src="docs/images/lesson-review-en.png" alt="Step breakdown"></p>
 
 **Rhythm.** Letters travel down the finger lanes; hit them to the beat.
 
-<p align="center"><img src="docs/images/rhythm.png" alt="Rhythm"></p>
+<p align="center"><img src="docs/images/rhythm-en.png" alt="Rhythm"></p>
 
 **Speed test.** Compared with your first and previous test, with progress on a chart.
 
-<p align="center"><img src="docs/images/measure.png" alt="Speed test"></p>
+<p align="center"><img src="docs/images/measure-en.png" alt="Speed test"></p>
 
 **Achievements.** 164 achievements, each with its own joke; some are secret.
 
-<p align="center"><img src="docs/images/achievements.png" alt="Achievements"></p>
+<p align="center"><img src="docs/images/achievements-en.png" alt="Achievements"></p>
 
 **Share cards.** A streak, record, stage or progress as an image for stories and chats.
 
-<p align="center"><img src="docs/images/share-streak-ru.jpg" width="560" alt="Share cards"></p>
+<p align="center"><img src="docs/images/share-streak-en.jpg" width="560" alt="Share cards"></p>
 
 <p align="center"><img src="docs/images/share-speed-en.jpg" width="720" alt="Share card: speed record"></p>
 
 **Widget.** Streak, daily goal and latest achievements on your desktop.
 
-<p align="center"><img src="docs/images/widget.png" alt="Widget"></p>
+<p align="center"><img src="docs/images/widget-en.png" alt="Widget"></p>
 
 **Analytics.** A keyboard heat map of errors, charts, records and a calendar.
 
-<p align="center"><img src="docs/images/analytics-heatmap.png" alt="Analytics"></p>
+<p align="center"><img src="docs/images/analytics-heatmap-en.png" alt="Analytics"></p>
 
 **Settings.** Themes and palettes, scale, sounds, reminders, profiles.
 
-<p align="center"><img src="docs/images/settings.png" alt="Settings"></p>
+<p align="center"><img src="docs/images/settings-en.png" alt="Settings"></p>
 
 **Dark theme.** Six palettes, light and dark, following the system or on a schedule.
 
 <p align="center"><img src="docs/images/keyboard-en-dark.png" alt="Dark theme"></p>
 
-<sub>Images are rendered by the app's tests from made-up data, with the Russian interface; the app is fully available in English.</sub>
+<sub>Images are rendered by the app's tests from made-up data.</sub>
 
 <p align="center"><b><a href="docs/FEATURES.en.md">All features and screenshots →</a></b></p>
 
@@ -96,6 +97,8 @@ A free touch-typing tutor for macOS: a full course, training built from your mis
 Requires macOS 15 or later and a Mac with Apple silicon (M1 or later). **[Detailed guide: installation, first-time setup, moving your progress and building from source →](docs/INSTALL.en.md)**
 
 ## Support the project
+
+The easiest way to help is to **give the repository a star ★** (the **Star** button at the top of the page): it helps other people find the project.
 
 TenFingers is free and open source. If it helps you, you can support development with a voluntary donation via [CloudTips](https://pay.cloudtips.ru/p/83c3e4e3). CloudTips currently accepts cards issued by Russian banks only. A donation does not unlock anything in the app; it is simply a thank-you.
 

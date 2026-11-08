@@ -506,13 +506,29 @@ private func russianAppStrings() throws -> [String: String] {
 /// Запуск: RENDER_DOCS=1 swift test --filter renderHeroFrames
 @MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
 func renderHeroFrames() throws {
+    try renderHero(layoutID: "com.apple.keylayout.RussianWin", phrase: "пальцы сами находят клавиши",
+                   legend: nil, dirVariable: "HERO_FRAMES_DIR", defaultDir: "hero-frames")
+}
+
+/// Английская анимация для hero-en.gif: раскладка ABC, английская фраза и легенда. Кадры — в `HERO_FRAMES_EN_DIR`.
+/// Запуск: RENDER_DOCS=1 swift test --filter renderHeroFramesEnglish
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderHeroFramesEnglish() throws {
+    try renderHero(layoutID: "com.apple.keylayout.ABC", phrase: "fingers find their keys",
+                   legend: englishLegendTitles(), dirVariable: "HERO_FRAMES_EN_DIR", defaultDir: "hero-frames-en")
+}
+
+/// Кадры анимации набора: раскладка `layoutID`, фраза `phrase`, легенда пальцев (`nil` — исходные русские подписи).
+@MainActor
+private func renderHero(layoutID: String, phrase: String, legend: [String]?, dirVariable: String,
+                        defaultDir: String) throws {
     let env = ProcessInfo.processInfo.environment
-    let dir = URL(fileURLWithPath: env["HERO_FRAMES_DIR"] ?? NSTemporaryDirectory() + "hero-frames")
+    let dir = URL(fileURLWithPath: env[dirVariable] ?? NSTemporaryDirectory() + defaultDir)
     try? FileManager.default.removeItem(at: dir)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    let ru = try #require(KeyboardLayoutService.source(withID: "com.apple.keylayout.RussianWin"))
-    let snapshot = KeyboardLayoutService.snapshot(for: ru, shape: .ansi)
-    let target = Array("пальцы сами находят клавиши")
+    let source = try #require(KeyboardLayoutService.source(withID: layoutID))
+    let snapshot = KeyboardLayoutService.snapshot(for: source, shape: .ansi)
+    let target = Array(phrase)
     let presses = MeasureReplayModel.presses(keys: target.map { ReplayKey(position: 0, typed: $0, offsetMs: 0) }, snapshot: snapshot)
     let layout = HandsOverlayModel.layout(shape: snapshot.shape)
     let keyFrames = HandsOverlayModel.keyFrames(shape: snapshot.shape)
@@ -570,7 +586,7 @@ func renderHeroFrames() throws {
                 .frame(width: 700, height: 44, alignment: .leading)
             KeyboardView(snapshot: snapshot, marks: [:], unit: CGFloat(KeyboardSizing.baseUnit))
                 .overlay(alignment: .topLeading) { overlay }
-            FingerLegend()
+            if let legend { FingerLegend(titles: legend) } else { FingerLegend() }
         }
         .padding(28)
         .background(light.background)
@@ -687,4 +703,411 @@ func renderMeasureImage() throws {
         .environment(\.colorScheme, .light),
         width: 760, to: "measure.png"
     )
+}
+
+// MARK: - Английские картинки README: приложение в английском интерфейсе
+
+/// `Bundle.main` в тестах — раннер без переводов приложения, поэтому `Text("…")` и `String(localized:)` показывают
+/// русские ключи. На время рендера класс `Bundle.main` подменяется подклассом, который берёт строки из `target`
+/// (папка `.lproj`, открытая как бандл); после рендера класс возвращается.
+private final class EnglishMainBundle: Bundle, @unchecked Sendable {
+    nonisolated(unsafe) static var target: Bundle?
+
+    override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
+        if let target = Self.target { return target.localizedString(forKey: key, value: value, table: tableName) }
+        return super.localizedString(forKey: key, value: value, table: tableName)
+    }
+
+    // SwiftUI и `String(localized:)` ищут строки не через метод выше, а через эти селекторы NSBundle.
+    @objc(localizedStringForKey:value:table:localization:)
+    func englishString1(_ key: String, value: String?, table: String?, localization: String?) -> String {
+        localizedString(forKey: key, value: value, table: table)
+    }
+
+    override func __localizedString(forKey key: String, value: String?, table: String?,
+                                    localizations: [String]) -> String {
+        localizedString(forKey: key, value: value, table: table)
+    }
+
+    @objc(_localizedStringForKey:value:table:localizations:)
+    func englishString3(_ key: String, value: String?, table: String?, localizations: [String]?) -> String {
+        localizedString(forKey: key, value: value, table: table)
+    }
+
+    override func __localizedAttributedString(forKey key: String, value: String?, table: String?) -> NSAttributedString {
+        Self.target?.__localizedAttributedString(forKey: key, value: value, table: table)
+            ?? super.__localizedAttributedString(forKey: key, value: value, table: table)
+    }
+
+    @objc(localizedAttributedStringForKey:value:table:localization:)
+    func englishAttributed2(_ key: String, value: String?, table: String?, localization: String?) -> NSAttributedString {
+        __localizedAttributedString(forKey: key, value: value, table: table)
+    }
+}
+
+private let readmeRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+
+/// Строки приложения по-английски на время `body`; `lproj` — путь к папке переводов от корня репозитория.
+@MainActor
+private func withEnglishStrings<T>(lproj: String = "Localization/en.lproj", _ body: @MainActor () async throws -> T) async throws -> T {
+    let original: AnyClass = try #require(object_getClass(Bundle.main))
+    let strings: Bundle = try #require(Bundle(url: readmeRoot.appendingPathComponent(lproj)))
+    EnglishMainBundle.target = strings
+    object_setClass(Bundle.main, EnglishMainBundle.self)
+    defer {
+        object_setClass(Bundle.main, original)
+        EnglishMainBundle.target = nil
+    }
+    return try await body()
+}
+
+/// Английские переводы строк приложения (для текста, который вид получает готовой строкой).
+private func englishAppStrings() throws -> [String: String] {
+    try #require(try PropertyListSerialization.propertyList(
+        from: Data(contentsOf: readmeRoot.appendingPathComponent("Localization/en.lproj/Localizable.strings")),
+        format: nil) as? [String: String])
+}
+
+/// Окружение английских картинок: светлая бежевая палитра и английская локаль для дат и чисел.
+private extension View {
+    func englishReadme() -> some View {
+        background(LightPalette.beige.palette.background)
+            .environment(\.palette, LightPalette.beige.palette)
+            .environment(\.colorScheme, .light)
+            .environment(\.locale, Locale(identifier: "en_US"))
+    }
+}
+
+/// Статистика латинских букв раскладки ABC: ошибок больше на краях (мизинцы) и в верхнем ряду.
+private func latinHeatmapFixture(_ snapshot: LayoutSnapshot) -> [KeyInfo] {
+    let entries = snapshot.plain.compactMap { code, label -> KeyStatEntry? in
+        guard label.count == 1, let scalar = label.unicodeScalars.first, (0x61...0x7A).contains(scalar.value)
+        else { return nil }
+        let x = KeyboardGeometry.position(of: code, shape: .ansi)?.x ?? 6.5
+        let edge = min(1, abs(x - 6.5) / 6.5)
+        let presses = 400 + Int(code) * 13 % 300
+        let errors = Int(Double(presses) * (0.01 + 0.07 * edge * edge + (Int(code) % 5 == 0 ? 0.03 : 0)))
+        return KeyStatEntry(character: label, stat: KeyStatSummary(keyCode: code, presses: presses, errors: errors,
+                                                                   ewmaMs: 180 + 120 * edge))
+    }
+    return HeatmapModel.merge(entries)
+}
+
+/// Все английские скриншоты (`*-en.png`, `share-streak-en.jpg`): те же композиции, что у русских, но приложение
+/// в английском интерфейсе, английский курс и раскладка ABC.
+/// Даты и числа, которые форматирует Foundation (`Locale.current`), берутся из локали процесса тестов; её
+/// не сменить изнутри процесса, поэтому на время запуска раннеру тестов задаётся английская локаль:
+///   defaults write swiftpm-testing-helper AppleLocale en_US
+///   RENDER_DOCS=1 swift test --filter renderEnglishImages
+///   defaults delete swiftpm-testing-helper AppleLocale
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["RENDER_DOCS"] == "1"))
+func renderEnglishImages() async throws {
+    #expect(Locale.current.identifier.hasPrefix("en"),
+            "локаль процесса \(Locale.current.identifier): даты и проценты выйдут не по-английски (см. комментарий)")
+    let en = try englishAppStrings()
+    let abc = try #require(KeyboardLayoutService.source(withID: "com.apple.keylayout.ABC"))
+    let abcSnap = KeyboardLayoutService.snapshot(for: abc, shape: .ansi)
+    let enCourse = try #require(ContentLibrary().courses[.en])
+
+    try await withEnglishStrings {
+        // Главная без плашки обновления.
+        let continueLesson = try #require(enCourse.lessons.first { $0.id == "en2.s1.03" })
+        try renderHosted(
+            HomeContent(data: englishHomeFixture(),
+                        continueInfo: ContinueInfo(
+                            lessonTitle: continueLesson.localizedTitle,
+                            stageTitle: enCourse.stage(of: continueLesson.id)?.localizedTitle ?? "",
+                            percent: 23, retakeCheck: false, lessonRun: LessonRun(language: .en, lessonId: continueLesson.id)),
+                        unit: .cpm, level: LevelLine.make(level: 14, title: .of(level: 14), gained: 320, needed: 500),
+                        challenges: challengesFixture(), dayPlan: dayPlanFixture(course: enCourse),
+                        startLesson: { _ in }, openTraining: {}, startWeakSpots: {}, openPractice: {},
+                        tabOverride: .plan, dotsOverride: [.challenges])
+                .column
+                .englishReadme(),
+            width: 820, to: "home-en.png")
+
+        // Тепловая карта на раскладке ABC.
+        let keys = latinHeatmapFixture(abcSnap)
+        try render(
+            AnalyticsCard("Клавиатура") {
+                VStack(alignment: .leading, spacing: 10) {
+                    HeatmapKeyboardView(snapshot: abcSnap, language: .en, keys: keys,
+                                        heat: HeatmapModel.heat(keys, mode: .errors))
+                    HeatLegend(mode: .errors)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(24)
+            .frame(width: 760)
+            .englishReadme(),
+            to: "analytics-heatmap-en.png")
+
+        try renderEnglishCourse(enCourse)
+        try renderEnglishAchievements()
+        try renderEnglishLessonReview(en)
+        try renderEnglishRhythm()
+        try renderEnglishMeasure(en)
+        try await renderEnglishSettings()
+    }
+    // Строки виджета живут в бандле расширения.
+    try await withEnglishStrings(lproj: "Sources/TenFingersWidget/Resources/en.lproj") {
+        try renderEnglishWidget()
+    }
+    try renderEnglishShareCard()
+}
+
+/// Три недели занятий, как у русской главной, но дни недели по-английски.
+private func englishHomeFixture() -> HomeData {
+    let today = "2026-10-24"
+    var days: [String: DayActivity] = [:]
+    for offset in -19...0 {
+        let key = StreakCalculator.dayKey(today, offset: offset)
+        switch offset {
+        case -3: continue
+        case -5: days[key] = DayActivity(activeSeconds: 240, completedExercises: 2)
+        case 0: days[key] = DayActivity(activeSeconds: 420, completedExercises: 3)
+        default: days[key] = DayActivity(activeSeconds: 900 + Double(offset * 7), completedExercises: 6)
+        }
+    }
+    let streak = StreakCalculator.summarize(days: days, today: today, goalSeconds: 600)
+    let start = Date(timeIntervalSince1970: 1_790_000_000)
+    let sessions = (0..<7).map { index in
+        SessionSummary(day: StreakCalculator.dayKey(today, offset: -index), endedAt: start, language: .en,
+                       mode: .course, chars: 900, activeSeconds: 300, accuracy: 0.965 + Double(index) * 0.002,
+                       completed: true, cpm: 168 - Double(index) * 3)
+    }
+    return HomeData.make(language: .en, streak: streak, days: days, sessions: sessions, today: today,
+                         goalMinutes: 10, focus: "k", weakKeys: ["q", "z", "x"], canStartWeakSpots: true,
+                         firstSessionDate: start.addingTimeInterval(-19 * 86_400),
+                         firstWeekday: 2,
+                         weekdaySymbols: HomeData.weekdaySymbols(locale: Locale(identifier: "en_US")))
+}
+
+@MainActor private func renderEnglishCourse(_ course: Course) throws {
+    let stars = [5, 4, 2, 5, 3]
+    let passed = Set(course.stages[0].lessons.prefix(stars.count).map(\.id))
+    func header(_ stage: Stage, locked: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(stage.localizedTitle).foregroundStyle(.primary)
+                Spacer()
+                Text(CourseColumns.stageGoalText(stage, unit: .cpm)).foregroundStyle(.secondary)
+                Text(CourseColumns.gateText(stage)).font(.caption).foregroundStyle(.secondary)
+            }
+            .font(.callout.weight(.semibold))
+            if let locked {
+                Text(CourseColumns.opensWhenText(previousStage: locked, gate: course.stages[locked - 1].gate))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    let first = course.stages[0]
+    let rows = Array(first.lessons.prefix(8).enumerated())
+    try renderHosted(
+        VStack(alignment: .leading, spacing: 0) {
+            header(first, locked: nil)
+            ForEach(rows, id: \.element.id) { index, lesson in
+                let isPassed = index < stars.count
+                CourseLessonRow(
+                    lesson: lesson, language: .en,
+                    overview: LessonOverview.make(lessonId: lesson.id, targetCpm: course.targetCpm(for: lesson.id) ?? 0,
+                                                  sessions: [], storedStars: isPassed ? stars[index] : 0,
+                                                  isPassed: isPassed),
+                    targetCpm: course.targetCpm(for: lesson.id) ?? 0, bestCpm: isPassed ? 96 + Double(index * 9) : 0,
+                    isPassed: isPassed, isUnlocked: course.isUnlocked(lesson.id, passed: passed, checkStars: [:]),
+                    unit: .cpm, refresh: index == 2 ? RefreshMark(isDue: true, isHard: true) : nil,
+                    isExpanded: .constant(false), start: { _ in })
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+            }
+            header(course.stages[1], locked: 1)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+        .englishReadme(),
+        width: 760, to: "course-en.png")
+}
+
+@MainActor private func renderEnglishAchievements() throws {
+    let base = Date(timeIntervalSince1970: 1_790_000_000)
+    let ids = ["streak.3", "streak.7", "streak.14", "speed.en.100", "speed.en.150", "spark.7", "accuracy.sniper",
+               "course.first_lesson", "course.first_stage", "volume.chars.10k", "volume.hours.1", "special.night_owl",
+               "letters.en.alphabet", "fun.not_today"]
+    let earned = ids.enumerated().map { index, id in
+        StoredAchievement(id: id, unlockedAt: base.addingTimeInterval(Double(index) * 86_400), seen: true)
+    }
+    let enCore = try #require(try PropertyListSerialization.propertyList(
+        from: Data(contentsOf: readmeRoot.appendingPathComponent("Sources/TypingCore/Resources/en.lproj/Localizable.strings")),
+        format: nil) as? [String: String])
+    let entries = AchievementsListing.entries(catalog: AchievementCatalog.all, earned: earned, adultHumor: true)
+        .map { entry in
+            let achievement = entry.achievement
+            return AchievementEntry(
+                achievement: achievement, unlockedAt: entry.unlockedAt, seen: entry.seen,
+                lockedText: AchievementConditionText.describe(achievement.condition, display: achievement.lettersDisplay,
+                                                              localization: "en"),
+                title: enCore[achievement.titleKey], earnedText: enCore[achievement.detailKey],
+                reasonText: AchievementConditionText.describe(achievement.condition, display: achievement.lettersDisplay,
+                                                              localization: "en", earned: true))
+        }
+    try renderHosted(
+        AchievementsContent(entries: entries, category: .constant(nil), filter: .constant(.earned), freshIds: [],
+                            select: { _ in })
+            .frame(height: 880, alignment: .top)
+            .clipped()
+            .englishReadme(),
+        width: 900, height: 880, to: "achievements-en.png")
+}
+
+@MainActor private func renderEnglishLessonReview(_ en: [String: String]) throws {
+    let text = "a quick fox jumps over the lazy dog while the brave owl quietly watches the river below"
+    let speeds: [Double] = [246, 258, 138, 251, 262, 146, 249, 268]
+    let step = text.count / speeds.count
+    let segments = speeds.enumerated().map { index, cpm in
+        SpeedSegment(start: index * step, end: index == speeds.count - 1 ? text.count : (index + 1) * step, cpm: cpm)
+    }
+    let lines = [ReviewLine(key: "review.fasterThanTarget"),
+                 ReviewLine(key: "review.slowest", args: ["the lazy dog"]),
+                 ReviewLine(key: "review.letters", args: ["q", "z"])]
+    let screen = StepReviewScreen(lines: lines, segments: segments, slow: SpeedSegments.slow(segments), text: text)
+    let nextTitle = en["Предложения"] ?? "Sentences"
+    try renderHosted(
+        VStack(spacing: 16) {
+            Text("Готово: шаг \(3) из \(7)").font(.largeTitle.bold())
+            Text("\(SpeedUnit.cpm.format(214)) · ошибок: \(2)").font(.title2).monospacedDigit()
+            StepDotsView(current: 3, total: 7)
+            SpeedSegmentsChart(screen: screen, unit: .cpm).frame(width: 460)
+            VStack(spacing: 4) {
+                ForEach(lines.indices, id: \.self) { index in
+                    Text(ReviewText.text(lines[index], template: en[lines[index].key]))
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            Text("Дальше: \(nextTitle)").foregroundStyle(.secondary)
+            Button("Дальше") {}.buttonStyle(.borderedProminent).controlSize(.large)
+        }
+        .padding(.vertical, 36)
+        .frame(maxWidth: .infinity)
+        .englishReadme(),
+        width: 760, to: "lesson-review-en.png")
+}
+
+@MainActor private func renderEnglishRhythm() throws {
+    let letters: [Character] = ["a", "s", "d", "f", "j", "k", "l", ";"]
+    let lanes = [3, 4, 2, 5, 8, 1, 6, 0, 7]
+    let now: TimeInterval = 20
+    let notes = lanes.enumerated().map { index, lane in
+        RhythmFieldFrame.Note(index: index, time: now + 0.05 + Double(index) * 0.19, scrollSeconds: 2,
+                              character: lane == 8 ? " " : letters[lane],
+                              lane: lane == 8 ? .space : .finger(lane), missed: false)
+    }
+    var frame = RhythmFieldFrame()
+    frame.trackTime = now
+    frame.notes = notes
+    frame.laneFlash[3] = 0.7
+    frame.label = .init(judgement: .perfect, lane: .finger(3), age: 0.2)
+    frame.score = 12_840
+    frame.combo = 37
+    frame.multiplier = 3
+    frame.health = 82
+    frame.progress = 0.46
+    try render(
+        RhythmFieldCanvas(frame: frame)
+            .frame(width: 820, height: 560)
+            .englishReadme(),
+        to: "rhythm-en.png")
+}
+
+@MainActor private func renderEnglishMeasure(_ en: [String: String]) throws {
+    let base = Date(timeIntervalSince1970: 1_790_000_000)
+    let history = [214.0, 231, 246, 252, 271, 286].enumerated().map { index, cpm in
+        MeasureHistoryEntry(date: base.addingTimeInterval(Double(index) * 5 * 86_400), cpm: cpm, accuracy: 0.98)
+    }
+    let comparison = MeasureComparison(toFirst: 72, toPrevious: 15)
+    try renderHosted(
+        VStack(spacing: 16) {
+            RunSummaryView(title: String(localized: "Замер скорости"), leadingMetrics: [.init(title: "Знаков", value: "1240")],
+                           cpm: 286, accuracy: 0.981, errors: 6,
+                           lines: MeasureResultText.lines(comparison, unit: .cpm),
+                           primaryTitle: "Готово", onPrimary: {},
+                           secondaryTitle: "Смотреть запись", onSecondary: {})
+            MeasureHistoryChart(entries: history, unit: .cpm).frame(maxWidth: 420)
+        }
+        .padding(.vertical, 32)
+        .frame(maxWidth: .infinity)
+        .englishReadme(),
+        width: 760, to: "measure-en.png")
+}
+
+@MainActor private func renderEnglishSettings() async throws {
+    let (defaults, name) = makeTestDefaults("readme-settings-en-")
+    defer { removeTestDefaults(name) }
+    defaults.set(LightPalette.beige.rawValue, forKey: SettingsKey.lightPalette)
+    defaults.set(ThemeMode.light.rawValue, forKey: SettingsKey.themeMode)
+    defaults.set(SettingsSection.general.rawValue, forKey: SettingsKey.settingsSection)
+    let checker = try await updateChecker(offering: "2.5.0", defaults: defaults)
+    let scheduler = ReminderScheduler(center: IdleReminderCenter(), defaults: defaults,
+                                      inputs: { _ in throw CocoaError(.fileNoSuchFile) }, title: "TenFingers")
+    try renderHosted(
+        SettingsView()
+            .environment(checker)
+            .environment(scheduler)
+            .environment(ReminderDraftStore(defaults: defaults))
+            .defaultAppStorage(defaults)
+            .englishReadme(),
+        width: 740, height: 900, crop: 760, to: "settings-en.png")
+}
+
+@MainActor private func renderEnglishWidget() throws {
+    let now = Date()
+    func snapshot(doneMinutes: Int) -> WidgetSnapshot {
+        WidgetSnapshot(
+            writtenAt: now, logicalDay: WidgetTimeline.logicalDay(for: now), language: "en", adultHumor: false,
+            fire: .init(days: 14, today: .full, freezes: 1), spark: .init(days: 21, today: true),
+            goal: .init(goalMinutes: 10, doneMinutes: doneMinutes),
+            next: .init(title: "Lesson 12. Top row", courseLanguage: "en"),
+            achievements: [
+                .init(id: "demo.speed", title: "Speed 150", symbol: "bolt.fill", date: now, adult: false),
+                .init(id: "demo.week", title: "A week in a row", symbol: "flame.fill", date: now, adult: false),
+                .init(id: "demo.clean", title: "Clean lesson", symbol: "checkmark.seal.fill", date: now, adult: false),
+            ])
+    }
+    func widget(_ page: WidgetPage, doneMinutes: Int = 7) -> some View {
+        let snapshot = snapshot(doneMinutes: doneMinutes)
+        return TenFingersEntryView(entry: TenFingersEntry(date: now, page: page, snapshot: snapshot, showInvite: true,
+                                                          tapToSwitch: false))
+            .padding(16)
+            .frame(width: 364, height: 170)
+            .background(Color(white: 0.97), in: RoundedRectangle(cornerRadius: 22))
+            .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+    }
+    let items = snapshot(doneMinutes: 7).achievements
+    try renderHosted(
+        VStack(spacing: 20) {
+            HStack(spacing: 20) { widget(.streak); widget(.goal) }
+            HStack(spacing: 20) { widget(.achievements(items)); widget(.goal, doneMinutes: 10) }
+        }
+        .padding(28)
+        .englishReadme(),
+        width: 804, to: "widget-en.png")
+}
+
+@MainActor private func renderEnglishShareCard() throws {
+    let icon = try #require(NSImage(contentsOf: readmeRoot.appendingPathComponent("scripts/AppIcon.icns")))
+    let bundle = try #require(Bundle(url: readmeRoot.appendingPathComponent("Localization/en.lproj")))
+    let (defaults, name) = makeTestDefaults("readme-share-en-")
+    defer { removeTestDefaults(name) }
+    let date = Date(timeIntervalSince1970: 1_792_843_200)
+    let streak = ShareOptions(signature: .nickname, theme: .light, background: .colored, format: .square)
+    let view = ShareCardView.make(card: ShareCard(.streak(days: 30, full: 28), now: date), options: streak,
+                                  profile: ShareProfile(nickname: "rusl3n", fullName: ""), defaults: defaults,
+                                  bundle: bundle, locale: Locale(identifier: "en"), appIcon: icon)
+    let rep = try #require(NSBitmapImageRep(data: try ShareCardRenderer.png(view, scale: 1)))
+    let data = try #require(rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85]))
+    try data.write(to: readmeRoot.appendingPathComponent("docs/images/share-streak-en.jpg"))
 }
