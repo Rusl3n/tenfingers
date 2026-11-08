@@ -11,7 +11,6 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-15%2B-black?logo=apple" alt="macOS 15+">
-  <a href="https://github.com/Rusl3n/tenfingers/releases"><img src="https://img.shields.io/github/downloads/Rusl3n/tenfingers/total?label=%D0%B7%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8" alt="Загрузки"></a>
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="Тесты"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-green" alt="Лицензия MIT"></a>
   <a href="https://github.com/Rusl3n/tenfingers/stargazers"><img src="https://img.shields.io/github/stars/Rusl3n/tenfingers?style=flat&label=%D0%B7%D0%B2%D1%91%D0%B7%D0%B4%D1%8B" alt="Звёзды"></a>

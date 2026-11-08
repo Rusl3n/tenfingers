@@ -11,7 +11,6 @@ A free touch-typing tutor for macOS: a full course, training built from your mis
 
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-15%2B-black?logo=apple" alt="macOS 15+">
-  <a href="https://github.com/Rusl3n/tenfingers/releases"><img src="https://img.shields.io/github/downloads/Rusl3n/tenfingers/total?label=downloads" alt="Downloads"></a>
   <a href="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml"><img src="https://github.com/Rusl3n/tenfingers/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   <a href="https://github.com/Rusl3n/tenfingers/stargazers"><img src="https://img.shields.io/github/stars/Rusl3n/tenfingers?style=flat&label=stars" alt="Stars"></a>
