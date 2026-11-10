@@ -242,7 +242,7 @@
 "Подсказка для пробела (противоположный большой палец)" = "Space bar hint (opposite thumb)";
 "Пробел — большим пальцем руки, противоположной последней букве: так обе руки работают по очереди и печать быстрее" = "Space bar — with the thumb of the hand opposite to the last letter: both hands take turns and you type faster";
 "Продолжаем с шага %lld из %lld" = "Resuming from step %lld of %lld";
-"Начать урок заново" = "Restart the lesson";
+"Шаг заново" = "Restart the step";
 
 /* Детали урока по шагам, повтор шага */
 "Сумма ошибок в лучших попытках шагов урока" = "Total errors in the best attempts of the lesson steps";

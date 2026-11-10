@@ -548,7 +548,7 @@ private let spec = ExerciseSpec(id: 0, kind: .words, title: "Слова", text: 
     #expect(heard.delayed.map(\.0) == [ExerciseCoordinator.streakDelay])
 }
 
-/// «Начать урок заново» (`recordAbandonIfNeeded(announce: true)`): копилка урока сбрасывается, карточки не будет,
+/// «Шаг заново» (`recordAbandonIfNeeded(announce: true)`): у брошенной попытки карточки не будет,
 /// поэтому и звука ачивки нет.
 @MainActor @Test func restartRecordsAchievementsWithoutSound() throws {
     let (coordinator, container, heard) = try makeCoordinator(goalSeconds: 1e9)

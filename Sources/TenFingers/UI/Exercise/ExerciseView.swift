@@ -10,7 +10,7 @@ struct ExerciseView: View {
     var targetCpm: Double?
     /// Вместо индикатора скорости — цель текстом («Цель: 0 ошибок» у занятия на точность пальца).
     var goalText: String? = nil
-    /// Урок продолжен с этого шага (с единицы): над текстом плашка с кнопкой «Начать урок заново».
+    /// Урок продолжен с этого шага (с единицы): над текстом плашка с кнопкой «Шаг заново».
     var resumedStep: Int?
     /// Допуск ошибок шага (§3): рядом с индикатором скорости «Ошибки: N из M», красным при переборе; `nil` — допуска нет.
     var errorLimit: Int? = nil
@@ -45,7 +45,7 @@ struct ExerciseView: View {
                 HStack(spacing: 12) {
                     Label("Продолжаем с шага \(resumedStep) из \(totalSteps)", systemImage: "arrow.forward.circle")
                     Spacer()
-                    Button("Начать урок заново", action: onRestart)
+                    Button("Шаг заново", action: onRestart)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))

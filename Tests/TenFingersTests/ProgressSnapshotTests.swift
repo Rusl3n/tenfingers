@@ -86,10 +86,12 @@ private func session(day: String, language: Language = .ru, mode: ExerciseMode =
 
 /// Запись шага курса для проверок гейта и ориентира «Ускорения».
 private func courseStep(_ lessonId: String, kind: ExerciseKind, language: Language = .ru, cpm: Double,
-                        accuracy: Double = 0.99, completed: Bool = true, endedAt: Date = noon) -> SessionRecord {
+                        accuracy: Double = 0.99, completed: Bool = true, endedAt: Date = noon,
+                        stepIndex: Int? = nil) -> SessionRecord {
     let record = session(day: "2026-03-10", language: language, chars: 100, seconds: 60, accuracy: accuracy,
                          completed: completed, endedAt: endedAt)
     record.lessonId = lessonId
+    record.stepIndex = stepIndex
     record.exerciseKind = kind.rawValue
     record.cpm = cpm
     return record
@@ -142,7 +144,7 @@ private func courseStep(_ lessonId: String, kind: ExerciseKind, language: Langua
     #expect(try snapshot.speedupReference(course: course) == nil)
     for minute in 0..<10 {
         context.insert(courseStep("ru2.s1.01", kind: .words, cpm: minute < 5 ? 100 : 120,
-                                  endedAt: noon.addingTimeInterval(Double(minute) * 60)))
+                                  endedAt: noon.addingTimeInterval(Double(minute) * 60), stepIndex: minute))
     }
     let before = try snapshot.speedupReference(course: course)
     #expect(before == 110)

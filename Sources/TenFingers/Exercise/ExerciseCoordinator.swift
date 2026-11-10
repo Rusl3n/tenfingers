@@ -27,7 +27,7 @@ final class ExerciseCoordinator {
     /// Вызывается, если алерт закрыт кнопкой «Отмена», а сохранение шло не при выходе.
     @ObservationIgnored var onSaveCancelled: (() -> Void)?
 
-    /// Вызывается, когда «Начать урок заново» (`recordAbandonIfNeeded(announce: true)`) впервые за логический день
+    /// Вызывается, когда «Шаг заново» (`recordAbandonIfNeeded(announce: true)`) впервые за логический день
     /// сделало день «полным огнём»: итога с карточкой нет, поэтому сообщение (тост) и звук `.streak`
     /// (с задержкой `streakDelay`, чтобы не накладываться на звук результата) сразу.
     @ObservationIgnored var onDayCompleted: (() -> Void)?
@@ -94,7 +94,7 @@ final class ExerciseCoordinator {
         }
     }
 
-    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» (только при «Начать урок заново»), проверка
+    /// Координатор приложения: запись в базу, звук, тост «Полный огонь» (только при «Шаг заново»), проверка
     /// ачивок и плана дня (тост «План выполнен»).
     static func live(context: ModelContext, sound: SoundPlayer, toasts: ToastCenter,
                      reminders: ReminderScheduler? = nil) -> ExerciseCoordinator {
@@ -187,9 +187,9 @@ final class ExerciseCoordinator {
                                 Self.abandonment(abandoned, of: session, source: source, planSlot: planSlot, recorder)))
     }
 
-    /// Уход без кнопки (меню, закрытие окна, выход из приложения, «Начать урок заново»): показать ошибку уже негде,
+    /// Уход без кнопки (меню, закрытие окна, выход из приложения, «Шаг заново»): показать ошибку уже негде,
     /// поэтому записываем молча. Брошенное упражнение тоже может сделать день полным: при `announce` (экран остаётся,
-    /// например «Начать урок заново») тост и звук сразу, иначе объявление откладывается до следующего показа главной
+    /// например «Шаг заново») тост и звук сразу, иначе объявление откладывается до следующего показа главной
     /// (`FullDayPending`). `quitting` — выход из приложения: тосты года не строятся (смотреть их некому), а показанные
     /// уровень и испытания в `UserDefaults` не трогаются.
     func recordAbandonIfNeeded(announce: Bool = false, quitting: Bool = false) {
@@ -221,7 +221,7 @@ final class ExerciseCoordinator {
                 NotificationCenter.default.post(name: .fullDayPending, object: nil)
             }
         }
-        // Ачивки выдаются всегда, но без звука: итога с карточками на этом пути нет (уход или «Начать урок заново»),
+        // Ачивки выдаются всегда, но без звука: итога с карточками на этом пути нет (уход или «Шаг заново»),
         // их увидят непросмотренными в разделе «Ачивки».
         checkAchievements(announce: false, afterStreak: false, yearToasts: !quitting)
         onSaved?()
@@ -308,7 +308,7 @@ final class ExerciseCoordinator {
         return streak?.current ?? 0
     }
 
-    /// Тост сразу, звук серии — через `streakDelay` (только «Начать урок заново»).
+    /// Тост сразу, звук серии — через `streakDelay` (только «Шаг заново»).
     private func announceFullDay() {
         afterDelay(Self.streakDelay) { [playSound] in playSound(.streak) }
         onDayCompleted?()

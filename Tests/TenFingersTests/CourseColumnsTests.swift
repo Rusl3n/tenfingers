@@ -7,7 +7,7 @@ import TypingCore
 
 private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Double = 100,
                   index: Int? = nil) -> StepStat {
-    StepStat(kind: kind, bestAccuracy: accuracy, errorsInBest: errors, cpmInBest: cpm, bestCpm: cpm, stepIndex: index)
+    StepStat(kind: kind, bestAccuracy: accuracy, errorsInBest: errors, cpmInBest: cpm, stepIndex: index)
 }
 
 // MARK: - Содержимое колонок

@@ -72,7 +72,7 @@ import TypingCore
 // MARK: - ★★★★★ — только за чистый урок
 
 private func stepStat(_ kind: ExerciseKind, index: Int? = nil) -> StepStat {
-    StepStat(kind: kind, bestAccuracy: 0.9, errorsInBest: 12, cpmInBest: 80, bestCpm: 80, stepIndex: index)
+    StepStat(kind: kind, bestAccuracy: 0.9, errorsInBest: 12, cpmInBest: 80, stepIndex: index)
 }
 
 /// Подсказка называет мешающий шаг и порог в ошибках на 100 знаков (язык интерфейса — по умолчанию).

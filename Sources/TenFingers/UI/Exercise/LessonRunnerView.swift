@@ -128,8 +128,9 @@ struct LessonRunnerView: View {
                              resumedStep: resumedStep == index ? index + 1 : nil,
                              errorLimit: stepLimit(index),
                              banner: speedupReference.map { LessonRunPlan.speedupBanner(reference: $0, unit: unit) },
-                             onRestart: restart, onExit: exit)
-                    .id(index)
+                             onRestart: { restartStep(index) }, onExit: exit)
+                    // Новая сессия того же шага («Шаг заново») — новый экран: монитор клавиш держит свою сессию.
+                    .id(ObjectIdentifier(session))
             }
         case .interim(let index, let summary, let review):
             let interim = StepInterim(errors: summary.errors, limit: stepLimit(index))
@@ -148,7 +149,7 @@ struct LessonRunnerView: View {
                 }
                 NewAchievementCards(achievements: coordinator?.newAchievements ?? [], fullFlame: coordinator?.newFullFlame)
                 if interim.showsRetry {
-                    Button("Повторить шаг") { resumedStep = nil; begin(index) }
+                    Button("Повторить шаг") { resumedStep = nil; redraw(index); begin(index) }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
                 }
@@ -466,10 +467,23 @@ struct LessonRunnerView: View {
         return LessonStepStats.summarize(sessions: history, lessonId: run.lessonId)
     }
 
-    /// «Начать урок заново» на плашке продолжения: начатый шаг записывается как брошенный.
-    private func restart() {
+    /// «Шаг заново» на плашке продолжения: начатая попытка записывается как брошенная, тот же шаг начинается
+    /// с начала и с новым текстом; пройденные шаги урока и плашка остаются.
+    private func restartStep(_ index: Int) {
         coordinator?.recordAbandonIfNeeded(announce: true)
-        prepare(fresh: true)
+        redraw(index)
+        begin(index)
+    }
+
+    /// Новый текст шага `index` перед повтором — как при входе в шаг заново с карты курса (`LessonRunPlan.redrawnStep`).
+    private func redraw(_ index: Int) {
+        guard singleStep == nil, exercises.indices.contains(index), let context,
+              let planner = library.planners[run.language] else { return }
+        let learner = (try? StatsReader(context: modelContext).learnerStats(language: run.language, course: course))
+            ?? .empty
+        var rng = SystemRandomNumberGenerator()
+        exercises[index] = LessonRunPlan.redrawnStep(planner: planner, context: context, learner: learner,
+                                                     current: exercises[index], rng: &rng)
     }
 
     private func exit() {
@@ -491,6 +505,23 @@ enum LessonRunPlan {
         let plan = planner.exercises(for: context, learner: learner, rng: &rng)
         if let index = onlyStepIndex, plan.indices.contains(index) { return ([plan[index]], true) }
         return (plan, false)
+    }
+
+    /// Шаг `current` с новым текстом для повтора внутри урока: шаг с тем же номером из заново построенного плана
+    /// (как при входе в шаг с карты курса). Текст совпал с прежним — до 5 попыток; шага с этим номером нет или вид
+    /// другой — прежний шаг.
+    static func redrawnStep<G: RandomNumberGenerator>(planner: LessonPlanner, context: LessonContext,
+                                                      learner: LearnerStats, current: ExerciseSpec,
+                                                      rng: inout G) -> ExerciseSpec {
+        var fallback = current
+        for _ in 0..<5 {
+            let plan = planner.exercises(for: context, learner: learner, rng: &rng)
+            guard plan.indices.contains(current.id), plan[current.id].kind == current.kind else { return fallback }
+            let spec = plan[current.id]
+            if spec.text != current.text { return spec }
+            fallback = spec
+        }
+        return fallback
     }
 
     /// Знакомство с клавишами перед уроком: при первом прохождении и когда пройденный урок запускается заново целиком

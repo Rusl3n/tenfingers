@@ -50,8 +50,8 @@ private func effective(_ history: [SessionSummary], passed: Bool = false, stored
         step(nil, accuracy: 1, mode: .practice),
     ], lessonId: "ru.1.1")
     #expect(stats.map(\.kind) == [.drill, .words])
-    #expect(stats[0] == StepStat(kind: .drill, bestAccuracy: 1.0, errorsInBest: 0, cpmInBest: 40, bestCpm: 70))
-    #expect(stats[1] == StepStat(kind: .words, bestAccuracy: 0.95, errorsInBest: 6, cpmInBest: 100, bestCpm: 100))
+    #expect(stats[0] == StepStat(kind: .drill, bestAccuracy: 1.0, errorsInBest: 0, cpmInBest: 40))
+    #expect(stats[1] == StepStat(kind: .words, bestAccuracy: 0.95, errorsInBest: 6, cpmInBest: 100))
 }
 
 @Test func tieOnAccuracyPrefersFasterAttemptForErrors() {
@@ -64,16 +64,16 @@ private func effective(_ history: [SessionSummary], passed: Bool = false, stored
 
 @Test func totalErrorsSumBestAttempts() {
     let stats = [
-        StepStat(kind: .drill, bestAccuracy: 1.0, errorsInBest: 0, cpmInBest: 60, bestCpm: 60),
-        StepStat(kind: .words, bestAccuracy: 0.9, errorsInBest: 6, cpmInBest: 60, bestCpm: 60),
-        StepStat(kind: .check, bestAccuracy: 0.98, errorsInBest: 1, cpmInBest: 60, bestCpm: 60),
+        StepStat(kind: .drill, bestAccuracy: 1.0, errorsInBest: 0, cpmInBest: 60),
+        StepStat(kind: .words, bestAccuracy: 0.9, errorsInBest: 6, cpmInBest: 60),
+        StepStat(kind: .check, bestAccuracy: 0.98, errorsInBest: 1, cpmInBest: 60),
     ]
     #expect(LessonStepStats.totalErrors(stats) == 7)
     #expect(LessonStepStats.totalErrors([]) == nil)
 }
 
 @Test func improvementComparesWithPreviousBest() {
-    let best = StepStat(kind: .drill, bestAccuracy: 0.98, errorsInBest: 2, cpmInBest: 70, bestCpm: 70)
+    let best = StepStat(kind: .drill, bestAccuracy: 0.98, errorsInBest: 2, cpmInBest: 70)
     #expect(LessonStepStats.isImprovement(accuracy: 0.99, cpm: 10, over: best))
     #expect(LessonStepStats.isImprovement(accuracy: 0.98, cpm: 80, over: best))
     #expect(!LessonStepStats.isImprovement(accuracy: 0.98, cpm: 70, over: best))
@@ -89,7 +89,7 @@ private func effective(_ history: [SessionSummary], passed: Bool = false, stored
         step(.drill, accuracy: 0.9, cpm: 100),
     ], lessonId: "ru.1.1")
     let previous = try #require(stats.first)
-    #expect(previous.cpmInBest == 50 && previous.bestCpm == 100)
+    #expect(previous.cpmInBest == 50) // быстрая попытка с ошибками (100) скорость шага не задаёт
     #expect(LessonStepStats.isImprovement(accuracy: 1.0, cpm: 60, over: previous))
     #expect(!LessonStepStats.isImprovement(accuracy: 1.0, cpm: 50, over: previous))
 }
@@ -118,8 +118,8 @@ private func numbered(_ kind: ExerciseKind, _ index: Int?, accuracy: Double = 1,
         numbered(.words, 2, accuracy: 0.99, cpm: 40, errors: 1),
     ], lessonId: "ru2.s1.01")
     #expect(stats == [
-        StepStat(kind: .words, bestAccuracy: 0.99, errorsInBest: 1, cpmInBest: 40, bestCpm: 50, stepIndex: 2),
-        StepStat(kind: .words, bestAccuracy: 0.9, errorsInBest: 10, cpmInBest: 70, bestCpm: 70, stepIndex: 3),
+        StepStat(kind: .words, bestAccuracy: 0.99, errorsInBest: 1, cpmInBest: 40, stepIndex: 2),
+        StepStat(kind: .words, bestAccuracy: 0.9, errorsInBest: 10, cpmInBest: 70, stepIndex: 3),
     ])
 }
 
@@ -130,7 +130,7 @@ private func numbered(_ kind: ExerciseKind, _ index: Int?, accuracy: Double = 1,
         numbered(.words, nil, accuracy: 1, cpm: 90),
     ], lessonId: "ru2.s1.01")
     #expect(stats.map(\.stepIndex) == [2, 3])
-    #expect(stats[0].bestAccuracy == 1 && stats[0].bestCpm == 90)
+    #expect(stats[0].bestAccuracy == 1 && stats[0].cpmInBest == 90)
 }
 
 @Test func unnumberedAttemptWithoutPairKeepsTheOldKindOrder() {
@@ -160,8 +160,8 @@ private func numbered(_ kind: ExerciseKind, _ index: Int?, accuracy: Double = 1,
         numbered(.refresh, 1, accuracy: 0.99, cpm: 60, errors: 1),
     ], lessonId: "ru2.s1.01")
     #expect(stats == [
-        StepStat(kind: .words, bestAccuracy: 1, errorsInBest: 0, cpmInBest: 60, bestCpm: 60, stepIndex: 0),
-        StepStat(kind: .check, bestAccuracy: 0.99, errorsInBest: 1, cpmInBest: 60, bestCpm: 60, stepIndex: 1),
+        StepStat(kind: .words, bestAccuracy: 1, errorsInBest: 0, cpmInBest: 60, stepIndex: 0),
+        StepStat(kind: .check, bestAccuracy: 0.99, errorsInBest: 1, cpmInBest: 60, stepIndex: 1),
     ])
     // «Освежить» без самой проверки и без номера — тоже строка проверки.
     #expect(LessonStepStats.summarize(sessions: [numbered(.refresh, nil)], lessonId: "ru2.s1.01").map(\.kind) == [.check])

@@ -5,20 +5,17 @@ public struct StepStat: Hashable, Sendable {
     public let bestAccuracy: Double
     /// Ошибок в лучшей (самой точной, при равенстве — самой быстрой) попытке.
     public let errorsInBest: Int
-    /// Скорость лучшей попытки: с ней сравнивается новая попытка той же точности.
+    /// Скорость лучшей попытки (показывается на карте курса): с ней сравнивается новая попытка той же точности.
+    /// Не самая высокая скорость шага — быстрая попытка с ошибками не выдаёт себя за чистую.
     public let cpmInBest: Double
-    /// Лучшая скорость (знаков в минуту) среди всех попыток (показывается на карте курса).
-    public let bestCpm: Double
     /// Номер шага в плане урока; `nil` — только записи без номера (до 6a), группа по виду.
     public let stepIndex: Int?
 
-    public init(kind: ExerciseKind, bestAccuracy: Double, errorsInBest: Int, cpmInBest: Double, bestCpm: Double,
-                stepIndex: Int? = nil) {
+    public init(kind: ExerciseKind, bestAccuracy: Double, errorsInBest: Int, cpmInBest: Double, stepIndex: Int? = nil) {
         self.kind = kind
         self.bestAccuracy = bestAccuracy
         self.errorsInBest = errorsInBest
         self.cpmInBest = cpmInBest
-        self.bestCpm = bestCpm
         self.stepIndex = stepIndex
     }
 }
@@ -31,10 +28,6 @@ public enum LessonStepStats {
     public static func summarize(sessions: [SessionSummary], lessonId: String) -> [StepStat] {
         let attempts = sessions.filter { $0.completed && $0.lessonId == lessonId && $0.exerciseKind != nil }
         let numbered = attempts.filter { $0.stepIndex != nil }
-        // «Освежить» — та же проверка урока: попытки `refresh` идут в строку `check` (лучший из двух).
-        func stepKind(_ attempt: SessionSummary) -> ExerciseKind {
-            attempt.exerciseKind == .refresh ? .check : attempt.exerciseKind!
-        }
         // Первый по номеру шаг каждого вида.
         var firstIndex: [ExerciseKind: Int] = [:]
         for attempt in numbered {
@@ -50,10 +43,20 @@ public enum LessonStepStats {
             if (lhs.key.index == nil) != (rhs.key.index == nil) { return lhs.key.index != nil }
             return kindRank(lhs.key.kind) < kindRank(rhs.key.kind)
         }.compactMap { key, list in
-            guard let best = list.max(by: { ($0.accuracy, $0.speed) < ($1.accuracy, $1.speed) }) else { return nil }
+            guard let best = bestAttempt(list) else { return nil }
             return StepStat(kind: key.kind, bestAccuracy: best.accuracy, errorsInBest: best.errorCount,
-                            cpmInBest: best.speed, bestCpm: list.map(\.speed).max() ?? 0, stepIndex: key.index)
+                            cpmInBest: best.speed, stepIndex: key.index)
         }
+    }
+
+    /// Вид строки шага: «Освежить» — та же проверка урока, попытки `refresh` идут в строку `check` (лучший из двух).
+    static func stepKind(_ attempt: SessionSummary) -> ExerciseKind {
+        attempt.exerciseKind == .refresh ? .check : attempt.exerciseKind!
+    }
+
+    /// Лучшая попытка шага: самая точная, при равной точности — самая быстрая.
+    static func bestAttempt(_ attempts: [SessionSummary]) -> SessionSummary? {
+        attempts.max { ($0.accuracy, $0.speed) < ($1.accuracy, $1.speed) }
     }
 
     private struct GroupKey: Hashable {

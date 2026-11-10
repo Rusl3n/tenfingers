@@ -74,7 +74,7 @@ struct CourseMapView: View {
                                         currentStars: overview.stars, sessions: sessions[lesson.id] ?? [],
                                         targetCpm: target, today: today))
                                     CourseLessonRow(lesson: lesson, language: language, overview: overview,
-                                                    targetCpm: target, bestCpm: record?.bestCpm ?? 0, isPassed: record?.passedAt != nil,
+                                                    targetCpm: target, bestCpm: overview.speed(stored: record?.bestCpm ?? 0), isPassed: record?.passedAt != nil,
                                                     isUnlocked: isUnlocked, unit: unit,
                                                     stepPlan: stepPlan(course, lesson, isExpanded: expanded.contains(lesson.id)),
                                                     isExtern: isExtern, refresh: refresh,
@@ -179,6 +179,7 @@ struct CourseLessonRow: View {
     let language: Language
     let overview: LessonOverview
     let targetCpm: Int
+    /// Скорость лучшей проверки урока (`LessonOverview.speed`).
     let bestCpm: Double
     let isPassed: Bool
     let isUnlocked: Bool
@@ -315,7 +316,7 @@ struct CourseLessonRow: View {
             CourseColumn(id: "\(columnId).errors", text: CourseColumns.stepErrorsText(step.errorsInBest),
                          templates: CourseColumns.errorsTemplates)
                 .foregroundStyle(Self.errorsColor(step))
-            CourseColumn(id: "\(columnId).speed", text: CourseColumns.speedText(step.bestCpm, unit: unit),
+            CourseColumn(id: "\(columnId).speed", text: CourseColumns.speedText(step.cpmInBest, unit: unit),
                          templates: CourseColumns.speedTemplates)
                 .foregroundStyle(.secondary)
             ZStack(alignment: .trailing) {

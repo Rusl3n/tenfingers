@@ -188,6 +188,24 @@ private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Doub
     #expect(LessonRun(language: .ru, lessonId: "ru2.s1.01", refresh: true).refresh)
 }
 
+/// «Повторить шаг» и «Шаг заново»: тот же шаг (номер, вид) с новым текстом из заново построенного плана.
+@MainActor @Test func redrawnStepKeepsStepButChangesText() throws {
+    let library = ContentLibrary()
+    let course = try #require(library.courses[.ru])
+    let planner = try #require(library.planners[.ru])
+    let lesson = try #require(course.lessons.first { $0.resolvedKind == .keys })
+    let context = try #require(course.context(for: lesson.id))
+    var fullRng = SeededGenerator(seed: 3)
+    let full = planner.exercises(for: context, learner: .empty, rng: &fullRng)
+    for index in full.indices {
+        var rng = SeededGenerator(seed: 4)
+        let spec = LessonRunPlan.redrawnStep(planner: planner, context: context, learner: .empty,
+                                             current: full[index], rng: &rng)
+        #expect(spec.id == full[index].id && spec.kind == full[index].kind)
+        #expect(spec.text != full[index].text)
+    }
+}
+
 /// «Освежить» — один шаг: проверка урока, заново сгенерированная той же длины, с номером проверки в плане.
 @MainActor @Test func refreshRunIsTheCheckStepRegeneratedAsRefresh() throws {
     let library = ContentLibrary()
@@ -234,4 +252,25 @@ private func step(_ kind: ExerciseKind, accuracy: Double, errors: Int, cpm: Doub
     #expect(!LessonRunPlan.showsIntro(introducesSomething: true, resumeStart: 0, singleStep: true, restart: false))
     #expect(!LessonRunPlan.showsIntro(introducesSomething: true, resumeStart: 0, singleStep: false, restart: true))
     #expect(!LessonRunPlan.showsIntro(introducesSomething: false, resumeStart: 0, singleStep: false, restart: false))
+}
+
+/// Скорость строки урока — лучшей проверки (самой точной), а не самая высокая: быстрая проверка с ошибками
+/// не выдаёт себя за чистую печать. Проверок в истории нет — скорость из базы.
+@Test func lessonSpeedIsTheBestChecksOwnSpeed() {
+    func attempt(_ kind: ExerciseKind, accuracy: Double, cpm: Double, index: Int) -> SessionSummary {
+        SessionSummary(day: "d", endedAt: .now, language: .ru, mode: .course, chars: 300, activeSeconds: 60,
+                       accuracy: accuracy, completed: true, lessonId: "ru2.s1.01", exerciseKind: kind, cpm: cpm,
+                       stepIndex: index)
+    }
+    let sessions = [
+        attempt(.words, accuracy: 1, cpm: 300, index: 0),
+        attempt(.check, accuracy: 0.99, cpm: 260, index: 1),
+        attempt(.check, accuracy: 1, cpm: 227, index: 1),
+        attempt(.refresh, accuracy: 0.98, cpm: 280, index: 1),
+    ]
+    let overview = LessonOverview.make(lessonId: "ru2.s1.01", targetCpm: 60, sessions: sessions, storedStars: 0)
+    #expect(overview.speed(stored: 280) == 227)
+    #expect(overview.steps.last?.cpmInBest == 227)
+    let words = LessonOverview.make(lessonId: "ru2.s1.01", targetCpm: 60, sessions: [sessions[0]], storedStars: 0)
+    #expect(words.speed(stored: 150) == 150)
 }

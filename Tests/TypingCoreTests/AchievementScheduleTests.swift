@@ -322,8 +322,7 @@ private func recordLessonStep(_ run: CourseRun, _ lesson: Lesson, index: Int, fa
     guard let target = run.course.targetCpm(for: lesson.id) else { return }
     let history = run.checks[lesson.id, default: []].map { (cpm: $0.cpm, accuracy: $0.accuracy) }
     let stats = (run.bestStep[lesson.id] ?? [:]).sorted { $0.key < $1.key }.map { entry in
-        StepStat(kind: entry.value.kind, bestAccuracy: entry.value.accuracy, errorsInBest: 0, cpmInBest: 0,
-                 bestCpm: 0, stepIndex: entry.key)
+        StepStat(kind: entry.value.kind, bestAccuracy: entry.value.accuracy, errorsInBest: 0, cpmInBest: 0, stepIndex: entry.key)
     }
     let stars = LessonScoring.effectiveStars(history: history, steps: stats, targetCpm: target, passed: false,
                                              storedStars: 0, storedScale: .fiveStar)

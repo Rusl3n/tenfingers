@@ -160,7 +160,7 @@ import Testing
 // кроме проверки лучшая попытка не больше 2 ошибок на 100 знаков.
 
 private func stat(_ kind: ExerciseKind, accuracy: Double, errors: Int = 0, index: Int? = nil) -> StepStat {
-    StepStat(kind: kind, bestAccuracy: accuracy, errorsInBest: errors, cpmInBest: 80, bestCpm: 80, stepIndex: index)
+    StepStat(kind: kind, bestAccuracy: accuracy, errorsInBest: errors, cpmInBest: 80, stepIndex: index)
 }
 
 private func summary(_ kind: ExerciseKind, lessonId: String = "ru.1.5", accuracy: Double, errors: Int,
@@ -282,6 +282,5 @@ private func summary(_ kind: ExerciseKind, lessonId: String = "ru.1.5", accuracy
     // Шаги урока для пятой звезды: «Освежить» — не шаг, мешать чистоте не может.
     let dirty = summary(.words, lessonId: "ru2.s1.01", accuracy: 0.9, errors: 12, cpm: 70)
     #expect(stars(sessions + [summary(.refresh, lessonId: "ru2.s1.01", accuracy: 0.5, errors: 50, cpm: 200), dirty]) == 3)
-    #expect(LessonScoring.uncleanSteps([StepStat(kind: .refresh, bestAccuracy: 0.5, errorsInBest: 9, cpmInBest: 1,
-                                                  bestCpm: 1)]).isEmpty)
+    #expect(LessonScoring.uncleanSteps([StepStat(kind: .refresh, bestAccuracy: 0.5, errorsInBest: 9, cpmInBest: 1)]).isEmpty)
 }

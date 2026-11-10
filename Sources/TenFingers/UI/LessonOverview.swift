@@ -8,6 +8,12 @@ struct LessonOverview: Equatable {
 
     var errors: Int? { LessonStepStats.totalErrors(steps) }
 
+    /// Скорость строки урока — лучшей (самой точной, затем самой быстрой) проверки урока, как в строке проверки
+    /// среди шагов, а не самая высокая скорость проверок. Проверок в истории нет — `stored` (`LessonProgress.bestCpm`).
+    func speed(stored: Double) -> Double {
+        steps.last { $0.kind.isLessonCheck }?.cpmInBest ?? stored
+    }
+
     /// Звёзды — `LessonScoring.effectiveStars`: `storedStars` (из базы) нужны, только если в истории нет ни одной
     /// проверки урока, а у пройденного урока (`isPassed`) их не меньше одной.
     static func make(lessonId: String, targetCpm: Int, sessions: [SessionSummary], storedStars: Int,
